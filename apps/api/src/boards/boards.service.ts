@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Board } from '../generated/prisma/client.js';
+import type { Board, Column } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from './board-access.js';
 
@@ -8,7 +8,12 @@ export interface NewBoard {
 }
 
 // The columns every new board starts with, in order. People can change them later.
-export const DEFAULT_COLUMN_NAMES = ['To do', 'In progress', 'Done'] as const;
+const DONE_COLUMN_NAME = 'Done';
+export const DEFAULT_COLUMN_NAMES = [
+  'To do',
+  'In progress',
+  DONE_COLUMN_NAME,
+] as const;
 
 export const GENERAL_THREAD_TITLE = 'General';
 
@@ -41,6 +46,7 @@ export class BoardsService {
           create: DEFAULT_COLUMN_NAMES.map((name, position) => ({
             name,
             position,
+            isDone: name === DONE_COLUMN_NAME,
           })),
         },
         threads: { create: { kind: 'GENERAL', title: GENERAL_THREAD_TITLE } },
@@ -60,6 +66,26 @@ export class BoardsService {
   findBoardForUser(boardId: string, userId: string): Promise<Board | null> {
     return this.prisma.board.findFirst({
       where: { id: boardId, ...boardsVisibleTo(userId) },
+    });
+  }
+
+  // Marks a column as a done column, or not. Moving a card into a done
+  // column completes it.
+  async setColumnDone(
+    userId: string,
+    columnId: string,
+    isDone: boolean,
+  ): Promise<Column> {
+    const column = await this.prisma.column.findFirst({
+      where: { id: columnId, board: boardsVisibleTo(userId) },
+      select: { id: true },
+    });
+    if (!column) {
+      throw new NotFoundException('Column not found');
+    }
+    return this.prisma.column.update({
+      where: { id: column.id },
+      data: { isDone },
     });
   }
 }

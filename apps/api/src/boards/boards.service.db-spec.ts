@@ -53,6 +53,20 @@ describe('BoardsService (database)', () => {
       ]);
     });
 
+    it('marks only the Done column as a done column', async () => {
+      const { ana, project } = await setUp();
+
+      const board = await boards.createBoard(ana.id, project.id, {
+        name: 'Sprint 1',
+      });
+
+      const columns = await prisma.column.findMany({
+        where: { boardId: board.id },
+        orderBy: { position: 'asc' },
+      });
+      expect(columns.map((c) => c.isDone)).toEqual([false, false, true]);
+    });
+
     it('gives the board one general thread with no card', async () => {
       const { ana, project } = await setUp();
 
@@ -115,6 +129,39 @@ describe('BoardsService (database)', () => {
       await expect(
         boards.findBoardForUser(board.id, ben.id),
       ).resolves.toBeNull();
+    });
+  });
+
+  describe('setColumnDone', () => {
+    it('marks and unmarks a done column', async () => {
+      const { ana, project } = await setUp();
+      const board = await boards.createBoard(ana.id, project.id, {
+        name: 'Sprint 1',
+      });
+      const toDo = await prisma.column.findFirstOrThrow({
+        where: { boardId: board.id, position: 0 },
+      });
+
+      await expect(
+        boards.setColumnDone(ana.id, toDo.id, true),
+      ).resolves.toMatchObject({ isDone: true });
+      await expect(
+        boards.setColumnDone(ana.id, toDo.id, false),
+      ).resolves.toMatchObject({ isDone: false });
+    });
+
+    it('refuses someone who is not a member of the project', async () => {
+      const { ana, ben, project } = await setUp();
+      const board = await boards.createBoard(ana.id, project.id, {
+        name: 'Sprint 1',
+      });
+      const toDo = await prisma.column.findFirstOrThrow({
+        where: { boardId: board.id, position: 0 },
+      });
+
+      await expect(boards.setColumnDone(ben.id, toDo.id, true)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });
