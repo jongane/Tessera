@@ -1,6 +1,6 @@
 # Card features v1
 
-Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Nothing here is built yet.
+Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 4 and 5 are built in the API. The rest is not built yet.
 
 Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
 
@@ -33,12 +33,14 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - **Progress** on a parent ("3 of 5 complete") counts its **direct subtasks only**.
 - A parent is **never completed automatically**. Completing a parent while some subtasks are open asks: "3 subtasks are still open. Complete anyway?"
 - **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent.
+  - A direct subtask that has subtasks of its own **cannot be chosen for deletion** until the user has decided what happens to its subtasks. This stops one click deleting a whole branch. (Agreed 2026-10-27.)
 
 ## 5. Completing cards
 
 - Each card has a **complete** tick.
 - Each board marks one or more columns as **"done" columns**. On new boards the Done column is marked.
-- Moving a card into a done column ticks it complete. Ticking a card complete offers to move it to the board's done column.
+- Moving a card into a done column ticks it complete, and moving it out of a done column into one that is not done unticks it. Ticking a card complete offers to move it to the board's done column.
+- Unticking a card that is in a done column **leaves it where it is**. (Agreed 2026-10-27.)
 - When a subtask is completed, its parent's progress updates.
 
 ## 6. Estimates and time
@@ -79,9 +81,14 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 ## 10. Permissions
 
 - Any project member can create, edit, move and complete cards, and log time.
+- Any project member can mark which columns are done columns. (Agreed 2026-10-27.)
 - Deleting a card: the person who created it, or an admin.
 - Editing other people's time entries, or any entry older than 24 hours: admins only.
 - Renaming or deleting labels, setting the project code, and changing the relationship colours: admins only.
+
+## 11. Boards
+
+- A board cannot be deleted while any of its cards have subtasks on another board. Those subtasks must be moved or deleted first, so no subtask is left with its parent gone. Deleting boards is not built yet. (Agreed 2026-10-27.)
 
 ## Later (not in the first version)
 
