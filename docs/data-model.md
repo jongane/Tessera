@@ -61,7 +61,7 @@ erDiagram
 | ProjectMember | Who belongs to a project and their role | project_id, user_id, role (admin or member) |
 | Board | Kanban board and chat space | id, project_id, name |
 | Column | A kanban column | id, board_id, name, position |
-| Card | Task or user story | id, board_id, column_id, title, description, position |
+| Card | Task or user story | id, board_id, column_id, title, description, position (more fields planned: see below) |
 | Thread | A chat conversation | id, board_id, card_id (optional), kind |
 | Message | One chat message | id, thread_id, author_id, body, created_at, deleted_at |
 | File | Uploaded file metadata | id, project_id, uploader_id, filename, mime_type, size, storage_key, card_id or message_id |
@@ -95,6 +95,46 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 - **Generic Link table.** One table is simple, but the database cannot check that the target exists. The alternative is separate tables for each kind of link, which is stricter but longer. Revisit when links are built.
 - **AI settings.** AI is switched on per project by an admin, so the setting lives in `ProjectAiConfig`. Once on, every thread in the project can be sent to the AI provider. A way to exclude individual threads may be added later.
 - **API keys.** Stored encrypted and never returned by the API.
+
+## Card features (planned)
+
+[card-features.md](card-features.md) describes what cards will do. This section lists the database changes it needs. They will be added one pull request at a time, each with its own database tests.
+
+### Changes to existing tables
+
+| Table | New fields | Why |
+|---|---|---|
+| Project | code (2 to 6 capitals, unique), next_card_number, highlight_colours | Card numbers like `WEB-12`; relationship colours are a project setting only admins change |
+| Column | is_done | Moving a card into a done column ticks it complete |
+| Card | project_id, parent_id (nullable), number_path (e.g. `12.1.2`), depth, is_complete, completed_at, priority, due_at, due_has_time, estimate_minutes, created_by | Subtasks, card numbers, completion, priority, due dates, estimates, delete permission |
+
+### New tables
+
+| Entity | Purpose | Key fields |
+|---|---|---|
+| CardAssignee | Who is assigned to a card | card_id, user_id, is_owner |
+| ChecklistItem | One tick-box item on a card | id, card_id, text, is_done, position |
+| Label | A project-wide label | id, project_id, name, colour |
+| CardLabel | Which labels a card has | card_id, label_id |
+| TimeEntry | Time someone spent on a card | id, card_id, user_id, work_date, minutes, note, started_at, ended_at |
+| RunningTimer | A timer that is running now | user_id (primary key, so one per person), card_id, started_at |
+| CardActivity | The card's history (Activity tab) | id, card_id, actor_id, kind, details, created_at |
+| CardNumberAlias | Old card numbers that still lead to the card | project_id, number_text, card_id |
+| ProjectCodeAlias | Old project codes that still work | project_id, code |
+
+### Rules the database will enforce
+
+- A parent and its subtask are in the same project (`card.project_id` with composite foreign keys), but may be on different boards.
+- Subtasks go at most 5 levels deep (`depth` between 0 and 4, check constraint).
+- A card number is unique within its project, and an alias never clashes with a live number.
+- A card has at most one owner among its assignees (partial unique index), and assignees must be project members.
+- A label name is unique within its project.
+- Time entries have a positive duration.
+
+### Decisions still to make while building
+
+- **Rollups.** Estimate and time totals are worked out with a recursive query when read, not stored. Stored totals can drift out of date, so they will only be added if reading becomes slow.
+- **Number paths.** `number_path` is stored, and the subtasks' paths are rewritten when a card moves to another parent. The old paths are saved as aliases at the same time.
 
 ## Not in this version
 
