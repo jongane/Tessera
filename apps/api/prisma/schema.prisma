@@ -105,6 +105,8 @@ model Column {
   boardId   String   @map("board_id") @db.Uuid
   name      String
   position  Int
+  // Moving a card into a done column completes it. New boards mark Done.
+  isDone    Boolean  @default(false) @map("is_done")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards     Card[]
@@ -118,31 +120,51 @@ model Column {
 
 // A task or user story. Cards are shown in `position` order within a column.
 model Card {
-  id          String   @id @default(uuid()) @db.Uuid
-  projectId   String   @map("project_id") @db.Uuid
-  boardId     String   @map("board_id") @db.Uuid
-  // The card's number without the project code: "12" for WEB-12.
-  // Subtasks will extend it ("12.1"). Unique within the project; format
-  // checked by a constraint in the migration.
-  numberPath  String   @map("number_path")
-  columnId    String   @map("column_id") @db.Uuid
-  title       String
-  description String?
-  position    Int
-  assigneeId  String?  @map("assignee_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                String            @id @default(uuid()) @db.Uuid
+  projectId         String            @map("project_id") @db.Uuid
+  boardId           String            @map("board_id") @db.Uuid
+  // The card's number without the project code: "12" for WEB-12, "12.1"
+  // for its first subtask. Unique within the project; format checked by a
+  // constraint in the migration.
+  numberPath        String            @map("number_path")
+  // The number the card's next subtask gets ("12.3" when this is 3). Only
+  // ever goes up, so a subtask number is never reused.
+  nextSubtaskNumber Int               @default(1) @map("next_subtask_number")
+  // A subtask's parent card: same project, any board. Null for a top-level card.
+  parentId          String?           @map("parent_id") @db.Uuid
+  // 0 for a top-level card, 1 for its subtasks, down to 4 (5 levels in all).
+  // Checked by constraints in the migration.
+  depth             Int               @default(0)
+  isComplete        Boolean           @default(false) @map("is_complete")
+  // Set exactly when isComplete is true (check constraint in the migration).
+  completedAt       DateTime?         @map("completed_at") @db.Timestamptz(3)
+  columnId          String            @map("column_id") @db.Uuid
+  title             String
+  description       String?
+  position          Int
+  assigneeId        String?           @map("assignee_id") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   // Points at (board, project) so the card's project is always its board's.
-  board       Board    @relation(fields: [boardId, projectId], references: [id, projectId], onDelete: Cascade)
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  board             Board             @relation(fields: [boardId, projectId], references: [id, projectId], onDelete: Cascade)
+  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // NoAction: a column with cards cannot be deleted, but deleting the whole
   // board still removes both (the check runs at the end of the statement).
-  column      Column   @relation(fields: [columnId, boardId], references: [id, boardId], onDelete: NoAction)
-  assignee    User?    @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
-  thread      Thread?
+  column            Column            @relation(fields: [columnId, boardId], references: [id, boardId], onDelete: NoAction)
+  assignee          User?             @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  thread            Thread?
+  // Points at (parent, project) so a parent is always in the same project.
+  // NoAction: a card with subtasks cannot be deleted directly;
+  // CardsService.deleteCard asks what to do with each subtask first.
+  parent            Card?             @relation("Subtasks", fields: [parentId, projectId], references: [id, projectId], onDelete: NoAction, onUpdate: NoAction)
+  subtasks          Card[]            @relation("Subtasks")
+  oldNumbers        CardNumberAlias[]
 
   // Lets threads point at (card, board) together. See Thread.card.
   @@unique([id, boardId])
   @@unique([projectId, numberPath])
+  // Lets subtasks and old numbers point at (card, project) together.
+  @@unique([id, projectId])
+  @@index([parentId])
   @@index([boardId])
   @@index([columnId, position])
   @@index([assigneeId])
@@ -183,4 +205,20 @@ model Thread {
   @@unique([boardId], map: "threads_one_general_per_board", where: raw("kind = 'GENERAL'"))
   @@index([boardId])
   @@map("threads")
+}
+
+// Numbers a card used to have, so they still lead to it. A subtask's number
+// changes when it moves to another parent (WEB-12.1 becomes WEB-15.3).
+// New numbers are always fresh (from counters that only go up), so an old
+// number can never belong to a live card.
+model CardNumberAlias {
+  projectId  String   @map("project_id") @db.Uuid
+  numberPath String   @map("number_path")
+  cardId     String   @map("card_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  card       Card     @relation(fields: [cardId, projectId], references: [id, projectId], onDelete: Cascade)
+
+  @@id([projectId, numberPath])
+  @@index([cardId])
+  @@map("card_number_aliases")
 }
