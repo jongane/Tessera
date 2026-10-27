@@ -77,6 +77,17 @@ erDiagram
 4. A file is attached to exactly one thing: a card or a message.
 5. Deleting a message marks it deleted (`deleted_at`); it is not erased, so history stays consistent.
 6. All IDs are UUIDs, so they do not reveal how many records exist.
+7. A card's column, and a thread's card, are on the same board as the card or thread (composite foreign keys).
+8. A column that still has cards cannot be deleted. A card that still has a thread cannot be deleted directly; deleting a card through the API unlinks its thread first, so the chat is kept.
+9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and threads.
+
+Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general thread is the job of `BoardsService.createBoard`, which creates it with the board.
+
+## Behaviour decided so far
+
+- A new board starts with the columns To do, In progress and Done, and its general thread.
+- A new card always gets its own thread, created with it. A thread made on its own can be linked to a card later, and a link can be removed.
+- New cards, and cards moved to another column, go to the bottom of that column.
 
 ## Decisions and trade-offs
 
