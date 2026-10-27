@@ -38,6 +38,7 @@ Teams running complex projects usually split their work across a chat tool (e.g.
 - **Card**: a task or user story. Has at most one thread (exactly one once created).
 - **Thread**: a chat conversation inside a board. May be linked to a card.
 - **Link**: a relationship between cards and threads.
+- **Subtask**: a card that has a parent card. See [docs/card-features.md](docs/card-features.md).
 
 ## AI assistant (central theme)
 

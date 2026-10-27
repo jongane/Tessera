@@ -1,0 +1,88 @@
+# Card features v1
+
+Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Nothing here is built yet.
+
+Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
+
+## 1. Card numbers
+
+- Each project has a **project code** of 2 to 6 capital letters. The admin sets it when creating the project, with a suggestion made from the project name.
+- Cards are numbered within the project: `WEB-12`. Subtasks extend their parent's number: `WEB-12.1`, `WEB-12.1.2`.
+- When a subtask moves to another parent its number changes, for example from `WEB-12.1` to `WEB-15.3`. The old number keeps working as an alias: searching for it or clicking it opens the card. The card's history records the change.
+- The project code can be changed later. Old codes keep working as aliases.
+
+## 2. Description and checklists
+
+- The description is edited with a rich-text toolbar and stored as Markdown.
+- **Checklists** are separate from the description. They are tick-box items under the card, each with text and a tick, and they can be reordered.
+- Any checklist item can be **turned into a subtask**.
+- A checklist's progress ("2 of 4") shows only on its own card. It does not count towards a parent's progress.
+
+## 3. Assignees
+
+- A card can have several assignees, and **one of them is the owner**.
+- Only project members can be assigned.
+- A new subtask starts unassigned. It does not copy the parent's assignees.
+
+## 4. Subtasks
+
+- A subtask is an ordinary card with a parent card. It has its own column, assignees, estimate, time, checklist and thread.
+- Subtasks can be nested **up to 5 levels** deep.
+- A subtask can be on **any board in the same project**, but never in another project.
+- The parent card shows a **list of its subtasks**, and each subtask shows its parent.
+- **Progress** on a parent ("3 of 5 complete") counts its **direct subtasks only**.
+- A parent is **never completed automatically**. Completing a parent while some subtasks are open asks: "3 subtasks are still open. Complete anyway?"
+- **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent.
+
+## 5. Completing cards
+
+- Each card has a **complete** tick.
+- Each board marks one or more columns as **"done" columns**. On new boards the Done column is marked.
+- Moving a card into a done column ticks it complete. Ticking a card complete offers to move it to the board's done column.
+- When a subtask is completed, its parent's progress updates.
+
+## 6. Estimates and time
+
+- Estimates are in **hours and minutes**.
+- **Estimate rollup:** a card with subtasks shows the sum of its subtasks' estimates, at every level. Its own estimate is no longer counted. It is kept and shown greyed out as the "original estimate".
+- **Time spent rollup:** a card's total is its own logged time plus all its subtasks' time, at every level. Time logged directly on a parent still counts.
+- **Time entries** hold the person, card, date, duration and an optional note. A timer entry also stores its start and end times.
+- Time can be added with a **start/stop timer** or **typed in by hand**. Stopping a timer creates an ordinary entry.
+- **One running timer per person.** Starting a timer while another is running warns that the first will stop. If the person goes ahead, the first timer stops and its time is saved as an entry.
+- **Editing entries:** a person can edit or delete their own entries for 24 hours. After that only admins can. Every change is recorded in the card's history.
+- Everyone in the project can see all time entries.
+
+## 7. Seeing related cards
+
+- Selecting a card outlines its relatives in colours that depend on the relationship, and fades the other cards:
+  - selected card: dark outline
+  - parent and higher levels: blue
+  - direct subtasks: orange
+  - deeper subtasks: paler orange
+  - sibling subtasks (same parent): grey
+- Each highlight also has a small text tag such as "Parent" or "Subtask", so colour is never the only signal.
+- The colours are a **project setting that only admins can change**, so everyone in the project sees the same colours.
+- Related cards on other boards are listed in the card's panel, with links to them.
+
+## 8. Other card fields
+
+- **Priority:** None, Low, Medium, High or Urgent.
+- **Due date:** a date, with an optional time. If a subtask is due after its parent, both cards show a warning. The date is not blocked.
+- **Labels** are shared across the whole project and each has a name and a colour. Any member can create a label. Only admins can rename or delete one.
+- **Attachments:** a file can be attached to the card itself or to a message in its thread. The card lists files from both. The default limit is 100 MB per file, and admins of a self-hosted server can change it.
+
+## 9. History
+
+- Each card has an **Activity** tab. It records every field change, move, completion, assignment, subtask change and time-entry edit, with who made it and when.
+- History lines are **not** posted into the card's thread.
+
+## 10. Permissions
+
+- Any project member can create, edit, move and complete cards, and log time.
+- Deleting a card: the person who created it, or an admin.
+- Editing other people's time entries, or any entry older than 24 hours: admins only.
+- Renaming or deleting labels, setting the project code, and changing the relationship colours: admins only.
+
+## Later (not in the first version)
+
+Start dates (needed for the Gantt chart), links between cards ("blocks", "relates to"), watchers and notifications, and story points as an alternative to hours.
