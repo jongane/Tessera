@@ -1,0 +1,6 @@
+# Always use LF line endings in the repository
+* text=auto eol=lf
+
+# Windows-only scripts need CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
