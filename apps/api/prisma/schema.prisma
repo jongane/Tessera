@@ -28,12 +28,20 @@ model User {
 }
 
 model Project {
-  id          String          @id @default(uuid()) @db.Uuid
-  name        String
-  description String?
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  members     ProjectMember[]
-  boards      Board[]
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String
+  description    String?
+  // Short capitals that start card numbers, e.g. WEB in WEB-12.
+  // Must be 2 to 6 capital letters (check constraint in the migration).
+  code           String          @unique @db.VarChar(6)
+  // The number the next top-level card gets. Only ever goes up, so numbers
+  // are never reused, even after a card is deleted.
+  nextCardNumber Int             @default(1) @map("next_card_number")
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  members        ProjectMember[]
+  boards         Board[]
+  codes          ProjectCode[]
+  cards          Card[]
 
   @@map("projects")
 }
@@ -60,6 +68,20 @@ model ProjectMember {
   @@map("project_members")
 }
 
+// Every code a project has ever had, its current one included, so old card
+// numbers like OLD-12 still lead to the card after the code changes.
+// The code is the primary key, so no two projects can ever share a code,
+// whether it is current or old.
+model ProjectCode {
+  code      String   @id @db.VarChar(6)
+  projectId String   @map("project_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_codes")
+}
+
 // A kanban board and chat space inside a project.
 model Board {
   id        String   @id @default(uuid()) @db.Uuid
@@ -71,6 +93,8 @@ model Board {
   cards     Card[]
   threads   Thread[]
 
+  // Lets cards point at (board, project) together. See Card.board.
+  @@unique([id, projectId])
   @@index([projectId])
   @@map("boards")
 }
@@ -95,14 +119,21 @@ model Column {
 // A task or user story. Cards are shown in `position` order within a column.
 model Card {
   id          String   @id @default(uuid()) @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
   boardId     String   @map("board_id") @db.Uuid
+  // The card's number without the project code: "12" for WEB-12.
+  // Subtasks will extend it ("12.1"). Unique within the project; format
+  // checked by a constraint in the migration.
+  numberPath  String   @map("number_path")
   columnId    String   @map("column_id") @db.Uuid
   title       String
   description String?
   position    Int
   assigneeId  String?  @map("assignee_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  // Points at (board, project) so the card's project is always its board's.
+  board       Board    @relation(fields: [boardId, projectId], references: [id, projectId], onDelete: Cascade)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // NoAction: a column with cards cannot be deleted, but deleting the whole
   // board still removes both (the check runs at the end of the statement).
   column      Column   @relation(fields: [columnId, boardId], references: [id, boardId], onDelete: NoAction)
@@ -111,6 +142,7 @@ model Card {
 
   // Lets threads point at (card, board) together. See Thread.card.
   @@unique([id, boardId])
+  @@unique([projectId, numberPath])
   @@index([boardId])
   @@index([columnId, position])
   @@index([assigneeId])

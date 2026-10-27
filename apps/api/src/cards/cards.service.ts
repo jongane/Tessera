@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
+import { parseCardReference } from './card-number.js';
 
 export interface NewCard {
   title: string;
@@ -15,25 +16,55 @@ export class CardsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // A new card always gets its own thread, saved in the same step.
-  // It goes to the bottom of the column.
+  // It goes to the bottom of the column and takes the project's next number.
   async createCard(
     userId: string,
     columnId: string,
     card: NewCard,
   ): Promise<Card> {
     const column = await this.findVisibleColumn(userId, columnId);
+    const { projectId } = column.board;
 
     return this.prisma.$transaction(async (tx) =>
       tx.card.create({
         data: {
           ...card,
+          projectId,
           boardId: column.boardId,
           columnId,
+          numberPath: String(await takeNextCardNumber(tx, projectId)),
           position: await nextPosition(tx, columnId),
           thread: { create: { title: card.title } },
         },
       }),
     );
+  }
+
+  // Finds a card by a number such as "WEB-12". The project's old codes work
+  // too. Null when the number is badly formed, unknown, or the user cannot
+  // see the card.
+  async findCardByNumber(
+    userId: string,
+    reference: string,
+  ): Promise<Card | null> {
+    const parsed = parseCardReference(reference);
+    if (!parsed) {
+      return null;
+    }
+    const projectCode = await this.prisma.projectCode.findUnique({
+      where: { code: parsed.code },
+      select: { projectId: true },
+    });
+    if (!projectCode) {
+      return null;
+    }
+    return this.prisma.card.findFirst({
+      where: {
+        projectId: projectCode.projectId,
+        numberPath: parsed.numberPath,
+        board: boardsVisibleTo(userId),
+      },
+    });
   }
 
   // Moves a card to the bottom of another column on the same board.
@@ -78,6 +109,7 @@ export class CardsService {
   private async findVisibleColumn(userId: string, columnId: string) {
     const column = await this.prisma.column.findFirst({
       where: { id: columnId, board: boardsVisibleTo(userId) },
+      include: { board: { select: { projectId: true } } },
     });
     if (!column) {
       throw new NotFoundException('Column not found');
@@ -106,4 +138,19 @@ async function nextPosition(
     _max: { position: true },
   });
   return (_max.position ?? -1) + 1;
+}
+
+// Takes the project's next card number and moves its counter on. The update
+// locks the project's row until the transaction ends, so two cards created
+// at the same moment can never get the same number.
+async function takeNextCardNumber(
+  tx: Prisma.TransactionClient,
+  projectId: string,
+): Promise<number> {
+  const project = await tx.project.update({
+    where: { id: projectId },
+    data: { nextCardNumber: { increment: 1 } },
+    select: { nextCardNumber: true },
+  });
+  return project.nextCardNumber - 1;
 }

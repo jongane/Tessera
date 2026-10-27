@@ -166,4 +166,100 @@ describe('CardsService (database)', () => {
       await expect(prisma.card.count()).resolves.toBe(1);
     });
   });
+
+  describe('card numbers', () => {
+    it('numbers cards 1, 2, 3 across all boards in a project', async () => {
+      const { ana, project, toDo } = await setUp();
+      const otherBoard = await boards.createBoard(ana.id, project.id, {
+        name: 'Sprint 2',
+      });
+      const otherColumn = await prisma.column.findFirstOrThrow({
+        where: { boardId: otherBoard.id },
+      });
+
+      const first = await cards.createCard(ana.id, toDo.id, { title: 'A' });
+      const second = await cards.createCard(ana.id, otherColumn.id, {
+        title: 'B',
+      });
+      const third = await cards.createCard(ana.id, toDo.id, { title: 'C' });
+
+      expect([first, second, third].map((c) => c.numberPath)).toEqual([
+        '1',
+        '2',
+        '3',
+      ]);
+    });
+
+    it('gives cards created at the same moment different numbers', async () => {
+      const { ana, toDo } = await setUp();
+
+      const created = await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+          cards.createCard(ana.id, toDo.id, { title: `Card ${i}` }),
+        ),
+      );
+
+      const numbers = created.map((c) => Number(c.numberPath));
+      expect(new Set(numbers).size).toBe(10);
+      expect(Math.max(...numbers)).toBe(10);
+    });
+
+    it('never reuses the number of a deleted card', async () => {
+      const { ana, toDo } = await setUp();
+      const first = await cards.createCard(ana.id, toDo.id, { title: 'A' });
+      await cards.deleteCard(ana.id, first.id);
+
+      const next = await cards.createCard(ana.id, toDo.id, { title: 'B' });
+
+      expect(next.numberPath).toBe('2');
+    });
+  });
+
+  describe('findCardByNumber', () => {
+    async function setUpWithCard() {
+      const setup = await setUp();
+      const card = await cards.createCard(setup.ana.id, setup.toDo.id, {
+        title: 'Login page',
+      });
+      return { ...setup, card };
+    }
+
+    it('finds a card by its number, in any letter case', async () => {
+      const { ana, project, card } = await setUpWithCard();
+
+      await expect(
+        cards.findCardByNumber(ana.id, `${project.code}-1`),
+      ).resolves.toMatchObject({ id: card.id });
+      await expect(
+        cards.findCardByNumber(ana.id, `${project.code.toLowerCase()}-1`),
+      ).resolves.toMatchObject({ id: card.id });
+    });
+
+    it("finds a card by its project's old code", async () => {
+      const { ana, project, card } = await setUpWithCard();
+      const oldCode = project.code;
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { code: 'NEW', codes: { create: { code: 'NEW' } } },
+      });
+
+      await expect(
+        cards.findCardByNumber(ana.id, `${oldCode}-1`),
+      ).resolves.toMatchObject({ id: card.id });
+    });
+
+    it('finds nothing for an unknown number, a badly formed one, or a non-member', async () => {
+      const { ana, ben, project } = await setUpWithCard();
+
+      await expect(
+        cards.findCardByNumber(ana.id, `${project.code}-99`),
+      ).resolves.toBeNull();
+      await expect(
+        cards.findCardByNumber(ana.id, 'not a number'),
+      ).resolves.toBeNull();
+      await expect(
+        cards.findCardByNumber(ben.id, `${project.code}-1`),
+      ).resolves.toBeNull();
+    });
+  });
 });

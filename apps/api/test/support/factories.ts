@@ -13,14 +13,29 @@ export function createUser(prisma: PrismaService, name: string) {
   });
 }
 
-// A project with `adminId` as its admin.
+// Project codes for test projects: TAA, TAB, TAC, ...
+let projectCount = 0;
+function nextTestCode(): string {
+  const n = projectCount++;
+  const letter = (i: number) => String.fromCharCode(65 + (i % 26));
+  return 'T' + letter(Math.floor(n / 26)) + letter(n);
+}
+
+// A project with `adminId` as its admin. Its code is also registered in
+// project_codes, as ProjectsService.createProject does.
 export function createProject(
   prisma: PrismaService,
   adminId: string,
   name = 'Website',
+  code = nextTestCode(),
 ) {
   return prisma.project.create({
-    data: { name, members: { create: { userId: adminId, role: 'ADMIN' } } },
+    data: {
+      name,
+      code,
+      codes: { create: { code } },
+      members: { create: { userId: adminId, role: 'ADMIN' } },
+    },
   });
 }
 
@@ -36,4 +51,33 @@ export async function createBareBoard(
     data: { boardId: board.id, name: 'To do', position: 0 },
   });
   return { board, column };
+}
+
+// A bare card with no thread, for tests of the database rules. It takes the
+// next number from its project's counter, as CardsService.createCard does.
+export async function createBareCard(
+  prisma: PrismaService,
+  card: {
+    boardId: string;
+    columnId: string;
+    title?: string;
+    assigneeId?: string;
+  },
+) {
+  const board = await prisma.board.findUniqueOrThrow({
+    where: { id: card.boardId },
+  });
+  const project = await prisma.project.update({
+    where: { id: board.projectId },
+    data: { nextCardNumber: { increment: 1 } },
+  });
+  return prisma.card.create({
+    data: {
+      title: 'Login page',
+      ...card,
+      projectId: board.projectId,
+      numberPath: String(project.nextCardNumber - 1),
+      position: 0,
+    },
+  });
 }
