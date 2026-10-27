@@ -26,7 +26,7 @@ TypeScript throughout:
 |---|---|
 | API | [NestJS](https://nestjs.com/) |
 | Web app | [React](https://react.dev/) with [Vite](https://vite.dev/) |
-| Database (planned) | PostgreSQL with Prisma |
+| Database | PostgreSQL with Prisma |
 | File storage (planned) | MinIO |
 | Packaging (planned) | Docker Compose, so you can host it yourself |
 | Tests | [Vitest](https://vitest.dev/) and Testing Library |
@@ -47,11 +47,18 @@ CLAUDE.md   Rules for AI coding assistants
 
 You need [Node.js](https://nodejs.org/) version 24 or newer (the exact version is in [.nvmrc](.nvmrc)) and Git.
 
+You also need [Docker Desktop](https://www.docker.com/products/docker-desktop/), which runs the PostgreSQL database.
+
 ```powershell
 git clone https://github.com/jongane/Tessera.git
 cd Tessera
 npm install
+Copy-Item apps/api/.env.example apps/api/.env
+docker compose up -d
+npm run db:migrate -w apps/api
 ```
+
+`docker compose up -d` starts PostgreSQL in the background. `docker compose down` stops it and keeps your data.
 
 Then start each app in its own terminal:
 
@@ -70,6 +77,7 @@ Both reload when you save a file. Stop them with Ctrl+C.
 |---|---|---|
 | Run tests | `npm test -w apps/api` | `npm test -w apps/web` |
 | Run tests on every save | `npm run test:watch -w apps/api` | `npm run test:watch -w apps/web` |
+| Database tests | `npm run test:db -w apps/api` | |
 | End-to-end tests | `npm run test:e2e -w apps/api` | |
 | Lint | `npm run lint -w apps/api` | `npm run lint -w apps/web` |
 | Build | `npm run build -w apps/api` | `npm run build -w apps/web` |

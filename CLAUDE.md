@@ -18,7 +18,7 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 - Work on a feature branch, never directly on `main`.
 - Small commits with Conventional Commit messages (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`).
 - Changes reach `main` through a pull request.
-- CI (GitHub Actions, `.github/workflows/ci.yml`) runs lint, tests and build for both apps on every pull request. Do not merge while it is red.
+- CI (GitHub Actions, `.github/workflows/ci.yml`) runs lint, tests (including database tests against PostgreSQL) and build for both apps on every pull request. Do not merge while it is red.
 
 ## Testing (test-driven development)
 1. Write a failing test first.
@@ -32,6 +32,7 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 ## Code standards
 - TypeScript strict mode. No `any` without a comment saying why.
 - Validate all input at the API boundary.
+- Database changes go through Prisma migrations (`prisma/migrations`), never by editing tables by hand. Each table change comes with a database test (`*.db-spec.ts`) against a real PostgreSQL.
 - Check permissions on every request: a user only sees projects they belong to.
 - Never commit secrets (API keys, passwords, .env files). Hash passwords.
 - Keep functions small and named for what they do.
@@ -57,11 +58,16 @@ Run from the repository root in PowerShell. `-w apps/api` means "run inside the 
 | Run API (auto-reload) | `npm run start:dev -w apps/api` |
 | Unit tests (once) | `npm test -w apps/api` |
 | Unit tests (watch) | `npm run test:watch -w apps/api` |
+| Database tests | `npm run test:db -w apps/api` |
 | End-to-end tests | `npm run test:e2e -w apps/api` |
+| New database migration | `npm run db:migrate -w apps/api -- --name <what-changed>` |
+| Browse the database | `npm run db:studio -w apps/api` |
 | Test coverage | `npm run test:cov -w apps/api` |
 | Lint | `npm run lint -w apps/api` |
 | Format | `npm run format -w apps/api` |
 | Build | `npm run build -w apps/api` |
+
+Database and end-to-end tests need PostgreSQL running: `docker compose up -d` (from the repository root) and an `apps/api/.env` copied from `apps/api/.env.example`.
 
 The API listens on http://localhost:3000. Stop a running server with Ctrl+C.
 
