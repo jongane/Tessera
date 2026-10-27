@@ -1,3 +1,5 @@
+// Loads settings such as DATABASE_URL from apps/api/.env.
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 

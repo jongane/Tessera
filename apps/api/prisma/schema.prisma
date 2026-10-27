@@ -1,0 +1,57 @@
+// Tessera database schema. See docs/data-model.md for the full design.
+// Times are stored with their time zone (timestamptz), as teams may be spread
+// across zones. Tables and columns use snake_case in the database (@@map / @map),
+// while TypeScript code uses camelCase.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String          @id @default(uuid()) @db.Uuid
+  email        String          @unique
+  displayName  String          @map("display_name")
+  passwordHash String          @map("password_hash")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  memberships  ProjectMember[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String          @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  members     ProjectMember[]
+
+  @@map("projects")
+}
+
+enum ProjectRole {
+  ADMIN
+  MEMBER
+
+  @@map("project_role")
+}
+
+// Who belongs to a project, and with which role.
+// A user can belong to a project only once (composite primary key).
+model ProjectMember {
+  projectId String      @map("project_id") @db.Uuid
+  userId    String      @map("user_id") @db.Uuid
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now()) @map("joined_at") @db.Timestamptz(3)
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
