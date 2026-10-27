@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { resetDatabase } from '../../test/support/reset-database.js';
 import {
   createBareBoard,
+  createBareCard,
   createProject,
   createUser,
 } from '../../test/support/factories.js';
@@ -38,9 +39,7 @@ describe('Board, card and thread rules (database)', () => {
   }
 
   function createCard(boardId: string, columnId: string, title = 'Login page') {
-    return prisma.card.create({
-      data: { boardId, columnId, title, position: 0 },
-    });
+    return createBareCard(prisma, { boardId, columnId, title });
   }
 
   it('allows only one general thread per board', async () => {
@@ -172,14 +171,10 @@ describe('Board, card and thread rules (database)', () => {
   it('keeps a card but clears its assignee when the user is deleted', async () => {
     const { board, column } = await setUp();
     const ben = await createUser(prisma, 'ben');
-    const card = await prisma.card.create({
-      data: {
-        boardId: board.id,
-        columnId: column.id,
-        title: 'Login page',
-        position: 0,
-        assigneeId: ben.id,
-      },
+    const card = await createBareCard(prisma, {
+      boardId: board.id,
+      columnId: column.id,
+      assigneeId: ben.id,
     });
 
     await prisma.user.delete({ where: { id: ben.id } });

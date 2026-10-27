@@ -1,10 +1,23 @@
-import { Injectable } from '@nestjs/common';
-import type { Project } from '../generated/prisma/client.js';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, type Project } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import {
+  codeCandidates,
+  normaliseProjectCode,
+  suggestProjectCode,
+} from './project-code.js';
 
 export interface NewProject {
   name: string;
   description?: string;
+  // 2 to 6 letters. Capitalised before saving.
+  code: string;
 }
 
 // Every read here takes the user's id, so a user can only ever
@@ -13,15 +26,86 @@ export interface NewProject {
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // The project and the creator's admin membership are saved together:
-  // if either fails, neither is saved.
-  createProject(creatorId: string, project: NewProject): Promise<Project> {
-    return this.prisma.project.create({
-      data: {
-        ...project,
-        members: { create: { userId: creatorId, role: 'ADMIN' } },
-      },
+  // The project, its code record and the creator's admin membership are
+  // saved together: if any fails, none is saved.
+  async createProject(
+    creatorId: string,
+    project: NewProject,
+  ): Promise<Project> {
+    const code = requireValidCode(project.code);
+
+    return this.withCodeConflictCheck(() =>
+      this.prisma.project.create({
+        data: {
+          ...project,
+          code,
+          codes: { create: { code } },
+          members: { create: { userId: creatorId, role: 'ADMIN' } },
+        },
+      }),
+    );
+  }
+
+  // The first free code made from a project name, for the "new project" form.
+  async suggestCode(name: string): Promise<string> {
+    for (const candidate of codeCandidates(suggestProjectCode(name))) {
+      const taken = await this.prisma.projectCode.findUnique({
+        where: { code: candidate },
+      });
+      if (!taken) {
+        return candidate;
+      }
+    }
+    throw new ConflictException('No free project code could be found');
+  }
+
+  // Only admins can change a project's code. The old code is kept, so card
+  // numbers that use it still lead to the card.
+  async changeProjectCode(
+    userId: string,
+    projectId: string,
+    newCode: string,
+  ): Promise<Project> {
+    const code = requireValidCode(newCode);
+    const membership = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } },
     });
+    if (!membership) {
+      throw new NotFoundException('Project not found');
+    }
+    if (membership.role !== 'ADMIN') {
+      throw new ForbiddenException('Only a project admin can change its code');
+    }
+
+    const existing = await this.prisma.projectCode.findUnique({
+      where: { code },
+    });
+    if (existing && existing.projectId !== projectId) {
+      throw codeTaken(code);
+    }
+
+    return this.withCodeConflictCheck(() =>
+      this.prisma.project.update({
+        where: { id: projectId },
+        data: {
+          code,
+          // Already recorded when switching back to one of its own old codes.
+          ...(existing ? {} : { codes: { create: { code } } }),
+        },
+      }),
+    );
+  }
+
+  // Finds a project by its current code or any old one.
+  async findProjectByCodeForUser(
+    code: string,
+    userId: string,
+  ): Promise<Project | null> {
+    const record = await this.prisma.projectCode.findUnique({
+      where: { code: code.toUpperCase() },
+      select: { projectId: true },
+    });
+    return record ? this.findProjectForUser(record.projectId, userId) : null;
   }
 
   listProjectsForUser(userId: string): Promise<Project[]> {
@@ -41,4 +125,36 @@ export class ProjectsService {
       where: { id: projectId, members: { some: { userId } } },
     });
   }
+
+  // Two people may pick the same free code at the same moment; the database
+  // refuses the second, and this turns that into a clear message.
+  private async withCodeConflictCheck(
+    save: () => Promise<Project>,
+  ): Promise<Project> {
+    try {
+      return await save();
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('That project code is already in use');
+      }
+      throw error;
+    }
+  }
+}
+
+function requireValidCode(code: string): string {
+  const normalised = normaliseProjectCode(code);
+  if (!normalised) {
+    throw new BadRequestException(
+      'A project code must be 2 to 6 letters, A to Z',
+    );
+  }
+  return normalised;
+}
+
+function codeTaken(code: string): ConflictException {
+  return new ConflictException(`The project code ${code} is already in use`);
 }
