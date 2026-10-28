@@ -17,6 +17,9 @@ import { insertSubtask } from '../cards/subtasks.service.js';
 const MAX_NAME_LENGTH = 100;
 const MAX_TEXT_LENGTH = 500;
 const MAX_ITEMS = 100;
+// Past this many checklists the screen suggests splitting the work into a
+// new card. It is only a suggestion; there is no limit.
+const SUGGEST_NEW_CARD_AFTER = 10;
 
 export interface ChecklistProgress {
   done: number;
@@ -27,6 +30,12 @@ export type ChecklistWithItems = Checklist & {
   items: ChecklistItem[];
   // "2 of 4". Shown only on this card; never counted in a parent's progress.
   progress: ChecklistProgress;
+};
+
+export type NewChecklist = Checklist & {
+  // True once the card has more than 10 checklists, so the screen can say
+  // "This card has a lot of checklists. Start a new card?"
+  suggestNewCard: boolean;
 };
 
 export interface ItemChanges {
@@ -46,22 +55,27 @@ export class ChecklistsService {
     userId: string,
     cardId: string,
     name: string,
-  ): Promise<Checklist> {
+  ): Promise<NewChecklist> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
     const checkedName = requireName(name);
     return this.prisma.$transaction(async (tx) => {
-      const last = await tx.checklist.aggregate({
+      const existing = await tx.checklist.aggregate({
         where: { cardId: card.id },
+        _count: true,
         _max: { position: true },
       });
-      return tx.checklist.create({
+      const checklist = await tx.checklist.create({
         data: {
           cardId: card.id,
           projectId: card.projectId,
           name: checkedName,
-          position: (last._max.position ?? -1) + 1,
+          position: (existing._max.position ?? -1) + 1,
         },
       });
+      return {
+        ...checklist,
+        suggestNewCard: existing._count + 1 > SUGGEST_NEW_CARD_AFTER,
+      };
     });
   }
 

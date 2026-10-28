@@ -98,6 +98,19 @@ describe('ChecklistsService (database)', () => {
       await expect(prisma.checklistItem.count()).resolves.toBe(0);
     });
 
+    it('suggests a new card once a card has more than 10 checklists', async () => {
+      const { ana, one } = await setUp();
+      const made = [];
+      for (let i = 1; i <= 11; i++) {
+        made.push(
+          await checklists.createChecklist(ana.id, one.id, `List ${i}`),
+        );
+      }
+
+      expect(made[9]!.suggestNewCard).toBe(false);
+      expect(made[10]!.suggestNewCard).toBe(true);
+    });
+
     it('refuses a blank or very long name', async () => {
       const { ana, one } = await setUp();
 
