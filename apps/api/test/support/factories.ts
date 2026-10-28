@@ -81,3 +81,34 @@ export async function createBareCard(
     },
   });
 }
+
+// A bare subtask of `parent`, numbered from the parent's subtask counter, as
+// SubtasksService.createSubtask does. It sits in the parent's column.
+export async function createBareSubtask(
+  prisma: PrismaService,
+  parent: {
+    id: string;
+    projectId: string;
+    boardId: string;
+    columnId: string;
+    numberPath: string;
+    depth: number;
+  },
+) {
+  const updated = await prisma.card.update({
+    where: { id: parent.id },
+    data: { nextSubtaskNumber: { increment: 1 } },
+  });
+  return prisma.card.create({
+    data: {
+      title: 'Subtask',
+      projectId: parent.projectId,
+      boardId: parent.boardId,
+      columnId: parent.columnId,
+      parentId: parent.id,
+      depth: parent.depth + 1,
+      numberPath: `${parent.numberPath}.${updated.nextSubtaskNumber - 1}`,
+      position: 0,
+    },
+  });
+}
