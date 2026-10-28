@@ -9,6 +9,14 @@ import { boardsVisibleTo } from '../boards/board-access.js';
 import type { NewCard } from './cards.service.js';
 import { nextPosition, takeNextSubtaskNumber } from './card-numbering.js';
 import { MAX_DEPTH, moveSubtree } from './card-tree.js';
+import { isDueAfter } from './card-fields.js';
+
+export interface DueDateWarnings {
+  // The card is due after its parent.
+  dueAfterParent: boolean;
+  // The card's direct subtasks that are due after it.
+  subtasksDueAfter: string[];
+}
 
 export interface SubtaskProgress {
   complete: number;
@@ -48,6 +56,7 @@ export class SubtasksService {
         data: {
           ...card,
           projectId: parent.projectId,
+          createdById: userId,
           boardId: column.boardId,
           columnId: column.id,
           parentId: parent.id,
@@ -103,6 +112,27 @@ export class SubtasksService {
       this.prisma.card.count({ where: { parentId: card.id } }),
     ]);
     return { complete, total };
+  }
+
+  // A subtask due after its parent shows a warning on both cards. The date
+  // is not blocked (docs/card-features.md, section 8). Worked out when read.
+  async dueDateWarnings(
+    userId: string,
+    cardId: string,
+  ): Promise<DueDateWarnings> {
+    const card = await this.findVisibleCard(userId, cardId);
+    const [parent, subtasks] = await Promise.all([
+      card.parentId
+        ? this.prisma.card.findUnique({ where: { id: card.parentId } })
+        : null,
+      this.listSubtasks(userId, card.id),
+    ]);
+    return {
+      dueAfterParent: parent ? isDueAfter(card, parent) : false,
+      subtasksDueAfter: subtasks
+        .filter((subtask) => isDueAfter(subtask, card))
+        .map((subtask) => subtask.id),
+    };
   }
 
   private async findVisibleCard(
