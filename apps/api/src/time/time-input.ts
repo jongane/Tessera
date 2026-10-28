@@ -68,12 +68,18 @@ export function localDate(moment: Date, timeZone: string): Date {
 }
 
 // The minutes a timer ran, to the nearest minute. One timer saves at most
-// 24 hours, the most a single entry can hold.
-export function timerMinutes(startedAt: Date, endedAt: Date): number {
+// 24 hours, the most a single entry can hold; `overLimit` says it ran longer.
+export function timerMinutes(
+  startedAt: Date,
+  endedAt: Date,
+): { minutes: number; overLimit: boolean } {
   const minutes = Math.round(
     (endedAt.getTime() - startedAt.getTime()) / 60_000,
   );
-  return Math.min(minutes, MAX_ENTRY_MINUTES);
+  return {
+    minutes: Math.min(minutes, MAX_ENTRY_MINUTES),
+    overLimit: minutes > MAX_ENTRY_MINUTES,
+  };
 }
 
 function dateText(date: Date): string {

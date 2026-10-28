@@ -159,14 +159,24 @@ describe('TimerService (database)', () => {
       expect(entry!.workDate).toEqual(new Date('2026-10-20T00:00:00Z'));
     });
 
-    it('saves at most 24 hours', async () => {
+    it('saves at most 24 hours, flagged for review', async () => {
       const { ana, one } = await setUp();
       await timers.startTimer(ana.id, one.id);
       await startedAt(ana.id, minutesAgo(30 * 60));
 
       const entry = await timers.stopTimer(ana.id);
 
-      expect(entry!.minutes).toBe(1440);
+      expect(entry).toMatchObject({ minutes: 1440, needsReview: true });
+    });
+
+    it('does not flag a timer that ran for 24 hours or less', async () => {
+      const { ana, one } = await setUp();
+      await timers.startTimer(ana.id, one.id);
+      await startedAt(ana.id, minutesAgo(24 * 60));
+
+      const entry = await timers.stopTimer(ana.id);
+
+      expect(entry).toMatchObject({ minutes: 1440, needsReview: false });
     });
 
     it('saves nothing for a timer stopped within half a minute', async () => {

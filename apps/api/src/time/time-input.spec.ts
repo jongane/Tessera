@@ -93,12 +93,22 @@ describe('timerMinutes', () => {
   const after = (seconds: number) => new Date(start.getTime() + seconds * 1000);
 
   it('rounds to the nearest minute', () => {
-    expect(timerMinutes(start, after(29))).toBe(0);
-    expect(timerMinutes(start, after(30))).toBe(1);
-    expect(timerMinutes(start, after(25 * 60 + 40))).toBe(26);
+    expect(timerMinutes(start, after(29))).toEqual({
+      minutes: 0,
+      overLimit: false,
+    });
+    expect(timerMinutes(start, after(30)).minutes).toBe(1);
+    expect(timerMinutes(start, after(25 * 60 + 40)).minutes).toBe(26);
   });
 
-  it('saves at most 24 hours from one timer', () => {
-    expect(timerMinutes(start, after(30 * 3600))).toBe(1440);
+  it('saves at most 24 hours from one timer, and says when it ran longer', () => {
+    expect(timerMinutes(start, after(30 * 3600))).toEqual({
+      minutes: 1440,
+      overLimit: true,
+    });
+    expect(timerMinutes(start, after(24 * 3600 + 29))).toEqual({
+      minutes: 1440,
+      overLimit: false,
+    });
   });
 });

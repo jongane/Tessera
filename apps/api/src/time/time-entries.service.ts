@@ -59,6 +59,7 @@ export class TimeEntriesService {
     });
   }
 
+  // Also clears the entry's review flag (see TimerService.stopTimer).
   async updateEntry(
     userId: string,
     entryId: string,
@@ -77,6 +78,8 @@ export class TimeEntriesService {
             ? undefined
             : requireWorkDate(changes.workDate, new Date()),
         note: changes.note,
+        // Any edit, even one that changes nothing, confirms the entry.
+        needsReview: false,
       },
     });
   }

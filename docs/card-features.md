@@ -57,6 +57,11 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - A timer that runs past midnight saves its time on the **day it started**. (Agreed 2026-10-28.)
 - A card with logged time **cannot be deleted**, so hours never quietly disappear from reports. The refusal says how much time is logged. An admin can delete the entries first. (Agreed 2026-10-28.)
 - Edits to time entries will be recorded in the card's history once the Activity tab (section 9) is built. (Agreed 2026-10-28.)
+- A timer stopped within 30 seconds saves nothing. Otherwise timer time is rounded to the nearest minute. (Agreed 2026-10-28.)
+- A timer left running for more than 24 hours saves 24 hours and the entry is **flagged for review**. The flag clears when the person or an admin edits or confirms the entry. (Agreed 2026-10-28.)
+- "A future day" means a day that has not started anywhere in the world yet, because the server does not know the person's time zone when time is typed in. (Agreed 2026-10-28.)
+- Deleting a card that has a running timer stops the timer without saving it. This can only happen when the card has no logged time. (Agreed 2026-10-28.)
+- A person who has logged time cannot be deleted, so their hours are kept. (Agreed 2026-10-28.)
 
 ## 7. Seeing related cards
 

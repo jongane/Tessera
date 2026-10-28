@@ -118,7 +118,7 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 | ChecklistItem | One tick-box item on a card | id, card_id, text, is_done, position |
 | Label | A project-wide label | id, project_id, name, colour |
 | CardLabel | Which labels a card has | card_id, label_id |
-| ✓ TimeEntry | Time someone spent on a card | id, project_id, card_id, user_id, work_date, minutes, note, started_at, ended_at |
+| ✓ TimeEntry | Time someone spent on a card | id, project_id, card_id, user_id, work_date, minutes, note, started_at, ended_at, needs_review |
 | ✓ RunningTimer | A timer that is running now | user_id (primary key, so one per person), project_id, card_id, started_at, work_date (the day it started, in the person's time zone) |
 | CardActivity | The card's history (Activity tab) | id, card_id, actor_id, kind, details, created_at |
 | ✓ CardNumberAlias | Old card numbers that still lead to the card | project_id, number_path, card_id |

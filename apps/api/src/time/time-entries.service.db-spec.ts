@@ -211,6 +211,24 @@ describe('TimeEntriesService (database)', () => {
       await expect(prisma.timeEntry.count()).resolves.toBe(0);
     });
 
+    it('clears the review flag when the entry is edited or confirmed as it is', async () => {
+      const { ana, cara, entry } = await setUpWithEntry();
+      const flag = () =>
+        prisma.timeEntry.update({
+          where: { id: entry.id },
+          data: { needsReview: true },
+        });
+
+      await flag();
+      await expect(
+        entries.updateEntry(cara.id, entry.id, { minutes: 600 }),
+      ).resolves.toMatchObject({ needsReview: false });
+      await flag();
+      await expect(
+        entries.updateEntry(ana.id, entry.id, {}),
+      ).resolves.toMatchObject({ minutes: 600, needsReview: false });
+    });
+
     it('checks the new values like a new entry', async () => {
       const { cara, entry } = await setUpWithEntry();
 

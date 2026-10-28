@@ -83,6 +83,14 @@ describe('Time rules (database)', () => {
     );
   });
 
+  it('does not flag a new entry for review', async () => {
+    const { ana, project, card } = await setUp();
+
+    await expect(
+      entry({ projectId: project.id, cardId: card.id, userId: ana.id }),
+    ).resolves.toMatchObject({ needsReview: false });
+  });
+
   it('gives a timer entry both a start and a later end, or neither', async () => {
     const { ana, project, card } = await setUp();
     const ids = { projectId: project.id, cardId: card.id, userId: ana.id };
