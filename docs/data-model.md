@@ -55,7 +55,10 @@ erDiagram
 
 | Entity | Purpose | Key fields |
 |---|---|---|
-| User | A person with an account | id, display_name, email, password_hash |
+| User | A person with an account | id, display_name, email (stored in lower case), password_hash (scrypt), is_server_admin |
+| Session | A signed-in browser | id, token_hash (the browser's token is never stored), user_id, last_used_at, expires_at |
+| FailedSignIn | A failed sign-in, so repeated guesses can be slowed down | email, created_at |
+| ServerSettings | Settings for the whole server (always one row) | sign_up_open |
 | Project | Top-level container | id, name, description |
 | ProjectMember | Who belongs to a project and their role | project_id, user_id, role (admin or member) |
 | Board | Kanban board and chat space | id, project_id, name |
@@ -81,6 +84,8 @@ erDiagram
 9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and threads.
 
 Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general thread is the job of `BoardsService.createBoard`, which creates it with the board.
+
+Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`: email addresses are stored in lower case, a session token hash is never stored twice, an account's sessions end when it is deleted, and there is exactly one row of server settings. How sign-in works is described in [api.md](api.md).
 
 ## Behaviour decided so far
 
