@@ -23,6 +23,7 @@ model User {
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   memberships  ProjectMember[]
   createdCards Card[]
+  cardActivity CardActivity[]
   timeEntries  TimeEntry[]
   runningTimer RunningTimer?
 
@@ -174,6 +175,7 @@ model Card {
   assignees         CardAssignee[]
   labels            CardLabel[]
   checklists        Checklist[]
+  activity          CardActivity[]
   thread            Thread?
   // Points at (parent, project) so a parent is always in the same project.
   // NoAction: a card with subtasks cannot be deleted directly;
@@ -410,4 +412,60 @@ model ChecklistItem {
 
   @@index([checklistId, position])
   @@map("checklist_items")
+}
+
+// What a history line records. `details` holds the specifics for each kind;
+// see src/activity/activity.ts.
+enum ActivityKind {
+  CREATED
+  TITLE_CHANGED
+  DESCRIPTION_CHANGED
+  PRIORITY_CHANGED
+  DUE_DATE_CHANGED
+  ESTIMATE_CHANGED
+  MOVED
+  COMPLETED
+  REOPENED
+  ASSIGNEE_ADDED
+  ASSIGNEE_REMOVED
+  OWNER_CHANGED
+  LABEL_ADDED
+  LABEL_REMOVED
+  SUBTASK_ADDED
+  SUBTASK_REMOVED
+  PARENT_CHANGED
+  NUMBER_CHANGED
+  TIME_LOGGED
+  TIME_ENTRY_EDITED
+  TIME_ENTRY_DELETED
+  CHECKLIST_ADDED
+  CHECKLIST_RENAMED
+  CHECKLIST_DELETED
+  CHECKLIST_ITEM_TO_SUBTASK
+
+  @@map("activity_kind")
+}
+
+// One line of a card's history, shown in its Activity tab
+// (docs/card-features.md, section 9). History is never changed: triggers
+// written by hand in the migration refuse any update, and any delete except
+// the one that comes with deleting the card or its project.
+model CardActivity {
+  id        String       @id @default(uuid()) @db.Uuid
+  cardId    String       @map("card_id") @db.Uuid
+  projectId String       @map("project_id") @db.Uuid
+  // Who made the change. Null if that person's account was deleted.
+  actorId   String?      @map("actor_id") @db.Uuid
+  kind      ActivityKind
+  details   Json
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  // Orders the lines. Several can be written in one transaction, which all
+  // share its start time, so created_at alone cannot order them.
+  sequence  BigInt       @default(autoincrement())
+  card      Card         @relation(fields: [cardId, projectId], references: [id, projectId], onDelete: Cascade)
+  actor     User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([cardId, sequence])
+  @@index([actorId])
+  @@map("card_activity")
 }
