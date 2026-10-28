@@ -39,7 +39,6 @@ erDiagram
         uuid column_id
         string title
         text description "user story"
-        uuid assignee_id "nullable"
     }
     LINK {
         uuid id
@@ -100,7 +99,7 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 
 [card-features.md](card-features.md) describes what cards will do. This section lists the database changes it needs. They will be added one pull request at a time, each with its own database tests.
 
-**Built so far:** project codes and card numbers, subtasks, completion and done columns, old card numbers, estimates, time entries and timers. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts`, `apps/api/src/cards/subtask-rules.db-spec.ts` and `apps/api/src/time/time-rules.db-spec.ts`.
+**Built so far:** project codes and card numbers, subtasks, completion and done columns, old card numbers, estimates, time entries and timers, assignees, labels, priority, due dates and card creators. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts`, `apps/api/src/cards/subtask-rules.db-spec.ts`, `apps/api/src/time/time-rules.db-spec.ts` and `apps/api/src/cards/card-fields-rules.db-spec.ts`.
 
 ### Changes to existing tables
 
@@ -108,16 +107,16 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 |---|---|---|
 | Project | ✓ code (2 to 6 capitals, unique), ✓ next_card_number, highlight_colours | Card numbers like `WEB-12`; relationship colours are a project setting only admins change |
 | Column | ✓ is_done | Moving a card into a done column ticks it complete |
-| Card | ✓ project_id, ✓ parent_id (nullable), ✓ number_path (e.g. `12.1.2`), ✓ next_subtask_number, ✓ depth, ✓ is_complete, ✓ completed_at, priority, due_at, due_has_time, ✓ estimate_minutes, created_by | Subtasks, card numbers, completion, priority, due dates, estimates, delete permission |
+| Card | ✓ project_id, ✓ parent_id (nullable), ✓ number_path (e.g. `12.1.2`), ✓ next_subtask_number, ✓ depth, ✓ is_complete, ✓ completed_at, ✓ priority, ✓ due_at, ✓ due_has_time, ✓ estimate_minutes, ✓ created_by_id (replaces the single assignee_id) | Subtasks, card numbers, completion, priority, due dates, estimates, delete permission |
 
 ### New tables
 
 | Entity | Purpose | Key fields |
 |---|---|---|
-| CardAssignee | Who is assigned to a card | card_id, user_id, is_owner |
+| ✓ CardAssignee | Who is assigned to a card | card_id, project_id, user_id, is_owner, assigned_at |
 | ChecklistItem | One tick-box item on a card | id, card_id, text, is_done, position |
-| Label | A project-wide label | id, project_id, name, colour |
-| CardLabel | Which labels a card has | card_id, label_id |
+| ✓ Label | A project-wide label | id, project_id, name, colour (one of a fixed set of 10) |
+| ✓ CardLabel | Which labels a card has | card_id, label_id, project_id |
 | ✓ TimeEntry | Time someone spent on a card | id, project_id, card_id, user_id, work_date, minutes, note, started_at, ended_at, needs_review |
 | ✓ RunningTimer | A timer that is running now | user_id (primary key, so one per person), project_id, card_id, started_at, work_date (the day it started, in the person's time zone) |
 | CardActivity | The card's history (Activity tab) | id, card_id, actor_id, kind, details, created_at |
@@ -131,8 +130,9 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 - ✓ A card number is unique within its project. Old numbers never clash with live ones, because new numbers always come from counters that only go up.
 - ✓ A card with subtasks cannot be deleted directly; the API asks what to do with each subtask first.
 - ✓ A completion time is recorded exactly when a card is complete.
-- A card has at most one owner among its assignees (partial unique index), and assignees must be project members.
-- A label name is unique within its project.
+- ✓ A card has at most one owner among its assignees (partial unique index), and assignees must be project members (foreign key to the membership, so leaving a project removes the person's assignments).
+- ✓ A label name is unique within its project (the API also refuses names that differ only in letter case), is not blank, and a label only goes on cards in its own project.
+- ✓ A due date without a time is stored as midnight UTC of that day.
 - ✓ A time entry is 1 minute to 24 hours, and a timer entry has a start and a later end.
 - ✓ A time entry is in its card's project, and a card with logged time cannot be deleted.
 - ✓ An estimate is not negative.
