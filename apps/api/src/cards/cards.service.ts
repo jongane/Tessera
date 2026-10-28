@@ -29,6 +29,13 @@ export interface CardChanges {
   description?: string;
 }
 
+// A card as the card screen shows it: with its full number (WEB-12.1,
+// using the project's current code) and its thread, if it has one.
+export type CardView = Card & {
+  number: string;
+  thread: { id: string; title: string } | null;
+};
+
 export interface CompletionOptions {
   // Complete a card even though some of its direct subtasks are still open.
   confirmOpenSubtasks?: boolean;
@@ -119,6 +126,25 @@ export class CardsService {
         data: { title, description },
       });
     });
+  }
+
+  async getCard(userId: string, cardId: string): Promise<CardView> {
+    const card = await this.findVisibleCard(userId, cardId);
+    return this.toView(card);
+  }
+
+  async toView(card: Card): Promise<CardView> {
+    const [project, thread] = await Promise.all([
+      this.prisma.project.findUniqueOrThrow({
+        where: { id: card.projectId },
+        select: { code: true },
+      }),
+      this.prisma.thread.findUnique({
+        where: { cardId: card.id },
+        select: { id: true, title: true },
+      }),
+    ]);
+    return { ...card, number: `${project.code}-${card.numberPath}`, thread };
   }
 
   // Finds a card by a number such as "WEB-12". The project's old codes, and

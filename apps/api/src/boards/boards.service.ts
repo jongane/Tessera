@@ -1,11 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Board, Column } from '../generated/prisma/client.js';
+import type { Board, Card, Column } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from './board-access.js';
 
 export interface NewBoard {
   name: string;
 }
+
+// Everything the board screen shows: its columns in order, each with its
+// cards from top to bottom.
+export type BoardView = Board & {
+  columns: (Column & { cards: Card[] })[];
+};
 
 // The columns every new board starts with, in order. People can change them later.
 const DONE_COLUMN_NAME = 'Done';
@@ -67,6 +73,22 @@ export class BoardsService {
     return this.prisma.board.findFirst({
       where: { id: boardId, ...boardsVisibleTo(userId) },
     });
+  }
+
+  async getBoardView(userId: string, boardId: string): Promise<BoardView> {
+    const board = await this.prisma.board.findFirst({
+      where: { id: boardId, ...boardsVisibleTo(userId) },
+      include: {
+        columns: {
+          orderBy: { position: 'asc' },
+          include: { cards: { orderBy: { position: 'asc' } } },
+        },
+      },
+    });
+    if (!board) {
+      throw new NotFoundException('Board not found');
+    }
+    return board;
   }
 
   // Marks a column as a done column, or not. Moving a card into a done

@@ -2,7 +2,7 @@
 
 The API is what the web app (and anything else) talks to. Every address starts with `/api`, and request and response bodies are JSON. When the API runs locally, it is at http://localhost:3000/api.
 
-Status: accounts, sign-in and project members are built. Endpoints for projects, boards, cards, threads and the card features come next.
+Status: accounts, sign-in, project members, projects, boards, cards and threads are built. Endpoints for the card features (subtasks, time, assignees, labels, checklists and the Activity tab) come next.
 
 ## How signing in works
 
@@ -69,3 +69,47 @@ sequenceDiagram
 A project always keeps at least one admin: making the last admin a member, or removing or leaving as the last admin, gets 409.
 
 Email invitations and "forgot password" need the server to send email, so they come later.
+
+### Projects
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/projects` | Signed in | The projects you are a member of, by name |
+| `POST /api/projects` | Signed in | Body `{ name, code, description? }`. Creates a project, with you as its admin. `code` is 2 to 6 letters (e.g. `WEB`) |
+| `GET /api/projects/suggest-code?name=...` | Signed in | `{ code }`: the first free code made from a project name, for the "new project" form |
+| `GET /api/projects/:projectId` | Members | One project |
+| `GET /api/projects/by-code/:code` | Members | A project by its code. Old codes work too |
+| `PATCH /api/projects/:projectId` | Project admins | Body `{ code?, timeZone? }`. Changes the code (old card numbers keep working) or the time zone (e.g. `Europe/London`) |
+
+### Boards and columns
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/projects/:projectId/boards` | Members | The project's boards, by name |
+| `POST /api/projects/:projectId/boards` | Members | Body `{ name }`. Creates a board with the columns To do, In progress and Done, and its general thread |
+| `GET /api/boards/:boardId` | Members | The board with its `columns` in order, each with its `cards` from top to bottom |
+| `PATCH /api/columns/:columnId` | Members | Body `{ isDone }`. Marks a column as a done column, or not |
+
+### Cards
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `POST /api/columns/:columnId/cards` | Members | Body `{ title, description? }`. Creates a card at the bottom of the column, with the next number and its own thread |
+| `GET /api/cards/:cardId` | Members | The card, with its full `number` (e.g. `WEB-12.1`) and its `thread` |
+| `GET /api/cards/by-number/:number` | Members | A card by its number, e.g. `WEB-12`. Old numbers and codes work too |
+| `PATCH /api/cards/:cardId` | Members | Body `{ title?, description? }`. An empty description clears it |
+| `POST /api/cards/:cardId/move` | Members | Body `{ columnId, confirmOpenSubtasks? }`. Moves the card to the bottom of another column on its board. Into a done column completes it; out of one reopens it |
+| `POST /api/cards/:cardId/complete` | Members | Body `{ confirmOpenSubtasks? }`. Completes the card. Answers `{ card, doneColumnId }`: the done column to offer moving it to, or null |
+| `POST /api/cards/:cardId/reopen` | Members | Reopens the card |
+| `DELETE /api/cards/:cardId` | The card's creator, or a project admin | Deletes the card; its thread is kept, unlinked. A card with subtasks needs body `{ subtasks: { "<subtask id>": { "action": "delete" or "standalone" } or { "action": "move", "parentId": "..." } } }` with a choice for each direct subtask |
+
+Completing a card, or moving it into a done column, while some of its direct subtasks are open gets 409 with `openSubtasks` (how many). Send the request again with `confirmOpenSubtasks: true` to go ahead. Deleting a card with logged time gets 409 with `loggedMinutes`.
+
+### Threads
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/boards/:boardId/threads` | Members | The board's threads: the general thread first, then the others oldest first |
+| `POST /api/boards/:boardId/threads` | Members | Body `{ title }`. Creates a thread that is not linked to a card |
+| `PUT /api/threads/:threadId/card` | Members | Body `{ cardId }`. Links the thread to a card on the same board. A card has at most one thread, and the general thread can't be linked (409) |
+| `DELETE /api/threads/:threadId/card` | Members | Removes the link. The thread and the card are both kept |
