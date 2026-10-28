@@ -4,6 +4,6 @@ import type { PrismaService } from '../../src/prisma/prisma.service.js';
 // CASCADE also clears rows that point at the deleted ones.
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE card_labels, labels, card_assignees, running_timers, time_entries, card_number_aliases, threads, cards, columns, boards, project_codes, project_members, projects, users CASCADE',
+    'TRUNCATE TABLE checklist_items, checklists, card_labels, labels, card_assignees, running_timers, time_entries, card_number_aliases, threads, cards, columns, boards, project_codes, project_members, projects, users CASCADE',
   );
 }

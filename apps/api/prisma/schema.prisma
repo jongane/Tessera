@@ -173,6 +173,7 @@ model Card {
   createdBy         User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
   assignees         CardAssignee[]
   labels            CardLabel[]
+  checklists        Checklist[]
   thread            Thread?
   // Points at (parent, project) so a parent is always in the same project.
   // NoAction: a card with subtasks cannot be deleted directly;
@@ -376,4 +377,37 @@ model CardLabel {
   @@id([cardId, labelId])
   @@index([labelId])
   @@map("card_labels")
+}
+
+// A named checklist on a card (docs/card-features.md, section 2). A card can
+// have several, shown in `position` order. The name is 1 to 100 characters
+// (check constraint in the migration).
+model Checklist {
+  id        String          @id @default(uuid()) @db.Uuid
+  cardId    String          @map("card_id") @db.Uuid
+  projectId String          @map("project_id") @db.Uuid
+  name      String
+  position  Int
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  // Points at (card, project) so the checklist is in its card's project.
+  card      Card            @relation(fields: [cardId, projectId], references: [id, projectId], onDelete: Cascade)
+  items     ChecklistItem[]
+
+  @@index([cardId, position])
+  @@map("checklists")
+}
+
+// One tick-box item, shown in `position` order. The text is 1 to 500
+// characters (check constraint in the migration).
+model ChecklistItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  checklistId String    @map("checklist_id") @db.Uuid
+  text        String
+  isDone      Boolean   @default(false) @map("is_done")
+  position    Int
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId, position])
+  @@map("checklist_items")
 }
