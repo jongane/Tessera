@@ -12,6 +12,7 @@ import {
   normaliseProjectCode,
   suggestProjectCode,
 } from './project-code.js';
+import { localDate } from '../time/time-input.js';
 
 export interface NewProject {
   name: string;
@@ -59,6 +60,21 @@ export class ProjectsService {
     throw new ConflictException('No free project code could be found');
   }
 
+  // Only admins can set the project's time zone, so everyone in the project
+  // sees the same days. `timeZone` is an IANA name such as "Europe/London".
+  async setTimeZone(
+    userId: string,
+    projectId: string,
+    timeZone: string,
+  ): Promise<Project> {
+    localDate(new Date(), timeZone); // refuses an unknown time zone
+    await this.requireAdmin(userId, projectId, 'change its time zone');
+    return this.prisma.project.update({
+      where: { id: projectId },
+      data: { timeZone },
+    });
+  }
+
   // Only admins can change a project's code. The old code is kept, so card
   // numbers that use it still lead to the card.
   async changeProjectCode(
@@ -67,15 +83,7 @@ export class ProjectsService {
     newCode: string,
   ): Promise<Project> {
     const code = requireValidCode(newCode);
-    const membership = await this.prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId } },
-    });
-    if (!membership) {
-      throw new NotFoundException('Project not found');
-    }
-    if (membership.role !== 'ADMIN') {
-      throw new ForbiddenException('Only a project admin can change its code');
-    }
+    await this.requireAdmin(userId, projectId, 'change its code');
 
     const existing = await this.prisma.projectCode.findUnique({
       where: { code },
@@ -124,6 +132,23 @@ export class ProjectsService {
     return this.prisma.project.findFirst({
       where: { id: projectId, members: { some: { userId } } },
     });
+  }
+
+  // Non-members are told the project is not found.
+  private async requireAdmin(
+    userId: string,
+    projectId: string,
+    action: string,
+  ): Promise<void> {
+    const membership = await this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+    });
+    if (!membership) {
+      throw new NotFoundException('Project not found');
+    }
+    if (membership.role !== 'ADMIN') {
+      throw new ForbiddenException(`Only a project admin can ${action}`);
+    }
   }
 
   // Two people may pick the same free code at the same moment; the database

@@ -61,7 +61,6 @@ export async function createBareCard(
     boardId: string;
     columnId: string;
     title?: string;
-    assigneeId?: string;
   },
 ) {
   const board = await prisma.board.findUniqueOrThrow({

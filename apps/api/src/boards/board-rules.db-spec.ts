@@ -167,20 +167,4 @@ describe('Board, card and thread rules (database)', () => {
 
     await expect(prisma.board.count()).resolves.toBe(0);
   });
-
-  it('keeps a card but clears its assignee when the user is deleted', async () => {
-    const { board, column } = await setUp();
-    const ben = await createUser(prisma, 'ben');
-    const card = await createBareCard(prisma, {
-      boardId: board.id,
-      columnId: column.id,
-      assigneeId: ben.id,
-    });
-
-    await prisma.user.delete({ where: { id: ben.id } });
-
-    await expect(
-      prisma.card.findUnique({ where: { id: card.id } }),
-    ).resolves.toMatchObject({ assigneeId: null });
-  });
 });

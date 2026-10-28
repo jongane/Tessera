@@ -39,14 +39,24 @@ export function requireEstimateMinutes(minutes: number | null): number | null {
 }
 
 // A day written as YYYY-MM-DD, returned as midnight UTC (how Prisma stores a
-// date). The server does not know the person's time zone here, so a day is
-// refused only once it has not yet started anywhere in the world.
-export function requireWorkDate(text: string, now: Date): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+// date).
+export function requireDay(text: string): Date {
   const date = new Date(`${text}T00:00:00Z`);
-  if (!match || Number.isNaN(date.getTime()) || dateText(date) !== text) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(text) ||
+    Number.isNaN(date.getTime()) ||
+    dateText(date) !== text
+  ) {
     throw new BadRequestException('A date must be written as YYYY-MM-DD');
   }
+  return date;
+}
+
+// A day for logged time. The server does not know the person's time zone
+// here, so a day is refused only once it has not yet started anywhere in
+// the world.
+export function requireWorkDate(text: string, now: Date): Date {
+  const date = requireDay(text);
   const latestToday = new Date(now.getTime() + LATEST_ZONE_OFFSET_MS);
   if (dateText(date) > dateText(latestToday)) {
     throw new BadRequestException('Time cannot be logged for a future day');

@@ -1,6 +1,6 @@
 # Card features v1
 
-Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 4, 5 and 6 are built in the API. The rest is not built yet.
+Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6 and 10, and section 8 apart from attachments, are built in the API. The rest is not built yet.
 
 Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
 
@@ -23,6 +23,9 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - A card can have several assignees, and **one of them is the owner**.
 - Only project members can be assigned.
 - A new subtask starts unassigned. It does not copy the parent's assignees.
+- The **first person assigned becomes the owner**. If the owner is removed, the person assigned longest becomes the owner. (Agreed 2026-10-28.)
+- Leaving a project removes the person from the cards they were assigned to. (Agreed 2026-10-28.)
+- Any member can change a card's owner, as any member can edit cards. (Agreed 2026-10-28.)
 
 ## 4. Subtasks
 
@@ -78,9 +81,10 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 ## 8. Other card fields
 
 - **Priority:** None, Low, Medium, High or Urgent.
-- **Due date:** a date, with an optional time. If a subtask is due after its parent, both cards show a warning. The date is not blocked.
-- **Labels** are shared across the whole project and each has a name and a colour. Any member can create a label. Only admins can rename or delete one.
-- **Attachments:** a file can be attached to the card itself or to a message in its thread. The card lists files from both. The default limit is 100 MB per file, and admins of a self-hosted server can change it.
+- **Due date:** a date, with an optional time. If a subtask is due after its parent, both cards show a warning. The date is not blocked. The warning is worked out when a card is read, not stored. Two times are compared exactly. When either card has no time, only the days are compared, and a due time's day is the day it falls on in the **project's time zone**. (Agreed 2026-10-28.)
+- Each project has a **time zone**, set by an admin. New projects start on UTC. (Agreed 2026-10-28.)
+- **Labels** are shared across the whole project and each has a name and a colour. Any member can create a label. Only admins can rename, recolour or delete one. Names are up to 50 characters. Colours come from a **fixed set of 10** that read well in light and dark mode (grey, red, orange, yellow, green, teal, blue, indigo, purple, pink), and two labels in a project cannot have the same name in any letter case. (Agreed 2026-10-28.)
+- **Attachments:** a file can be attached to the card itself or to a message in its thread. The card lists files from both. The default limit is 100 MB per file, and admins of a self-hosted server can change it. Attachments come in a later pull request, once file storage (MinIO) is set up. (Agreed 2026-10-28.)
 
 ## 9. History
 
@@ -91,9 +95,9 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 
 - Any project member can create, edit, move and complete cards, and log time.
 - Any project member can mark which columns are done columns. (Agreed 2026-10-27.)
-- Deleting a card: the person who created it, or an admin.
+- Deleting a card: the person who created it, or an admin. Cards made before creators were recorded can only be deleted by admins. When a parent is deleted, the same rule applies to each subtask chosen for deletion. (Agreed 2026-10-28.)
 - Editing other people's time entries, or any entry older than 24 hours: admins only.
-- Renaming or deleting labels, setting the project code, and changing the relationship colours: admins only.
+- Renaming, recolouring or deleting labels, setting the project code and time zone, and changing the relationship colours: admins only.
 
 ## 11. Boards
 

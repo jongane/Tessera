@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,6 +12,7 @@ import { parseCardReference } from './card-number.js';
 import { nextPosition, takeNextCardNumber } from './card-numbering.js';
 import { loadSubtree, moveSubtree } from './card-tree.js';
 import { requireEstimateMinutes } from '../time/time-input.js';
+import { type DueInput, parseDue, requirePriority } from './card-fields.js';
 
 export interface NewCard {
   title: string;
@@ -56,6 +58,7 @@ export class CardsService {
         data: {
           ...card,
           projectId,
+          createdById: userId,
           boardId: column.boardId,
           columnId,
           numberPath: await takeNextCardNumber(tx, projectId),
@@ -177,6 +180,30 @@ export class CardsService {
     });
   }
 
+  async setPriority(
+    userId: string,
+    cardId: string,
+    priority: string,
+  ): Promise<Card> {
+    const value = requirePriority(priority);
+    const card = await this.findVisibleCard(userId, cardId);
+    return this.prisma.card.update({
+      where: { id: card.id },
+      data: { priority: value },
+    });
+  }
+
+  // A day, a day with a time, or null to clear it (see card-fields.ts).
+  async setDueDate(
+    userId: string,
+    cardId: string,
+    due: DueInput,
+  ): Promise<Card> {
+    const value = parseDue(due);
+    const card = await this.findVisibleCard(userId, cardId);
+    return this.prisma.card.update({ where: { id: card.id }, data: value });
+  }
+
   async reopenCard(userId: string, cardId: string): Promise<Card> {
     const card = await this.findVisibleCard(userId, cardId);
     return this.prisma.card.update({
@@ -189,6 +216,8 @@ export class CardsService {
   // subtask: delete it, make it a top-level card, or move it under another
   // card. Deeper subtasks go with their own parent. Chats are kept, unlinked.
   // Cards with logged time are never deleted, so hours never disappear.
+  // Only the person who created a card, or an admin, can delete it; the
+  // same goes for each subtask chosen for deletion.
   async deleteCard(
     userId: string,
     cardId: string,
@@ -200,12 +229,12 @@ export class CardsService {
       include: { _count: { select: { subtasks: true } } },
     });
     checkChoicesCoverSubtasks(subtasks, choices);
-    await this.checkNoLoggedTime([
-      card.id,
-      ...subtasks
-        .filter((subtask) => choices[subtask.id]!.action === 'delete')
-        .map((subtask) => subtask.id),
-    ]);
+    const toDelete = [
+      card,
+      ...subtasks.filter((subtask) => choices[subtask.id]!.action === 'delete'),
+    ];
+    await this.checkMayDelete(userId, card.projectId, toDelete);
+    await this.checkNoLoggedTime(toDelete.map((c) => c.id));
 
     await this.prisma.$transaction(async (tx) => {
       const beingDeleted = new Set(
@@ -264,6 +293,24 @@ export class CardsService {
         message: `${openSubtasks} subtasks are still open`,
         openSubtasks,
       });
+    }
+  }
+
+  private async checkMayDelete(
+    userId: string,
+    projectId: string,
+    toDelete: Card[],
+  ): Promise<void> {
+    const membership = await this.prisma.projectMember.findUniqueOrThrow({
+      where: { projectId_userId: { projectId, userId } },
+    });
+    if (
+      membership.role !== 'ADMIN' &&
+      toDelete.some((c) => c.createdById !== userId)
+    ) {
+      throw new ForbiddenException(
+        'Only the person who created a card, or a project admin, can delete it',
+      );
     }
   }
 
