@@ -2,7 +2,7 @@
 
 The API is what the web app (and anything else) talks to. Every address starts with `/api`, and request and response bodies are JSON. When the API runs locally, it is at http://localhost:3000/api.
 
-Status: accounts, sign-in, project members, projects, boards, cards and threads are built. Endpoints for the card features (subtasks, time, assignees, labels, checklists and the Activity tab) come next.
+Status: every feature the API has so far can be reached through these endpoints. File attachments, chat messages and the AI features come later.
 
 ## How signing in works
 
@@ -97,7 +97,7 @@ Email invitations and "forgot password" need the server to send email, so they c
 | `POST /api/columns/:columnId/cards` | Members | Body `{ title, description? }`. Creates a card at the bottom of the column, with the next number and its own thread |
 | `GET /api/cards/:cardId` | Members | The card, with its full `number` (e.g. `WEB-12.1`) and its `thread` |
 | `GET /api/cards/by-number/:number` | Members | A card by its number, e.g. `WEB-12`. Old numbers and codes work too |
-| `PATCH /api/cards/:cardId` | Members | Body `{ title?, description? }`. An empty description clears it |
+| `PATCH /api/cards/:cardId` | Members | Body with any of `title`, `description` (empty clears it), `priority` (`NONE`, `LOW`, `MEDIUM`, `HIGH` or `URGENT`), `due` and `estimateMinutes` (null clears it). `due` is `{ "date": "2026-11-02" }`, `{ "at": "2026-11-02T17:00:00+01:00" }` (the offset is required) or null. Everything is checked before anything changes. Answers with the card |
 | `POST /api/cards/:cardId/move` | Members | Body `{ columnId, confirmOpenSubtasks? }`. Moves the card to the bottom of another column on its board. Into a done column completes it; out of one reopens it |
 | `POST /api/cards/:cardId/complete` | Members | Body `{ confirmOpenSubtasks? }`. Completes the card. Answers `{ card, doneColumnId }`: the done column to offer moving it to, or null |
 | `POST /api/cards/:cardId/reopen` | Members | Reopens the card |
@@ -113,3 +113,67 @@ Completing a card, or moving it into a done column, while some of its direct sub
 | `POST /api/boards/:boardId/threads` | Members | Body `{ title }`. Creates a thread that is not linked to a card |
 | `PUT /api/threads/:threadId/card` | Members | Body `{ cardId }`. Links the thread to a card on the same board. A card has at most one thread, and the general thread can't be linked (409) |
 | `DELETE /api/threads/:threadId/card` | Members | Removes the link. The thread and the card are both kept |
+
+### Subtasks
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/cards/:cardId/subtasks` | Members | `{ subtasks, progress }`: the direct subtasks in number order, and `{ complete, total }` |
+| `POST /api/cards/:cardId/subtasks` | Members | Body `{ columnId, title, description? }`. A subtask in any column of the project, numbered under the card (`WEB-12.1`). At most 5 levels deep (409) |
+| `PUT /api/cards/:cardId/parent` | Members | Body `{ parentId }`, or null for the top level. Moves the card with its own subtasks. They get new numbers, and the old ones keep working |
+| `GET /api/cards/:cardId/due-warnings` | Members | `{ dueAfterParent, subtasksDueAfter }`, for the "due after its parent" warnings |
+
+### Assignees
+
+Each of these answers with the card's assignees afterwards, owner first.
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/cards/:cardId/assignees` | Members | The assignees, each with `user` and `isOwner` |
+| `PUT /api/cards/:cardId/assignees/:userId` | Members | Assigns a project member. The first person assigned becomes the owner |
+| `DELETE /api/cards/:cardId/assignees/:userId` | Members | Unassigns. Removing the owner hands ownership to the person assigned longest |
+| `PUT /api/cards/:cardId/owner` | Members | Body `{ userId }`, who must already be assigned |
+
+### Labels
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/projects/:projectId/labels` | Members | The project's labels, by name |
+| `POST /api/projects/:projectId/labels` | Members | Body `{ name, colour }`. `colour` is one of `GREY`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `TEAL`, `BLUE`, `INDIGO`, `PURPLE` or `PINK` |
+| `PATCH /api/labels/:labelId` | Project admins | Body `{ name?, colour? }` |
+| `DELETE /api/labels/:labelId` | Project admins | Deletes the label and takes it off every card |
+| `GET /api/cards/:cardId/labels` | Members | The card's labels |
+| `PUT /api/cards/:cardId/labels/:labelId` | Members | Puts a label on the card |
+| `DELETE /api/cards/:cardId/labels/:labelId` | Members | Takes it off |
+
+### Time
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/cards/:cardId/time-entries` | Members | Everyone's time on the card, latest day first, each with `user` |
+| `POST /api/cards/:cardId/time-entries` | Members | Body `{ minutes, workDate, note? }`. 1 minute to 24 hours, on a day that has started somewhere in the world |
+| `PATCH /api/time-entries/:entryId` | The person who logged it (for 24 hours), or a project admin | Body `{ minutes?, workDate?, note? }` (`note: null` removes it). Also clears the "needs review" flag |
+| `DELETE /api/time-entries/:entryId` | Same as above | Deletes the entry |
+| `GET /api/cards/:cardId/time-totals` | Members | Estimate and time spent, rolled up from the card's subtasks |
+| `POST /api/cards/:cardId/timer` | Members | Body `{ timeZone?, stopRunning? }`. Starts your timer on the card. If yours is running on another card, you get 409 with `runningCardId`; send `stopRunning: true` to stop that one (its time is saved) and start this one |
+| `GET /api/timer` | Signed in | `{ timer }`: your running timer, or null |
+| `DELETE /api/timer` | Signed in | Stops your timer. `{ entry }` is the time saved, or null if it ran under half a minute. 404 if none is running |
+
+### Checklists
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/cards/:cardId/checklists` | Members | The card's checklists in order, each with its `items` and `progress` (`{ done, total }`) |
+| `POST /api/cards/:cardId/checklists` | Members | Body `{ name }`. `suggestNewCard` in the answer is true once the card has more than 10 |
+| `PATCH /api/checklists/:checklistId` | Members | Body `{ name?, position? }`. Renames and/or moves it (0 is first) |
+| `DELETE /api/checklists/:checklistId` | Members | Deletes it with its items |
+| `POST /api/checklists/:checklistId/items` | Members | Body `{ text }`. Adds an item at the bottom; at most 100 (409) |
+| `PATCH /api/checklist-items/:itemId` | Members | Body `{ text?, isDone?, position? }`. Edits, ticks and/or moves the item |
+| `DELETE /api/checklist-items/:itemId` | Members | Deletes the item |
+| `POST /api/checklist-items/:itemId/subtask` | Members | Replaces the item with an unassigned subtask of the card, titled with its text |
+
+### Activity
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/cards/:cardId/activity?limit=50&before=...` | Members | The card's history, newest first: `{ items, nextBefore }`. Each line has `kind`, `details`, `actor` and `createdAt`. Pass `nextBefore` as `before` to get the next, older page; it is null on the last page |
