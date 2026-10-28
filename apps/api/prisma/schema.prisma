@@ -16,16 +16,20 @@ datasource db {
 }
 
 model User {
-  id           String          @id @default(uuid()) @db.Uuid
-  email        String          @unique
-  displayName  String          @map("display_name")
-  passwordHash String          @map("password_hash")
-  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  memberships  ProjectMember[]
-  createdCards Card[]
-  cardActivity CardActivity[]
-  timeEntries  TimeEntry[]
-  runningTimer RunningTimer?
+  id            String          @id @default(uuid()) @db.Uuid
+  email         String          @unique
+  displayName   String          @map("display_name")
+  passwordHash  String          @map("password_hash")
+  // Can change server-wide settings, such as whether anyone can sign up.
+  // The first account made on a new server gets this.
+  isServerAdmin Boolean         @default(false) @map("is_server_admin")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  sessions      Session[]
+  memberships   ProjectMember[]
+  createdCards  Card[]
+  cardActivity  CardActivity[]
+  timeEntries   TimeEntry[]
+  runningTimer  RunningTimer?
 
   @@map("users")
 }
@@ -468,4 +472,41 @@ model CardActivity {
   @@index([cardId, sequence])
   @@index([actorId])
   @@map("card_activity")
+}
+
+// A signed-in browser. The browser holds a random token in a cookie; only
+// its SHA-256 hash is stored, so a copy of the database cannot be used to
+// sign in. Ends at expiresAt, which moves forward while the session is used.
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  tokenHash  String   @unique @map("token_hash")
+  userId     String   @map("user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt DateTime @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// A wrong password (or unknown email) at sign-in. After 5 in 15 minutes for
+// one email, sign-in for that email waits. Old rows are removed as new ones
+// are added.
+model FailedSignIn {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([email, createdAt])
+  @@map("failed_sign_ins")
+}
+
+// Settings for the whole server. Always exactly one row, with id 1
+// (check constraint and insert in the migration).
+model ServerSettings {
+  id         Int     @id @default(1)
+  signUpOpen Boolean @default(true) @map("sign_up_open")
+
+  @@map("server_settings")
 }
