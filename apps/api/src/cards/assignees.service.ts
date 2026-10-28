@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { CardAssignee, Prisma, User } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { findVisibleCard } from './card-access.js';
+import { findVisibleCard, lockCard } from './card-access.js';
 
 export type AssigneeWithPerson = CardAssignee & {
   user: Pick<User, 'id' | 'displayName'>;
@@ -121,16 +121,6 @@ export class AssigneesService {
     const card = await findVisibleCard(this.prisma, userId, cardId);
     return listFor(this.prisma, card.id);
   }
-}
-
-// Holds the card's row until the transaction ends, so two changes to the
-// same card's assignees run one after the other. Without it, two people
-// assigned at the same moment could both become the owner.
-async function lockCard(
-  tx: Prisma.TransactionClient,
-  cardId: string,
-): Promise<void> {
-  await tx.$queryRaw`SELECT id FROM cards WHERE id = ${cardId}::uuid FOR UPDATE`;
 }
 
 // Owner first, then in the order people were assigned.

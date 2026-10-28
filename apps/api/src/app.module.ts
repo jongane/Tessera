@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ActivityModule } from './activity/activity.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { BoardsModule } from './boards/boards.module.js';
@@ -14,6 +15,7 @@ import { TimeModule } from './time/time.module.js';
   imports: [
     PrismaModule,
     ProjectsModule,
+    ActivityModule,
     BoardsModule,
     CardsModule,
     ChecklistsModule,

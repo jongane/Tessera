@@ -13,9 +13,19 @@ import { nextPosition, takeNextCardNumber } from './card-numbering.js';
 import { loadSubtree, moveSubtree } from './card-tree.js';
 import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
+import { lockCard } from './card-access.js';
+import { dueRef, recordActivity } from '../activity/activity.js';
+
+const MAX_TITLE_LENGTH = 200;
 
 export interface NewCard {
   title: string;
+  description?: string;
+}
+
+export interface CardChanges {
+  title?: string;
+  // An empty description clears it.
   description?: string;
 }
 
@@ -53,8 +63,8 @@ export class CardsService {
     const column = await this.findVisibleColumn(userId, columnId);
     const { projectId } = column.board;
 
-    return this.prisma.$transaction(async (tx) =>
-      tx.card.create({
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.card.create({
         data: {
           ...card,
           projectId,
@@ -65,8 +75,50 @@ export class CardsService {
           position: await nextPosition(tx, columnId),
           thread: { create: { title: card.title } },
         },
-      }),
-    );
+      });
+      await recordActivity(tx, created, userId, 'CREATED', {
+        numberPath: created.numberPath,
+        title: created.title,
+      });
+      return created;
+    });
+  }
+
+  // Changes the title and/or description. The history keeps the old and new
+  // text of each.
+  async updateCard(
+    userId: string,
+    cardId: string,
+    changes: CardChanges,
+  ): Promise<Card> {
+    const title =
+      changes.title === undefined ? undefined : requireTitle(changes.title);
+    const description =
+      changes.description === undefined
+        ? undefined
+        : changes.description.trim() === ''
+          ? null
+          : changes.description;
+    const visible = await this.findVisibleCard(userId, cardId);
+    return this.prisma.$transaction(async (tx) => {
+      const card = await lockCard(tx, visible.id);
+      if (title !== undefined && title !== card.title) {
+        await recordActivity(tx, card, userId, 'TITLE_CHANGED', {
+          from: card.title,
+          to: title,
+        });
+      }
+      if (description !== undefined && description !== card.description) {
+        await recordActivity(tx, card, userId, 'DESCRIPTION_CHANGED', {
+          from: card.description,
+          to: description,
+        });
+      }
+      return tx.card.update({
+        where: { id: card.id },
+        data: { title, description },
+      });
+    });
   }
 
   // Finds a card by a number such as "WEB-12". The project's old codes, and
@@ -112,29 +164,51 @@ export class CardsService {
     const card = await this.findVisibleCard(userId, cardId);
     const column = await this.prisma.column.findFirst({
       where: { id: toColumnId, boardId: card.boardId },
-      select: { id: true, isDone: true },
+      select: { id: true, name: true, isDone: true },
     });
     if (!column) {
       throw new NotFoundException('Column not found');
     }
-    const fromColumn = await this.prisma.column.findUniqueOrThrow({
-      where: { id: card.columnId },
-      select: { isDone: true },
-    });
     if (column.isDone && !card.isComplete) {
       await this.checkOpenSubtasks(card.id, options);
     }
 
-    return this.prisma.$transaction(async (tx) =>
-      tx.card.update({
+    return this.prisma.$transaction(async (tx) => {
+      const current = await lockCard(tx, card.id);
+      const fromColumn = await tx.column.findUniqueOrThrow({
+        where: { id: current.columnId },
+        select: { id: true, name: true, isDone: true },
+      });
+      const completion = completionChange(
+        current,
+        fromColumn.isDone,
+        column.isDone,
+      );
+      const moved = await tx.card.update({
         where: { id: card.id },
         data: {
           columnId: column.id,
           position: await nextPosition(tx, column.id),
-          ...completionChange(card, fromColumn.isDone, column.isDone),
+          ...completion,
         },
-      }),
-    );
+      });
+      if (fromColumn.id !== column.id) {
+        await recordActivity(tx, card, userId, 'MOVED', {
+          from: { columnId: fromColumn.id, name: fromColumn.name },
+          to: { columnId: column.id, name: column.name },
+        });
+      }
+      if (completion.isComplete !== undefined) {
+        await recordActivity(
+          tx,
+          card,
+          userId,
+          completion.isComplete ? 'COMPLETED' : 'REOPENED',
+          {},
+        );
+      }
+      return moved;
+    });
   }
 
   // Ticks the card complete, and offers the board's done column if the card
@@ -145,14 +219,20 @@ export class CardsService {
     options: CompletionOptions = {},
   ): Promise<CompleteCardResult> {
     const card = await this.findVisibleCard(userId, cardId);
-    let completed = card;
     if (!card.isComplete) {
       await this.checkOpenSubtasks(card.id, options);
-      completed = await this.prisma.card.update({
+    }
+    const completed = await this.prisma.$transaction(async (tx) => {
+      const current = await lockCard(tx, card.id);
+      if (current.isComplete) {
+        return current;
+      }
+      await recordActivity(tx, card, userId, 'COMPLETED', {});
+      return tx.card.update({
         where: { id: card.id },
         data: { isComplete: true, completedAt: new Date() },
       });
-    }
+    });
     const doneColumns = await this.prisma.column.findMany({
       where: { boardId: card.boardId, isDone: true },
       orderBy: { position: 'asc' },
@@ -173,10 +253,20 @@ export class CardsService {
     minutes: number | null,
   ): Promise<Card> {
     const estimateMinutes = requireEstimateMinutes(minutes);
-    const card = await this.findVisibleCard(userId, cardId);
-    return this.prisma.card.update({
-      where: { id: card.id },
-      data: { estimateMinutes },
+    const visible = await this.findVisibleCard(userId, cardId);
+    return this.prisma.$transaction(async (tx) => {
+      const card = await lockCard(tx, visible.id);
+      if (card.estimateMinutes === estimateMinutes) {
+        return card;
+      }
+      await recordActivity(tx, card, userId, 'ESTIMATE_CHANGED', {
+        from: card.estimateMinutes,
+        to: estimateMinutes,
+      });
+      return tx.card.update({
+        where: { id: card.id },
+        data: { estimateMinutes },
+      });
     });
   }
 
@@ -186,10 +276,20 @@ export class CardsService {
     priority: string,
   ): Promise<Card> {
     const value = requirePriority(priority);
-    const card = await this.findVisibleCard(userId, cardId);
-    return this.prisma.card.update({
-      where: { id: card.id },
-      data: { priority: value },
+    const visible = await this.findVisibleCard(userId, cardId);
+    return this.prisma.$transaction(async (tx) => {
+      const card = await lockCard(tx, visible.id);
+      if (card.priority === value) {
+        return card;
+      }
+      await recordActivity(tx, card, userId, 'PRIORITY_CHANGED', {
+        from: card.priority,
+        to: value,
+      });
+      return tx.card.update({
+        where: { id: card.id },
+        data: { priority: value },
+      });
     });
   }
 
@@ -200,15 +300,31 @@ export class CardsService {
     due: DueInput,
   ): Promise<Card> {
     const value = parseDue(due);
-    const card = await this.findVisibleCard(userId, cardId);
-    return this.prisma.card.update({ where: { id: card.id }, data: value });
+    const visible = await this.findVisibleCard(userId, cardId);
+    return this.prisma.$transaction(async (tx) => {
+      const card = await lockCard(tx, visible.id);
+      const from = dueRef(card);
+      const to = dueRef(value);
+      if (from.at === to.at && from.hasTime === to.hasTime) {
+        return card;
+      }
+      await recordActivity(tx, card, userId, 'DUE_DATE_CHANGED', { from, to });
+      return tx.card.update({ where: { id: card.id }, data: value });
+    });
   }
 
   async reopenCard(userId: string, cardId: string): Promise<Card> {
-    const card = await this.findVisibleCard(userId, cardId);
-    return this.prisma.card.update({
-      where: { id: card.id },
-      data: { isComplete: false, completedAt: null },
+    const visible = await this.findVisibleCard(userId, cardId);
+    return this.prisma.$transaction(async (tx) => {
+      const card = await lockCard(tx, visible.id);
+      if (!card.isComplete) {
+        return card;
+      }
+      await recordActivity(tx, card, userId, 'REOPENED', {});
+      return tx.card.update({
+        where: { id: card.id },
+        data: { isComplete: false, completedAt: null },
+      });
     });
   }
 
@@ -358,7 +474,7 @@ function completionChange(
   card: Card,
   fromDone: boolean,
   toDone: boolean,
-): Prisma.CardUncheckedUpdateInput {
+): { isComplete?: boolean; completedAt?: Date | null } {
   if (toDone && !card.isComplete) {
     return { isComplete: true, completedAt: new Date() };
   }
@@ -366,6 +482,16 @@ function completionChange(
     return { isComplete: false, completedAt: null };
   }
   return {};
+}
+
+function requireTitle(title: string): string {
+  const trimmed = title.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_TITLE_LENGTH) {
+    throw new BadRequestException(
+      `A card title must be 1 to ${MAX_TITLE_LENGTH} characters`,
+    );
+  }
+  return trimmed;
 }
 
 function checkChoicesCoverSubtasks(
