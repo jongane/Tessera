@@ -1,6 +1,6 @@
 # Card features v1
 
-Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6 and 10, and section 8 apart from attachments, are built in the API. The rest is not built yet.
+Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6 and 10, the checklists in section 2, and section 8 apart from attachments, are built in the API. The rest is not built yet.
 
 Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
 
@@ -15,7 +15,10 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 
 - The description is edited with a rich-text toolbar and stored as Markdown.
 - **Checklists** are separate from the description. They are tick-box items under the card, each with text and a tick, and they can be reordered.
-- Any checklist item can be **turned into a subtask**.
+- A card can have **several named checklists** (for example "Testing" and "Release"), each with its own progress. Checklists can be renamed, reordered and deleted. (Agreed 2026-10-28.)
+- Any checklist item can be **turned into a subtask**. The item leaves the checklist, and a subtask with the item's text as its title appears in the card's column, unassigned. (Agreed 2026-10-28.)
+- Any project member can add, edit, tick, reorder and delete checklists and items. (Agreed 2026-10-28.)
+- An item's text is up to 500 characters, and a checklist holds up to 100 items. A checklist name is up to 100 characters. There is no limit on how many checklists a card has, but adding an 11th or later checklist suggests starting a new card instead. Items are reordered within their own checklist; moving an item to another checklist may come later. (Agreed 2026-10-28.)
 - A checklist's progress ("2 of 4") shows only on its own card. It does not count towards a parent's progress.
 
 ## 3. Assignees

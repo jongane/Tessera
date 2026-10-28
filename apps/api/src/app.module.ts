@@ -3,6 +3,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { BoardsModule } from './boards/boards.module.js';
 import { CardsModule } from './cards/cards.module.js';
+import { ChecklistsModule } from './checklists/checklists.module.js';
 import { LabelsModule } from './labels/labels.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
@@ -15,6 +16,7 @@ import { TimeModule } from './time/time.module.js';
     ProjectsModule,
     BoardsModule,
     CardsModule,
+    ChecklistsModule,
     LabelsModule,
     ThreadsModule,
     TimeModule,
