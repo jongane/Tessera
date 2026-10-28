@@ -47,8 +47,13 @@ export async function verifyPassword(
   ) {
     return false;
   }
-  const actual = await derive(password, salt, cost, blockSize, parallelism);
-  return timingSafeEqual(actual, expected);
+  try {
+    const actual = await derive(password, salt, cost, blockSize, parallelism);
+    return timingSafeEqual(actual, expected);
+  } catch {
+    // Settings scrypt refuses, such as a cost that is not a power of 2.
+    return false;
+  }
 }
 
 function derive(

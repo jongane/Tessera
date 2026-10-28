@@ -20,5 +20,8 @@ describe('passwords', () => {
   it('refuses anything that is not a hash it made', async () => {
     await expect(verifyPassword('x', 'not-a-real-hash')).resolves.toBe(false);
     await expect(verifyPassword('x', 'scrypt$1$2$3$$')).resolves.toBe(false);
+    const good = await hashPassword('x');
+    const badCost = good.replace(/^scrypt\$\d+/, 'scrypt$3');
+    await expect(verifyPassword('x', badCost)).resolves.toBe(false);
   });
 });
