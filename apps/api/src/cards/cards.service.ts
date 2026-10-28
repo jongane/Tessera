@@ -10,6 +10,7 @@ import { boardsVisibleTo } from '../boards/board-access.js';
 import { parseCardReference } from './card-number.js';
 import { nextPosition, takeNextCardNumber } from './card-numbering.js';
 import { loadSubtree, moveSubtree } from './card-tree.js';
+import { requireEstimateMinutes } from '../time/time-input.js';
 
 export interface NewCard {
   title: string;
@@ -161,6 +162,21 @@ export class CardsService {
     };
   }
 
+  // The card's own estimate in minutes; null clears it. A card with subtasks
+  // shows the sum of theirs instead (CardTotalsService).
+  async setEstimate(
+    userId: string,
+    cardId: string,
+    minutes: number | null,
+  ): Promise<Card> {
+    const estimateMinutes = requireEstimateMinutes(minutes);
+    const card = await this.findVisibleCard(userId, cardId);
+    return this.prisma.card.update({
+      where: { id: card.id },
+      data: { estimateMinutes },
+    });
+  }
+
   async reopenCard(userId: string, cardId: string): Promise<Card> {
     const card = await this.findVisibleCard(userId, cardId);
     return this.prisma.card.update({
@@ -172,6 +188,7 @@ export class CardsService {
   // Deletes a card. A card with subtasks needs a choice for each direct
   // subtask: delete it, make it a top-level card, or move it under another
   // card. Deeper subtasks go with their own parent. Chats are kept, unlinked.
+  // Cards with logged time are never deleted, so hours never disappear.
   async deleteCard(
     userId: string,
     cardId: string,
@@ -183,6 +200,12 @@ export class CardsService {
       include: { _count: { select: { subtasks: true } } },
     });
     checkChoicesCoverSubtasks(subtasks, choices);
+    await this.checkNoLoggedTime([
+      card.id,
+      ...subtasks
+        .filter((subtask) => choices[subtask.id]!.action === 'delete')
+        .map((subtask) => subtask.id),
+    ]);
 
     await this.prisma.$transaction(async (tx) => {
       const beingDeleted = new Set(
@@ -240,6 +263,22 @@ export class CardsService {
       throw new ConflictException({
         message: `${openSubtasks} subtasks are still open`,
         openSubtasks,
+      });
+    }
+  }
+
+  // Refuses to delete cards with logged time, and says how much there is, so
+  // the screen can explain why. An admin can delete the entries first.
+  private async checkNoLoggedTime(cardIds: string[]): Promise<void> {
+    const logged = await this.prisma.timeEntry.aggregate({
+      where: { cardId: { in: cardIds } },
+      _sum: { minutes: true },
+    });
+    const loggedMinutes = logged._sum.minutes ?? 0;
+    if (loggedMinutes > 0) {
+      throw new ConflictException({
+        message: 'Cards with logged time cannot be deleted',
+        loggedMinutes,
       });
     }
   }
