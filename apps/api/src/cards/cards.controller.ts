@@ -71,13 +71,28 @@ export class CardsController {
     return this.cards.getCard(user.id, cardId);
   }
 
+  // Any of title, description, priority, due and estimateMinutes. All are
+  // checked before any is changed. Answers with the card as it now is.
   @Patch('cards/:cardId')
-  change(
+  async change(
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
     @Body(new ZodPipe(cardChangesSchema)) body: CardChangesBody,
-  ): Promise<Card> {
-    return this.cards.updateCard(user.id, cardId, body);
+  ): Promise<CardView> {
+    const { title, description, priority, due, estimateMinutes } = body;
+    if (title !== undefined || description !== undefined) {
+      await this.cards.updateCard(user.id, cardId, { title, description });
+    }
+    if (priority !== undefined) {
+      await this.cards.setPriority(user.id, cardId, priority);
+    }
+    if (due !== undefined) {
+      await this.cards.setDueDate(user.id, cardId, due);
+    }
+    if (estimateMinutes !== undefined) {
+      await this.cards.setEstimate(user.id, cardId, estimateMinutes);
+    }
+    return this.cards.getCard(user.id, cardId);
   }
 
   // To the bottom of another column on the same board. Into a done column
