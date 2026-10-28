@@ -1,9 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { Prisma, type Project } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -13,6 +11,7 @@ import {
   suggestProjectCode,
 } from './project-code.js';
 import { localDate } from '../time/time-input.js';
+import { requireAdmin } from './project-access.js';
 
 export interface NewProject {
   name: string;
@@ -68,7 +67,7 @@ export class ProjectsService {
     timeZone: string,
   ): Promise<Project> {
     localDate(new Date(), timeZone); // refuses an unknown time zone
-    await this.requireAdmin(userId, projectId, 'change its time zone');
+    await requireAdmin(this.prisma, userId, projectId, 'change its time zone');
     return this.prisma.project.update({
       where: { id: projectId },
       data: { timeZone },
@@ -83,7 +82,7 @@ export class ProjectsService {
     newCode: string,
   ): Promise<Project> {
     const code = requireValidCode(newCode);
-    await this.requireAdmin(userId, projectId, 'change its code');
+    await requireAdmin(this.prisma, userId, projectId, 'change its code');
 
     const existing = await this.prisma.projectCode.findUnique({
       where: { code },
@@ -135,22 +134,6 @@ export class ProjectsService {
   }
 
   // Non-members are told the project is not found.
-  private async requireAdmin(
-    userId: string,
-    projectId: string,
-    action: string,
-  ): Promise<void> {
-    const membership = await this.prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId, userId } },
-    });
-    if (!membership) {
-      throw new NotFoundException('Project not found');
-    }
-    if (membership.role !== 'ADMIN') {
-      throw new ForbiddenException(`Only a project admin can ${action}`);
-    }
-  }
-
   // Two people may pick the same free code at the same moment; the database
   // refuses the second, and this turns that into a clear message.
   private async withCodeConflictCheck(

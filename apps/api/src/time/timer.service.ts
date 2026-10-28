@@ -98,7 +98,7 @@ export class TimerService {
 // Removes the timer and saves its time as an entry dated the day it started.
 // A timer left running over 24 hours saves 24 hours, flagged for review.
 // If another request stopped it first, nothing is saved twice.
-async function saveTimer(
+export async function saveTimer(
   tx: Prisma.TransactionClient,
   timer: RunningTimer,
 ): Promise<TimeEntry | null> {
