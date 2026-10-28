@@ -6,6 +6,7 @@ import { CardsModule } from './cards/cards.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ThreadsModule } from './threads/threads.module.js';
+import { TimeModule } from './time/time.module.js';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ThreadsModule } from './threads/threads.module.js';
     BoardsModule,
     CardsModule,
     ThreadsModule,
+    TimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
