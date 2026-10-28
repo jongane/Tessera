@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Card } from '../generated/prisma/client.js';
+import type { Card, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import type { NewCard } from './cards.service.js';
@@ -39,33 +39,8 @@ export class SubtasksService {
     card: NewCard,
   ): Promise<Card> {
     const parent = await this.findVisibleCard(userId, parentId);
-    if (parent.depth >= MAX_DEPTH) {
-      throw new ConflictException(
-        `Subtasks can only go ${MAX_DEPTH + 1} levels deep`,
-      );
-    }
-    const column = await this.prisma.column.findFirst({
-      where: { id: columnId, board: { projectId: parent.projectId } },
-    });
-    if (!column) {
-      throw new NotFoundException('Column not found');
-    }
-
-    return this.prisma.$transaction(async (tx) =>
-      tx.card.create({
-        data: {
-          ...card,
-          projectId: parent.projectId,
-          createdById: userId,
-          boardId: column.boardId,
-          columnId: column.id,
-          parentId: parent.id,
-          depth: parent.depth + 1,
-          numberPath: await takeNextSubtaskNumber(tx, parent.id),
-          position: await nextPosition(tx, column.id),
-          thread: { create: { title: card.title } },
-        },
-      }),
+    return this.prisma.$transaction((tx) =>
+      insertSubtask(tx, userId, parent, columnId, card),
     );
   }
 
@@ -154,6 +129,43 @@ export class SubtasksService {
     }
     return card;
   }
+}
+
+// Saves a new subtask of `parent` in a column on any board of the parent's
+// project, inside the caller's transaction. Refuses a subtask deeper than
+// 5 levels.
+export async function insertSubtask(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  parent: Card,
+  columnId: string,
+  card: NewCard,
+): Promise<Card> {
+  if (parent.depth >= MAX_DEPTH) {
+    throw new ConflictException(
+      `Subtasks can only go ${MAX_DEPTH + 1} levels deep`,
+    );
+  }
+  const column = await tx.column.findFirst({
+    where: { id: columnId, board: { projectId: parent.projectId } },
+  });
+  if (!column) {
+    throw new NotFoundException('Column not found');
+  }
+  return tx.card.create({
+    data: {
+      ...card,
+      projectId: parent.projectId,
+      createdById: userId,
+      boardId: column.boardId,
+      columnId: column.id,
+      parentId: parent.id,
+      depth: parent.depth + 1,
+      numberPath: await takeNextSubtaskNumber(tx, parent.id),
+      position: await nextPosition(tx, column.id),
+      thread: { create: { title: card.title } },
+    },
+  });
 }
 
 function lastNumber(numberPath: string): number {
