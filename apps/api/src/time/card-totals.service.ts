@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type CardTotals, loadTreeTimes, rollUp } from './card-totals.js';
-import { findVisibleCard } from './time-access.js';
+import { findVisibleCard } from '../cards/card-access.js';
 
 // A card's estimate and time totals, rolled up from its subtasks.
 @Injectable()

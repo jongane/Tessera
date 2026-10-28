@@ -9,7 +9,7 @@ import {
   type TimeEntry,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { findVisibleCard } from './time-access.js';
+import { findVisibleCard } from '../cards/card-access.js';
 import { localDate, timerMinutes } from './time-input.js';
 
 export interface StartTimerOptions {
