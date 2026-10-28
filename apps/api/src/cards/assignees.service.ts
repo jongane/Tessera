@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { CardAssignee, Prisma, User } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { findVisibleCard, lockCard } from './card-access.js';
+import { personRef, recordActivity } from '../activity/activity.js';
 
 export type AssigneeWithPerson = CardAssignee & {
   user: Pick<User, 'id' | 'displayName'>;
@@ -36,13 +37,18 @@ export class AssigneesService {
         where: { cardId: card.id },
       });
       if (!current.some((a) => a.userId === assigneeId)) {
+        const isOwner = current.length === 0;
         await tx.cardAssignee.create({
           data: {
             cardId: card.id,
             projectId: card.projectId,
             userId: assigneeId,
-            isOwner: current.length === 0,
+            isOwner,
           },
+        });
+        await recordActivity(tx, card, userId, 'ASSIGNEE_ADDED', {
+          user: await personRef(tx, assigneeId),
+          isOwner,
         });
       }
       return listFor(tx, card.id);
@@ -68,6 +74,10 @@ export class AssigneesService {
       await tx.cardAssignee.delete({
         where: { cardId_userId: { cardId: card.id, userId: assigneeId } },
       });
+      const removedPerson = await personRef(tx, assigneeId);
+      await recordActivity(tx, card, userId, 'ASSIGNEE_REMOVED', {
+        user: removedPerson,
+      });
       if (removed.isOwner) {
         const next = await tx.cardAssignee.findFirst({
           where: { cardId: card.id },
@@ -77,6 +87,10 @@ export class AssigneesService {
           await tx.cardAssignee.update({
             where: { cardId_userId: { cardId: card.id, userId: next.userId } },
             data: { isOwner: true },
+          });
+          await recordActivity(tx, card, userId, 'OWNER_CHANGED', {
+            from: removedPerson,
+            to: await personRef(tx, next.userId),
           });
         }
       }
@@ -101,10 +115,20 @@ export class AssigneesService {
           'The owner must be one of the card’s assignees',
         );
       }
+      if (owner.isOwner) {
+        return listFor(tx, card.id);
+      }
+      const oldOwner = await tx.cardAssignee.findFirst({
+        where: { cardId: card.id, isOwner: true },
+      });
       // Clear the old owner first: the database allows only one at a time.
       await tx.cardAssignee.updateMany({
         where: { cardId: card.id, isOwner: true },
         data: { isOwner: false },
+      });
+      await recordActivity(tx, card, userId, 'OWNER_CHANGED', {
+        from: oldOwner && (await personRef(tx, oldOwner.userId)),
+        to: await personRef(tx, ownerId),
       });
       await tx.cardAssignee.update({
         where: { cardId_userId: { cardId: card.id, userId: ownerId } },

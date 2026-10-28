@@ -5,9 +5,12 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { BoardsService } from '../boards/boards.service.js';
 import { CardsService } from '../cards/cards.service.js';
 import { SubtasksService } from '../cards/subtasks.service.js';
+import { AssigneesService } from '../cards/assignees.service.js';
+import { LabelsService } from '../labels/labels.service.js';
 import { ActivityService } from './activity.service.js';
 import { resetDatabase } from '../../test/support/reset-database.js';
 import { cardScenario } from '../../test/support/card-scenario.js';
+import { createUser } from '../../test/support/factories.js';
 
 // The Activity tab (docs/card-features.md, section 9).
 describe('ActivityService (database)', () => {
@@ -15,6 +18,8 @@ describe('ActivityService (database)', () => {
   let boards: BoardsService;
   let cards: CardsService;
   let subtasks: SubtasksService;
+  let assignees: AssigneesService;
+  let labels: LabelsService;
   let activity: ActivityService;
 
   beforeAll(async () => {
@@ -24,6 +29,8 @@ describe('ActivityService (database)', () => {
         BoardsService,
         CardsService,
         SubtasksService,
+        AssigneesService,
+        LabelsService,
         ActivityService,
       ],
     }).compile();
@@ -31,6 +38,8 @@ describe('ActivityService (database)', () => {
     boards = moduleRef.get(BoardsService);
     cards = moduleRef.get(CardsService);
     subtasks = moduleRef.get(SubtasksService);
+    assignees = moduleRef.get(AssigneesService);
+    labels = moduleRef.get(LabelsService);
     activity = moduleRef.get(ActivityService);
   });
 
@@ -318,6 +327,63 @@ describe('ActivityService (database)', () => {
         'CREATED',
         'PARENT_CHANGED',
         'NUMBER_CHANGED',
+      ]);
+    });
+  });
+
+  describe('assignees and labels', () => {
+    // Adds Cara to the project, so there are two people to assign.
+    async function setUpWithCara() {
+      const scenario = await setUp();
+      const cara = await createUser(prisma, 'cara');
+      await prisma.projectMember.create({
+        data: { projectId: scenario.project.id, userId: cara.id },
+      });
+      return { ...scenario, cara };
+    }
+
+    const person = (user: { id: string; displayName: string }) => ({
+      id: user.id,
+      displayName: user.displayName,
+    });
+
+    it('records assignees and owner changes, by name', async () => {
+      const { ana, cara, one } = await setUpWithCara();
+
+      await assignees.assign(ana.id, one.id, ana.id);
+      await assignees.assign(ana.id, one.id, cara.id);
+      await assignees.assign(ana.id, one.id, cara.id);
+      await assignees.setOwner(ana.id, one.id, cara.id);
+      await assignees.setOwner(ana.id, one.id, cara.id);
+      await assignees.unassign(ana.id, one.id, cara.id);
+      await assignees.unassign(ana.id, one.id, ana.id);
+
+      expect((await history(ana.id, one.id)).slice(1)).toEqual([
+        ['ASSIGNEE_ADDED', { user: person(ana), isOwner: true }],
+        ['ASSIGNEE_ADDED', { user: person(cara), isOwner: false }],
+        ['OWNER_CHANGED', { from: person(ana), to: person(cara) }],
+        ['ASSIGNEE_REMOVED', { user: person(cara) }],
+        ['OWNER_CHANGED', { from: person(cara), to: person(ana) }],
+        ['ASSIGNEE_REMOVED', { user: person(ana) }],
+      ]);
+    });
+
+    it('records labels added and removed, but not repeats', async () => {
+      const { ana, project, one } = await setUp();
+      const bug = await labels.createLabel(ana.id, project.id, {
+        name: 'Bug',
+        colour: 'RED',
+      });
+
+      await labels.addLabelToCard(ana.id, one.id, bug.id);
+      await labels.addLabelToCard(ana.id, one.id, bug.id);
+      await labels.removeLabelFromCard(ana.id, one.id, bug.id);
+      await labels.removeLabelFromCard(ana.id, one.id, bug.id);
+
+      const label = { labelId: bug.id, name: 'Bug', colour: 'RED' };
+      expect((await history(ana.id, one.id)).slice(1)).toEqual([
+        ['LABEL_ADDED', label],
+        ['LABEL_REMOVED', label],
       ]);
     });
   });
