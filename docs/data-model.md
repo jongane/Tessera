@@ -99,7 +99,7 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 
 [card-features.md](card-features.md) describes what cards will do. This section lists the database changes it needs. They will be added one pull request at a time, each with its own database tests.
 
-**Built so far:** project codes and card numbers, subtasks, completion and done columns, old card numbers, estimates, time entries and timers, assignees, labels, priority, due dates, card creators and checklists. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts`, `apps/api/src/cards/subtask-rules.db-spec.ts`, `apps/api/src/time/time-rules.db-spec.ts`, `apps/api/src/cards/card-fields-rules.db-spec.ts` and `apps/api/src/checklists/checklist-rules.db-spec.ts`.
+**Built so far:** project codes and card numbers, subtasks, completion and done columns, old card numbers, estimates, time entries and timers, assignees, labels, priority, due dates, card creators, checklists and card history. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts`, `apps/api/src/cards/subtask-rules.db-spec.ts`, `apps/api/src/time/time-rules.db-spec.ts`, `apps/api/src/cards/card-fields-rules.db-spec.ts` `apps/api/src/checklists/checklist-rules.db-spec.ts` and `apps/api/src/activity/activity-rules.db-spec.ts`.
 
 ### Changes to existing tables
 
@@ -120,7 +120,7 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 | ✓ CardLabel | Which labels a card has | card_id, label_id, project_id |
 | ✓ TimeEntry | Time someone spent on a card | id, project_id, card_id, user_id, work_date, minutes, note, started_at, ended_at, needs_review |
 | ✓ RunningTimer | A timer that is running now | user_id (primary key, so one per person), project_id, card_id, started_at, work_date (the day it started, in the person's time zone) |
-| CardActivity | The card's history (Activity tab) | id, card_id, actor_id, kind, details, created_at |
+| ✓ CardActivity | The card's history (Activity tab) | id, card_id, project_id, actor_id, kind, details (names copied in when written), created_at, sequence (the order lines were written) |
 | ✓ CardNumberAlias | Old card numbers that still lead to the card | project_id, number_path, card_id |
 | ✓ ProjectCode | Every code a project has had, current and old, so old codes still work. The code is the primary key, so no two projects ever share one | code, project_id |
 
@@ -138,6 +138,7 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 - ✓ A time entry is 1 minute to 24 hours, and a timer entry has a start and a later end.
 - ✓ A time entry is in its card's project, and a card with logged time cannot be deleted.
 - ✓ An estimate is not negative.
+- ✓ Card history is append-only: a trigger refuses any update or delete, except deleting it with its card or project and clearing the person when their account is deleted. History stays in its card's project.
 
 ### Decisions still to make while building
 
