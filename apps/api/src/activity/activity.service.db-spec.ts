@@ -7,6 +7,9 @@ import { CardsService } from '../cards/cards.service.js';
 import { SubtasksService } from '../cards/subtasks.service.js';
 import { AssigneesService } from '../cards/assignees.service.js';
 import { LabelsService } from '../labels/labels.service.js';
+import { TimeEntriesService } from '../time/time-entries.service.js';
+import { TimerService } from '../time/timer.service.js';
+import { ChecklistsService } from '../checklists/checklists.service.js';
 import { ActivityService } from './activity.service.js';
 import { resetDatabase } from '../../test/support/reset-database.js';
 import { cardScenario } from '../../test/support/card-scenario.js';
@@ -20,6 +23,9 @@ describe('ActivityService (database)', () => {
   let subtasks: SubtasksService;
   let assignees: AssigneesService;
   let labels: LabelsService;
+  let time: TimeEntriesService;
+  let timer: TimerService;
+  let checklists: ChecklistsService;
   let activity: ActivityService;
 
   beforeAll(async () => {
@@ -31,6 +37,9 @@ describe('ActivityService (database)', () => {
         SubtasksService,
         AssigneesService,
         LabelsService,
+        TimeEntriesService,
+        TimerService,
+        ChecklistsService,
         ActivityService,
       ],
     }).compile();
@@ -40,6 +49,9 @@ describe('ActivityService (database)', () => {
     subtasks = moduleRef.get(SubtasksService);
     assignees = moduleRef.get(AssigneesService);
     labels = moduleRef.get(LabelsService);
+    time = moduleRef.get(TimeEntriesService);
+    timer = moduleRef.get(TimerService);
+    checklists = moduleRef.get(ChecklistsService);
     activity = moduleRef.get(ActivityService);
   });
 
@@ -384,6 +396,95 @@ describe('ActivityService (database)', () => {
       expect((await history(ana.id, one.id)).slice(1)).toEqual([
         ['LABEL_ADDED', label],
         ['LABEL_REMOVED', label],
+      ]);
+    });
+  });
+
+  describe('time', () => {
+    it('records time logged, edited and deleted', async () => {
+      const { ana, one } = await setUp();
+      const ref = { id: ana.id, displayName: ana.displayName };
+
+      const entry = await time.logTime(ana.id, one.id, {
+        minutes: 30,
+        workDate: '2026-10-01',
+      });
+      await time.updateEntry(ana.id, entry.id, { minutes: 45, note: 'Tests' });
+      await time.updateEntry(ana.id, entry.id, { minutes: 45 });
+      await time.deleteEntry(ana.id, entry.id);
+
+      const was = { minutes: 30, workDate: '2026-10-01', note: null };
+      const now = { minutes: 45, workDate: '2026-10-01', note: 'Tests' };
+      expect((await history(ana.id, one.id)).slice(1)).toEqual([
+        [
+          'TIME_LOGGED',
+          { entryId: entry.id, user: ref, fromTimer: false, ...was },
+        ],
+        [
+          'TIME_ENTRY_EDITED',
+          { entryId: entry.id, user: ref, from: was, to: now },
+        ],
+        ['TIME_ENTRY_DELETED', { entryId: entry.id, user: ref, ...now }],
+      ]);
+    });
+
+    it('records time saved by the timer', async () => {
+      const { ana, one } = await setUp();
+      await timer.startTimer(ana.id, one.id);
+      await prisma.runningTimer.update({
+        where: { userId: ana.id },
+        data: { startedAt: new Date(Date.now() - 10 * 60_000) },
+      });
+
+      await timer.stopTimer(ana.id);
+
+      expect((await history(ana.id, one.id)).at(-1)).toEqual([
+        'TIME_LOGGED',
+        expect.objectContaining({ fromTimer: true, minutes: 10 }),
+      ]);
+    });
+  });
+
+  describe('checklists', () => {
+    it('records checklists added, renamed and deleted, but not their items', async () => {
+      const { ana, one } = await setUp();
+
+      const list = await checklists.createChecklist(ana.id, one.id, 'Testing');
+      const item = await checklists.addItem(ana.id, list.id, 'A');
+      await checklists.updateItem(ana.id, item.id, { isDone: true });
+      await checklists.renameChecklist(ana.id, list.id, 'QA');
+      await checklists.renameChecklist(ana.id, list.id, 'QA');
+      await checklists.deleteChecklist(ana.id, list.id);
+
+      expect((await history(ana.id, one.id)).slice(1)).toEqual([
+        ['CHECKLIST_ADDED', { checklistId: list.id, name: 'Testing' }],
+        [
+          'CHECKLIST_RENAMED',
+          { checklistId: list.id, from: 'Testing', to: 'QA' },
+        ],
+        ['CHECKLIST_DELETED', { checklistId: list.id, name: 'QA' }],
+      ]);
+    });
+
+    it('records an item turned into a subtask once, on the card', async () => {
+      const { ana, one } = await setUp();
+      const list = await checklists.createChecklist(ana.id, one.id, 'Testing');
+      const item = await checklists.addItem(ana.id, list.id, 'Form');
+
+      const sub = await checklists.turnItemIntoSubtask(ana.id, item.id);
+
+      expect((await history(ana.id, one.id)).slice(2)).toEqual([
+        [
+          'CHECKLIST_ITEM_TO_SUBTASK',
+          {
+            checklistId: list.id,
+            checklistName: 'Testing',
+            subtask: { id: sub.id, numberPath: '1.1', title: 'Form' },
+          },
+        ],
+      ]);
+      expect(await history(ana.id, sub.id)).toEqual([
+        ['CREATED', { numberPath: '1.1', title: 'Form' }],
       ]);
     });
   });

@@ -136,13 +136,15 @@ export class SubtasksService {
 
 // Saves a new subtask of `parent` in a column on any board of the parent's
 // project, inside the caller's transaction. Refuses a subtask deeper than
-// 5 levels.
+// 5 levels. `fromChecklist` is the checklist an item came from, when the
+// subtask replaces that item; the parent's history then says so.
 export async function insertSubtask(
   tx: Prisma.TransactionClient,
   userId: string,
   parent: Card,
   columnId: string,
   card: NewCard,
+  fromChecklist?: { id: string; name: string },
 ): Promise<Card> {
   if (parent.depth >= MAX_DEPTH) {
     throw new ConflictException(
@@ -173,9 +175,17 @@ export async function insertSubtask(
     numberPath: subtask.numberPath,
     title: subtask.title,
   });
-  await recordActivity(tx, parent, userId, 'SUBTASK_ADDED', {
-    subtask: cardRef(subtask),
-  });
+  if (fromChecklist) {
+    await recordActivity(tx, parent, userId, 'CHECKLIST_ITEM_TO_SUBTASK', {
+      checklistId: fromChecklist.id,
+      checklistName: fromChecklist.name,
+      subtask: cardRef(subtask),
+    });
+  } else {
+    await recordActivity(tx, parent, userId, 'SUBTASK_ADDED', {
+      subtask: cardRef(subtask),
+    });
+  }
   return subtask;
 }
 

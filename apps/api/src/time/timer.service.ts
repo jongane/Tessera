@@ -11,6 +11,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { findVisibleCard } from '../cards/card-access.js';
 import { localDate, timerMinutes } from './time-input.js';
+import { recordTimeLogged } from './time-entries.service.js';
 
 export interface StartTimerOptions {
   // The person's IANA time zone, e.g. "Europe/London". The entry is dated
@@ -109,7 +110,7 @@ async function saveTimer(
   if (removed.count === 0 || minutes < 1) {
     return null;
   }
-  return tx.timeEntry.create({
+  const entry = await tx.timeEntry.create({
     data: {
       projectId: timer.projectId,
       cardId: timer.cardId,
@@ -121,6 +122,8 @@ async function saveTimer(
       needsReview: overLimit,
     },
   });
+  await recordTimeLogged(tx, entry, timer.userId, true);
+  return entry;
 }
 
 function runningElsewhere(runningCardId: string): ConflictException {

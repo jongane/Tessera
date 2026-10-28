@@ -8,11 +8,13 @@ import type {
   Card,
   Checklist,
   ChecklistItem,
+  Prisma,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import { findVisibleCard } from '../cards/card-access.js';
 import { insertSubtask } from '../cards/subtasks.service.js';
+import { recordActivity } from '../activity/activity.js';
 
 const MAX_NAME_LENGTH = 100;
 const MAX_TEXT_LENGTH = 500;
@@ -72,6 +74,10 @@ export class ChecklistsService {
           position: (existing._max.position ?? -1) + 1,
         },
       });
+      await recordActivity(tx, card, userId, 'CHECKLIST_ADDED', {
+        checklistId: checklist.id,
+        name: checklist.name,
+      });
       return {
         ...checklist,
         suggestNewCard: existing._count + 1 > SUGGEST_NEW_CARD_AFTER,
@@ -103,10 +109,22 @@ export class ChecklistsService {
     checklistId: string,
     name: string,
   ): Promise<Checklist> {
-    const list = await this.findVisibleChecklist(userId, checklistId);
-    return this.prisma.checklist.update({
-      where: { id: list.id },
-      data: { name: requireName(name) },
+    const checkedName = requireName(name);
+    const visible = await this.findVisibleChecklist(userId, checklistId);
+    return this.prisma.$transaction(async (tx) => {
+      const list = await lockChecklist(tx, visible.id);
+      if (list.name === checkedName) {
+        return list;
+      }
+      await recordActivity(tx, cardOf(list), userId, 'CHECKLIST_RENAMED', {
+        checklistId: list.id,
+        from: list.name,
+        to: checkedName,
+      });
+      return tx.checklist.update({
+        where: { id: list.id },
+        data: { name: checkedName },
+      });
     });
   }
 
@@ -131,8 +149,15 @@ export class ChecklistsService {
 
   // Also deletes its items.
   async deleteChecklist(userId: string, checklistId: string): Promise<void> {
-    const list = await this.findVisibleChecklist(userId, checklistId);
-    await this.prisma.checklist.delete({ where: { id: list.id } });
+    const visible = await this.findVisibleChecklist(userId, checklistId);
+    await this.prisma.$transaction(async (tx) => {
+      const list = await lockChecklist(tx, visible.id);
+      await tx.checklist.delete({ where: { id: list.id } });
+      await recordActivity(tx, cardOf(list), userId, 'CHECKLIST_DELETED', {
+        checklistId: list.id,
+        name: list.name,
+      });
+    });
   }
 
   // A new item goes to the bottom of the checklist.
@@ -215,9 +240,14 @@ export class ChecklistsService {
       where: { id: item.checklist.cardId },
     });
     return this.prisma.$transaction(async (tx) => {
-      const subtask = await insertSubtask(tx, userId, card, card.columnId, {
-        title: item.text,
-      });
+      const subtask = await insertSubtask(
+        tx,
+        userId,
+        card,
+        card.columnId,
+        { title: item.text },
+        { id: item.checklist.id, name: item.checklist.name },
+      );
       await tx.checklistItem.delete({ where: { id: item.id } });
       return subtask;
     });
@@ -242,13 +272,34 @@ export class ChecklistsService {
         id: itemId,
         checklist: { card: { board: boardsVisibleTo(userId) } },
       },
-      include: { checklist: { select: { cardId: true } } },
+      include: {
+        checklist: { select: { id: true, name: true, cardId: true } },
+      },
     });
     if (!item) {
       throw new NotFoundException('Checklist item not found');
     }
     return item;
   }
+}
+
+// Holds the checklist's row until the transaction ends and reads it, so a
+// rename or delete records the name it really had. Not found if another
+// request deleted it first.
+async function lockChecklist(
+  tx: Prisma.TransactionClient,
+  checklistId: string,
+): Promise<Checklist> {
+  await tx.$queryRaw`SELECT id FROM checklists WHERE id = ${checklistId}::uuid FOR UPDATE`;
+  const list = await tx.checklist.findUnique({ where: { id: checklistId } });
+  if (!list) {
+    throw new NotFoundException('Checklist not found');
+  }
+  return list;
+}
+
+function cardOf(list: Checklist): { id: string; projectId: string } {
+  return { id: list.cardId, projectId: list.projectId };
 }
 
 // The new [position, id] pairs after moving `movedId` to `toIndex`. An index
