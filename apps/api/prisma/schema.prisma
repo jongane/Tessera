@@ -23,6 +23,8 @@ model User {
   createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   memberships   ProjectMember[]
   assignedCards Card[]
+  timeEntries   TimeEntry[]
+  runningTimer  RunningTimer?
 
   @@map("users")
 }
@@ -42,6 +44,8 @@ model Project {
   boards         Board[]
   codes          ProjectCode[]
   cards          Card[]
+  timeEntries    TimeEntry[]
+  runningTimers  RunningTimer[]
 
   @@map("projects")
 }
@@ -141,6 +145,9 @@ model Card {
   columnId          String            @map("column_id") @db.Uuid
   title             String
   description       String?
+  // The card's own estimate in minutes; null when none is set. A card with
+  // subtasks shows the sum of theirs instead (card-totals.service.ts).
+  estimateMinutes   Int?              @map("estimate_minutes")
   position          Int
   assigneeId        String?           @map("assignee_id") @db.Uuid
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -158,6 +165,8 @@ model Card {
   parent            Card?             @relation("Subtasks", fields: [parentId, projectId], references: [id, projectId], onDelete: NoAction, onUpdate: NoAction)
   subtasks          Card[]            @relation("Subtasks")
   oldNumbers        CardNumberAlias[]
+  timeEntries       TimeEntry[]
+  runningTimers     RunningTimer[]
 
   // Lets threads point at (card, board) together. See Thread.card.
   @@unique([id, boardId])
@@ -221,4 +230,56 @@ model CardNumberAlias {
   @@id([projectId, numberPath])
   @@index([cardId])
   @@map("card_number_aliases")
+}
+
+// Time someone spent on a card, typed in or from a timer
+// (docs/card-features.md, section 6). Rules checked by constraints in the
+// migration: 1 minute to 24 hours, and a timer entry has a start and a later end.
+model TimeEntry {
+  id        String    @id @default(uuid()) @db.Uuid
+  projectId String    @map("project_id") @db.Uuid
+  cardId    String    @map("card_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  // The day the work was done, in the person's own time zone.
+  workDate  DateTime  @map("work_date") @db.Date
+  minutes   Int
+  note      String?
+  // Set only for entries made by stopping a timer.
+  startedAt DateTime? @map("started_at") @db.Timestamptz(3)
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  // Deleting the project removes its time too.
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Points at (card, project) so the entry is in its card's project.
+  // NoAction: a card with logged time cannot be deleted, so hours never
+  // quietly disappear. Deleting the whole project still works, as the
+  // entries go in the same statement.
+  card      Card      @relation(fields: [cardId, projectId], references: [id, projectId], onDelete: NoAction)
+  // Restrict: someone's logged time is kept, so they cannot be deleted.
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([cardId])
+  @@index([userId, workDate])
+  @@index([projectId])
+  @@map("time_entries")
+}
+
+// A timer that is running now. The person is the primary key, so each
+// person has at most one. Stopping it saves a TimeEntry.
+model RunningTimer {
+  userId    String   @id @map("user_id") @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  cardId    String   @map("card_id") @db.Uuid
+  startedAt DateTime @default(now()) @map("started_at") @db.Timestamptz(3)
+  // The day the timer started, in the person's time zone. The entry it
+  // makes is dated this day, even if the timer runs past midnight.
+  workDate  DateTime @map("work_date") @db.Date
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Deleting the card stops its timers without saving them.
+  card      Card     @relation(fields: [cardId, projectId], references: [id, projectId], onDelete: Cascade)
+
+  @@index([cardId])
+  @@index([projectId])
+  @@map("running_timers")
 }
