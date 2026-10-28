@@ -159,6 +159,12 @@ describe('Card field rules (database)', () => {
   });
 
   describe('priority, due dates and creators', () => {
+    it('gives new projects the UTC time zone', async () => {
+      const { project } = await setUp();
+
+      expect(project.timeZone).toBe('UTC');
+    });
+
     it('gives new cards no priority', async () => {
       const { card } = await setUp();
 

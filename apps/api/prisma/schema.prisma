@@ -39,6 +39,9 @@ model Project {
   // The number the next top-level card gets. Only ever goes up, so numbers
   // are never reused, even after a card is deleted.
   nextCardNumber Int             @default(1) @map("next_card_number")
+  // The project's IANA time zone, e.g. "Europe/London". Set by an admin and
+  // used to find the day of a due time. Checked by ProjectsService.
+  timeZone       String          @default("UTC") @map("time_zone")
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   members        ProjectMember[]
   boards         Board[]

@@ -226,4 +226,48 @@ describe('ProjectsService (database)', () => {
       ).resolves.toBeNull();
     });
   });
+
+  describe('setTimeZone', () => {
+    async function setUp() {
+      const ana = await createUser('ana');
+      const ben = await createUser('ben');
+      const cat = await createUser('cat');
+      const project = await projects.createProject(ana.id, {
+        name: 'Website',
+        code: 'WEB',
+      });
+      await prisma.projectMember.create({
+        data: { projectId: project.id, userId: ben.id, role: 'MEMBER' },
+      });
+      return { ana, ben, cat, project };
+    }
+
+    it('starts new projects on UTC and lets an admin change it', async () => {
+      const { ana, project } = await setUp();
+      expect(project.timeZone).toBe('UTC');
+
+      await expect(
+        projects.setTimeZone(ana.id, project.id, 'Australia/Sydney'),
+      ).resolves.toMatchObject({ timeZone: 'Australia/Sydney' });
+    });
+
+    it('refuses a time zone that does not exist', async () => {
+      const { ana, project } = await setUp();
+
+      await expect(
+        projects.setTimeZone(ana.id, project.id, 'Mars/Olympus'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('refuses a member who is not an admin, and a non-member', async () => {
+      const { ben, cat, project } = await setUp();
+
+      await expect(
+        projects.setTimeZone(ben.id, project.id, 'Europe/London'),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(
+        projects.setTimeZone(cat.id, project.id, 'Europe/London'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
 });

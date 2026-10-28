@@ -71,6 +71,15 @@ describe('isDueAfter', () => {
     expect(isDueAfter(day('2026-11-01'), day('2026-11-01'))).toBe(false);
   });
 
+  it("finds a due time's day in the project's time zone", () => {
+    // 9am on 6 Nov in Sydney is still 5 Nov in UTC.
+    const parent = moment('2026-11-05T22:00Z');
+    const subtask = day('2026-11-06');
+
+    expect(isDueAfter(subtask, parent, 'UTC')).toBe(true);
+    expect(isDueAfter(subtask, parent, 'Australia/Sydney')).toBe(false);
+  });
+
   it('never warns when either has no due date', () => {
     expect(isDueAfter(none, day('2026-11-01'))).toBe(false);
     expect(isDueAfter(day('2026-11-01'), none)).toBe(false);

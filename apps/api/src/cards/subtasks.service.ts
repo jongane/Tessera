@@ -115,22 +115,28 @@ export class SubtasksService {
   }
 
   // A subtask due after its parent shows a warning on both cards. The date
-  // is not blocked (docs/card-features.md, section 8). Worked out when read.
+  // is not blocked (docs/card-features.md, section 8). Worked out when read,
+  // using the project's time zone.
   async dueDateWarnings(
     userId: string,
     cardId: string,
   ): Promise<DueDateWarnings> {
     const card = await this.findVisibleCard(userId, cardId);
-    const [parent, subtasks] = await Promise.all([
+    const [parent, subtasks, project] = await Promise.all([
       card.parentId
         ? this.prisma.card.findUnique({ where: { id: card.parentId } })
         : null,
       this.listSubtasks(userId, card.id),
+      this.prisma.project.findUniqueOrThrow({
+        where: { id: card.projectId },
+        select: { timeZone: true },
+      }),
     ]);
+    const { timeZone } = project;
     return {
-      dueAfterParent: parent ? isDueAfter(card, parent) : false,
+      dueAfterParent: parent ? isDueAfter(card, parent, timeZone) : false,
       subtasksDueAfter: subtasks
-        .filter((subtask) => isDueAfter(subtask, card))
+        .filter((subtask) => isDueAfter(subtask, card, timeZone))
         .map((subtask) => subtask.id),
     };
   }

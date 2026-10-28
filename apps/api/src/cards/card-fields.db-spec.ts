@@ -131,6 +131,27 @@ describe('Card fields (database)', () => {
       );
     });
 
+    it("compares days in the project's time zone", async () => {
+      const { ana, project, one, toDo } = await setUp();
+      const form = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+      // 9am on 6 Nov in Sydney, which is still 5 Nov in UTC.
+      await cards.setDueDate(ana.id, one.id, { at: '2026-11-06T09:00+11:00' });
+      await cards.setDueDate(ana.id, form.id, { date: '2026-11-06' });
+
+      await expect(
+        subtasks.dueDateWarnings(ana.id, form.id),
+      ).resolves.toMatchObject({ dueAfterParent: true });
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { timeZone: 'Australia/Sydney' },
+      });
+      await expect(
+        subtasks.dueDateWarnings(ana.id, form.id),
+      ).resolves.toMatchObject({ dueAfterParent: false });
+    });
+
     it('shows nothing to someone who is not a member', async () => {
       const { ben, one } = await setUp();
 
