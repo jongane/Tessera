@@ -43,6 +43,8 @@ export type NewChecklist = Checklist & {
 export interface ItemChanges {
   text?: string;
   isDone?: boolean;
+  // Where to move it in its checklist: 0 is the top.
+  position?: number;
 }
 
 // Named checklists on a card (docs/card-features.md, section 2). Any project
@@ -191,19 +193,24 @@ export class ChecklistsService {
     });
   }
 
+  // Edits, ticks and/or moves the item. Either every change is saved or,
+  // when one is refused, none is.
   async updateItem(
     userId: string,
     itemId: string,
     changes: ItemChanges,
   ): Promise<ChecklistItem> {
+    const text =
+      changes.text === undefined ? undefined : requireText(changes.text);
     const item = await this.findVisibleItem(userId, itemId);
-    return this.prisma.checklistItem.update({
-      where: { id: item.id },
-      data: {
-        text:
-          changes.text === undefined ? undefined : requireText(changes.text),
-        isDone: changes.isDone,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      if (changes.position !== undefined) {
+        await moveItemTo(tx, item, changes.position);
+      }
+      return tx.checklistItem.update({
+        where: { id: item.id },
+        data: { text, isDone: changes.isDone },
+      });
     });
   }
 
@@ -214,16 +221,7 @@ export class ChecklistsService {
     toIndex: number,
   ): Promise<void> {
     const item = await this.findVisibleItem(userId, itemId);
-    await this.prisma.$transaction(async (tx) => {
-      const items = await tx.checklistItem.findMany({
-        where: { checklistId: item.checklistId },
-        orderBy: { position: 'asc' },
-        select: { id: true },
-      });
-      for (const [position, id] of reorder(items, item.id, toIndex)) {
-        await tx.checklistItem.update({ where: { id }, data: { position } });
-      }
-    });
+    await this.prisma.$transaction((tx) => moveItemTo(tx, item, toIndex));
   }
 
   async deleteItem(userId: string, itemId: string): Promise<void> {
@@ -296,6 +294,21 @@ async function lockChecklist(
     throw new NotFoundException('Checklist not found');
   }
   return list;
+}
+
+async function moveItemTo(
+  tx: Prisma.TransactionClient,
+  item: { id: string; checklistId: string },
+  toIndex: number,
+): Promise<void> {
+  const items = await tx.checklistItem.findMany({
+    where: { checklistId: item.checklistId },
+    orderBy: { position: 'asc' },
+    select: { id: true },
+  });
+  for (const [position, id] of reorder(items, item.id, toIndex)) {
+    await tx.checklistItem.update({ where: { id }, data: { position } });
+  }
 }
 
 function cardOf(list: Checklist): { id: string; projectId: string } {

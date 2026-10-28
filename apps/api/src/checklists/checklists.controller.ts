@@ -101,17 +101,13 @@ export class ChecklistsController {
 
   // Edits, ticks and/or moves the item within its checklist.
   @Patch('checklist-items/:itemId')
-  async changeItem(
+  changeItem(
     @CurrentUser() user: SignedInUser,
     @Param('itemId', IdParam) itemId: string,
     @Body(new ZodPipe(itemChangesSchema))
     body: z.infer<typeof itemChangesSchema>,
   ): Promise<ChecklistItem> {
-    const { position, ...changes } = body;
-    if (position !== undefined) {
-      await this.checklists.moveItem(user.id, itemId, position);
-    }
-    return this.checklists.updateItem(user.id, itemId, changes);
+    return this.checklists.updateItem(user.id, itemId, body);
   }
 
   @Delete('checklist-items/:itemId')

@@ -79,19 +79,7 @@ export class CardsController {
     @Param('cardId', IdParam) cardId: string,
     @Body(new ZodPipe(cardChangesSchema)) body: CardChangesBody,
   ): Promise<CardView> {
-    const { title, description, priority, due, estimateMinutes } = body;
-    if (title !== undefined || description !== undefined) {
-      await this.cards.updateCard(user.id, cardId, { title, description });
-    }
-    if (priority !== undefined) {
-      await this.cards.setPriority(user.id, cardId, priority);
-    }
-    if (due !== undefined) {
-      await this.cards.setDueDate(user.id, cardId, due);
-    }
-    if (estimateMinutes !== undefined) {
-      await this.cards.setEstimate(user.id, cardId, estimateMinutes);
-    }
+    await this.cards.updateCard(user.id, cardId, body);
     return this.cards.getCard(user.id, cardId);
   }
 
