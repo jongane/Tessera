@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BoardsService } from '../boards/boards.service.js';
 import { CardsService } from '../cards/cards.service.js';
+import { SubtasksService } from '../cards/subtasks.service.js';
 import { ActivityService } from './activity.service.js';
 import { resetDatabase } from '../../test/support/reset-database.js';
 import { cardScenario } from '../../test/support/card-scenario.js';
@@ -13,16 +14,23 @@ describe('ActivityService (database)', () => {
   let prisma: PrismaService;
   let boards: BoardsService;
   let cards: CardsService;
+  let subtasks: SubtasksService;
   let activity: ActivityService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [PrismaModule],
-      providers: [BoardsService, CardsService, ActivityService],
+      providers: [
+        BoardsService,
+        CardsService,
+        SubtasksService,
+        ActivityService,
+      ],
     }).compile();
     prisma = moduleRef.get(PrismaService);
     boards = moduleRef.get(BoardsService);
     cards = moduleRef.get(CardsService);
+    subtasks = moduleRef.get(SubtasksService);
     activity = moduleRef.get(ActivityService);
   });
 
@@ -210,6 +218,106 @@ describe('ActivityService (database)', () => {
       expect((await history(ana.id, one.id)).slice(1)).toEqual([
         ['COMPLETED', {}],
         ['REOPENED', {}],
+      ]);
+    });
+  });
+
+  describe('subtasks and numbers', () => {
+    const ref = (card: { id: string }, numberPath: string, title: string) => ({
+      id: card.id,
+      numberPath,
+      title,
+    });
+
+    it('records a new subtask on it and on its parent', async () => {
+      const { ana, one, toDo } = await setUp();
+
+      const sub = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+
+      expect(await history(ana.id, sub.id)).toEqual([
+        ['CREATED', { numberPath: '1.1', title: 'Form' }],
+      ]);
+      expect((await history(ana.id, one.id)).slice(1)).toEqual([
+        ['SUBTASK_ADDED', { subtask: ref(sub, '1.1', 'Form') }],
+      ]);
+    });
+
+    it('records a subtask moving to another parent, and every new number', async () => {
+      const { ana, one, two, toDo } = await setUp();
+      const sub = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+      const deeper = await subtasks.createSubtask(ana.id, sub.id, toDo.id, {
+        title: 'Field',
+      });
+
+      await subtasks.moveToParent(ana.id, sub.id, two.id);
+
+      expect((await history(ana.id, sub.id)).slice(1)).toEqual([
+        ['SUBTASK_ADDED', { subtask: ref(deeper, '1.1.1', 'Field') }],
+        [
+          'PARENT_CHANGED',
+          { from: ref(one, '1', 'Login'), to: ref(two, '2', 'Sign-up') },
+        ],
+        ['NUMBER_CHANGED', { from: '1.1', to: '2.1' }],
+      ]);
+      expect((await history(ana.id, deeper.id)).slice(1)).toEqual([
+        ['NUMBER_CHANGED', { from: '1.1.1', to: '2.1.1' }],
+      ]);
+      expect((await history(ana.id, one.id)).at(-1)).toEqual([
+        'SUBTASK_REMOVED',
+        { subtask: ref(sub, '1.1', 'Form'), deleted: false },
+      ]);
+      expect((await history(ana.id, two.id)).at(-1)).toEqual([
+        'SUBTASK_ADDED',
+        { subtask: ref(sub, '2.1', 'Form') },
+      ]);
+    });
+
+    it('records a subtask becoming a top-level card', async () => {
+      const { ana, one, toDo } = await setUp();
+      const sub = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+
+      await subtasks.moveToParent(ana.id, sub.id, null);
+
+      expect((await history(ana.id, sub.id)).slice(1)).toEqual([
+        ['PARENT_CHANGED', { from: ref(one, '1', 'Login'), to: null }],
+        ['NUMBER_CHANGED', { from: '1.1', to: '3' }],
+      ]);
+    });
+
+    it('records a deleted subtask on its parent', async () => {
+      const { ana, one, toDo } = await setUp();
+      const sub = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+
+      await cards.deleteCard(ana.id, sub.id);
+
+      expect((await history(ana.id, one.id)).at(-1)).toEqual([
+        'SUBTASK_REMOVED',
+        { subtask: ref(sub, '1.1', 'Form'), deleted: true },
+      ]);
+    });
+
+    it('keeps a subtask’s history when its parent is deleted and it stays', async () => {
+      const { ana, one, toDo } = await setUp();
+      const sub = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+
+      await cards.deleteCard(ana.id, one.id, {
+        [sub.id]: { action: 'standalone' },
+      });
+
+      expect((await history(ana.id, sub.id)).map(([kind]) => kind)).toEqual([
+        'CREATED',
+        'PARENT_CHANGED',
+        'NUMBER_CHANGED',
       ]);
     });
   });

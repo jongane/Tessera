@@ -52,7 +52,8 @@ export interface ActivityDetails {
   LABEL_ADDED: { labelId: string; name: string; colour: string };
   LABEL_REMOVED: { labelId: string; name: string; colour: string };
   SUBTASK_ADDED: { subtask: CardRef };
-  SUBTASK_REMOVED: { subtask: CardRef };
+  // deleted is false when the subtask moved to another parent.
+  SUBTASK_REMOVED: { subtask: CardRef; deleted: boolean };
   PARENT_CHANGED: { from: CardRef | null; to: CardRef | null };
   NUMBER_CHANGED: { from: string; to: string };
   TIME_LOGGED: {

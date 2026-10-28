@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { takeNextCardNumber, takeNextSubtaskNumber } from './card-numbering.js';
+import { cardRef, recordActivity } from '../activity/activity.js';
 
 // The deepest a card can be: 0 is top level, so 4 means 5 levels in all.
 export const MAX_DEPTH = 4;
@@ -30,8 +31,10 @@ export function loadSubtree(
 // level when null). The moved cards get fresh numbers and their old numbers
 // are kept, so references in chat still lead to them. Refuses a move under
 // the card itself or one of its subtasks, and one deeper than 5 levels.
+// The move is recorded in the history of every card it touches.
 export async function moveSubtree(
   tx: Prisma.TransactionClient,
+  actorId: string,
   card: Card,
   newParent: Card | null,
 ): Promise<Card> {
@@ -61,15 +64,21 @@ export async function moveSubtree(
     })),
   });
   for (const member of subtree.filter((m) => m.id !== card.id)) {
+    const numberPath =
+      newPath + member.numberPath.slice(card.numberPath.length);
     await tx.card.update({
       where: { id: member.id },
-      data: {
-        numberPath: newPath + member.numberPath.slice(card.numberPath.length),
-        depth: member.depth - card.depth + newDepth,
-      },
+      data: { numberPath, depth: member.depth - card.depth + newDepth },
     });
+    await recordActivity(
+      tx,
+      { id: member.id, projectId: card.projectId },
+      actorId,
+      'NUMBER_CHANGED',
+      { from: member.numberPath, to: numberPath },
+    );
   }
-  return tx.card.update({
+  const moved = await tx.card.update({
     where: { id: card.id },
     data: {
       parentId: newParent?.id ?? null,
@@ -77,4 +86,37 @@ export async function moveSubtree(
       depth: newDepth,
     },
   });
+  await recordMove(tx, actorId, card, moved, newParent);
+  return moved;
+}
+
+async function recordMove(
+  tx: Prisma.TransactionClient,
+  actorId: string,
+  before: Card,
+  after: Card,
+  newParent: Card | null,
+): Promise<void> {
+  const oldParent = before.parentId
+    ? await tx.card.findUniqueOrThrow({ where: { id: before.parentId } })
+    : null;
+  await recordActivity(tx, after, actorId, 'PARENT_CHANGED', {
+    from: oldParent && cardRef(oldParent),
+    to: newParent && cardRef(newParent),
+  });
+  await recordActivity(tx, after, actorId, 'NUMBER_CHANGED', {
+    from: before.numberPath,
+    to: after.numberPath,
+  });
+  if (oldParent) {
+    await recordActivity(tx, oldParent, actorId, 'SUBTASK_REMOVED', {
+      subtask: cardRef(before),
+      deleted: false,
+    });
+  }
+  if (newParent) {
+    await recordActivity(tx, newParent, actorId, 'SUBTASK_ADDED', {
+      subtask: cardRef(after),
+    });
+  }
 }

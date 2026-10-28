@@ -10,6 +10,7 @@ import type { NewCard } from './cards.service.js';
 import { nextPosition, takeNextSubtaskNumber } from './card-numbering.js';
 import { MAX_DEPTH, moveSubtree } from './card-tree.js';
 import { isDueAfter } from './card-fields.js';
+import { cardRef, recordActivity } from '../activity/activity.js';
 
 export interface DueDateWarnings {
   // The card is due after its parent.
@@ -60,7 +61,9 @@ export class SubtasksService {
       return card;
     }
 
-    return this.prisma.$transaction((tx) => moveSubtree(tx, card, newParent));
+    return this.prisma.$transaction((tx) =>
+      moveSubtree(tx, userId, card, newParent),
+    );
   }
 
   // The card's direct subtasks, in number order (1.2 before 1.10).
@@ -152,7 +155,7 @@ export async function insertSubtask(
   if (!column) {
     throw new NotFoundException('Column not found');
   }
-  return tx.card.create({
+  const subtask = await tx.card.create({
     data: {
       ...card,
       projectId: parent.projectId,
@@ -166,6 +169,14 @@ export async function insertSubtask(
       thread: { create: { title: card.title } },
     },
   });
+  await recordActivity(tx, subtask, userId, 'CREATED', {
+    numberPath: subtask.numberPath,
+    title: subtask.title,
+  });
+  await recordActivity(tx, parent, userId, 'SUBTASK_ADDED', {
+    subtask: cardRef(subtask),
+  });
+  return subtask;
 }
 
 function lastNumber(numberPath: string): number {

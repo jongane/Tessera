@@ -14,7 +14,7 @@ import { loadSubtree, moveSubtree } from './card-tree.js';
 import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
 import { lockCard } from './card-access.js';
-import { dueRef, recordActivity } from '../activity/activity.js';
+import { cardRef, dueRef, recordActivity } from '../activity/activity.js';
 
 const MAX_TITLE_LENGTH = 200;
 
@@ -367,7 +367,7 @@ export class CardsService {
           }
           await deleteKeepingThread(tx, subtask.id);
         } else if (choice.action === 'standalone') {
-          await moveSubtree(tx, subtask, null);
+          await moveSubtree(tx, userId, subtask, null);
         } else {
           if (beingDeleted.has(choice.parentId)) {
             throw new BadRequestException(
@@ -384,10 +384,19 @@ export class CardsService {
           if (!newParent) {
             throw new NotFoundException('Card not found');
           }
-          await moveSubtree(tx, subtask, newParent);
+          await moveSubtree(tx, userId, subtask, newParent);
         }
       }
       await deleteKeepingThread(tx, card.id);
+      if (card.parentId) {
+        await recordActivity(
+          tx,
+          { id: card.parentId, projectId: card.projectId },
+          userId,
+          'SUBTASK_REMOVED',
+          { subtask: cardRef(card), deleted: true },
+        );
+      }
     });
   }
 
