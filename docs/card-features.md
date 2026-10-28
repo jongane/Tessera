@@ -1,6 +1,6 @@
 # Card features v1
 
-Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6 and 10, the checklists in section 2, and section 8 apart from attachments, are built in the API. The rest is not built yet.
+Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6, 9 and 10, the checklists in section 2, and section 8 apart from attachments, are built in the API. The rest is not built yet.
 
 Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
 
@@ -62,7 +62,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - One entry is **1 minute to 24 hours**, and time cannot be logged for a future day. (Agreed 2026-10-28.)
 - A timer that runs past midnight saves its time on the **day it started**. (Agreed 2026-10-28.)
 - A card with logged time **cannot be deleted**, so hours never quietly disappear from reports. The refusal says how much time is logged. An admin can delete the entries first. (Agreed 2026-10-28.)
-- Edits to time entries will be recorded in the card's history once the Activity tab (section 9) is built. (Agreed 2026-10-28.)
+- Time entries added, edited and deleted are recorded in the card's history (section 9). (Agreed 2026-10-28.)
 - A timer stopped within 30 seconds saves nothing. Otherwise timer time is rounded to the nearest minute. (Agreed 2026-10-28.)
 - A timer left running for more than 24 hours saves 24 hours and the entry is **flagged for review**. The flag clears when the person or an admin edits or confirms the entry. (Agreed 2026-10-28.)
 - "A future day" means a day that has not started anywhere in the world yet, because the server does not know the person's time zone when time is typed in. (Agreed 2026-10-28.)
@@ -93,6 +93,11 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 
 - Each card has an **Activity** tab. It records every field change, move, completion, assignment, subtask change and time-entry edit, with who made it and when.
 - History lines are **not** posted into the card's thread.
+- What is recorded: the card being created; title, description, priority, due date and estimate changes; moves between columns, completing and reopening; assignees added and removed, and owner changes; labels added and removed; subtasks added, moved away or deleted, a change of parent, and card number changes; time entries added (typed or from the timer), edited and deleted. For checklists, only lists created, renamed or deleted, and items turned into subtasks; ticking and editing items is not recorded. (Agreed 2026-10-28.)
+- A description change keeps both the old and the new text. (Agreed 2026-10-28.)
+- Each line keeps the names as they were at the time (people, columns, labels, cards), so it still reads correctly after something is renamed.
+- History can never be edited or deleted; the database refuses it. It is deleted only together with its card or project. If the person who made a change is deleted, the line stays without a name. (Agreed 2026-10-28.)
+- Every project member can see a card's history. (Agreed 2026-10-28.)
 
 ## 10. Permissions
 
