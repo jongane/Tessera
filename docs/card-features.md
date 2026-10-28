@@ -1,6 +1,6 @@
 # Card features v1
 
-Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 4 and 5 are built in the API. The rest is not built yet.
+Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 4, 5 and 6 are built in the API. The rest is not built yet.
 
 Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
 
@@ -53,6 +53,10 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - **One running timer per person.** Starting a timer while another is running warns that the first will stop. If the person goes ahead, the first timer stops and its time is saved as an entry.
 - **Editing entries:** a person can edit or delete their own entries for 24 hours. After that only admins can. Every change is recorded in the card's history.
 - Everyone in the project can see all time entries.
+- One entry is **1 minute to 24 hours**, and time cannot be logged for a future day. (Agreed 2026-10-28.)
+- A timer that runs past midnight saves its time on the **day it started**. (Agreed 2026-10-28.)
+- A card with logged time **cannot be deleted**, so hours never quietly disappear from reports. The refusal says how much time is logged. An admin can delete the entries first. (Agreed 2026-10-28.)
+- Edits to time entries will be recorded in the card's history once the Activity tab (section 9) is built. (Agreed 2026-10-28.)
 
 ## 7. Seeing related cards
 

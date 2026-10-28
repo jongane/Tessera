@@ -100,7 +100,7 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 
 [card-features.md](card-features.md) describes what cards will do. This section lists the database changes it needs. They will be added one pull request at a time, each with its own database tests.
 
-**Built so far:** project codes and card numbers, subtasks, completion and done columns, and old card numbers. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts` and `apps/api/src/cards/subtask-rules.db-spec.ts`.
+**Built so far:** project codes and card numbers, subtasks, completion and done columns, old card numbers, estimates, time entries and timers. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts`, `apps/api/src/cards/subtask-rules.db-spec.ts` and `apps/api/src/time/time-rules.db-spec.ts`.
 
 ### Changes to existing tables
 
@@ -108,7 +108,7 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 |---|---|---|
 | Project | ✓ code (2 to 6 capitals, unique), ✓ next_card_number, highlight_colours | Card numbers like `WEB-12`; relationship colours are a project setting only admins change |
 | Column | ✓ is_done | Moving a card into a done column ticks it complete |
-| Card | ✓ project_id, ✓ parent_id (nullable), ✓ number_path (e.g. `12.1.2`), ✓ next_subtask_number, ✓ depth, ✓ is_complete, ✓ completed_at, priority, due_at, due_has_time, estimate_minutes, created_by | Subtasks, card numbers, completion, priority, due dates, estimates, delete permission |
+| Card | ✓ project_id, ✓ parent_id (nullable), ✓ number_path (e.g. `12.1.2`), ✓ next_subtask_number, ✓ depth, ✓ is_complete, ✓ completed_at, priority, due_at, due_has_time, ✓ estimate_minutes, created_by | Subtasks, card numbers, completion, priority, due dates, estimates, delete permission |
 
 ### New tables
 
@@ -118,8 +118,8 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 | ChecklistItem | One tick-box item on a card | id, card_id, text, is_done, position |
 | Label | A project-wide label | id, project_id, name, colour |
 | CardLabel | Which labels a card has | card_id, label_id |
-| TimeEntry | Time someone spent on a card | id, card_id, user_id, work_date, minutes, note, started_at, ended_at |
-| RunningTimer | A timer that is running now | user_id (primary key, so one per person), card_id, started_at |
+| ✓ TimeEntry | Time someone spent on a card | id, project_id, card_id, user_id, work_date, minutes, note, started_at, ended_at |
+| ✓ RunningTimer | A timer that is running now | user_id (primary key, so one per person), project_id, card_id, started_at, work_date (the day it started, in the person's time zone) |
 | CardActivity | The card's history (Activity tab) | id, card_id, actor_id, kind, details, created_at |
 | ✓ CardNumberAlias | Old card numbers that still lead to the card | project_id, number_path, card_id |
 | ✓ ProjectCode | Every code a project has had, current and old, so old codes still work. The code is the primary key, so no two projects ever share one | code, project_id |
@@ -133,11 +133,13 @@ Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and t
 - ✓ A completion time is recorded exactly when a card is complete.
 - A card has at most one owner among its assignees (partial unique index), and assignees must be project members.
 - A label name is unique within its project.
-- Time entries have a positive duration.
+- ✓ A time entry is 1 minute to 24 hours, and a timer entry has a start and a later end.
+- ✓ A time entry is in its card's project, and a card with logged time cannot be deleted.
+- ✓ An estimate is not negative.
 
 ### Decisions still to make while building
 
-- **Rollups.** Estimate and time totals are worked out with a recursive query when read, not stored. Stored totals can drift out of date, so they will only be added if reading becomes slow.
+- ✓ **Rollups.** Estimate and time totals are worked out with a recursive query when read, not stored. Stored totals can drift out of date, so they will only be added if reading becomes slow.
 - ✓ **Number paths.** `number_path` is stored, and the subtasks' paths are rewritten when a card moves to another parent. The old paths are saved as aliases at the same time.
 
 ## Not in this version
