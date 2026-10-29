@@ -1,6 +1,7 @@
 # Rules for AI helpers working on Tessera
 
 Read PROJECT.md first. It says what Tessera is, what it is not, and what is still undecided.
+Use the words defined in CONTEXT.md, in code, docs and screens.
 
 ## About the owner
 - New to TypeScript and GitHub; experienced in Visual Basic, C++ and C#.
