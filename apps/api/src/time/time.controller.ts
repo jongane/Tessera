@@ -9,45 +9,25 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { z } from 'zod';
+import {
+  type NewTimeEntryBody,
+  newTimeEntrySchema,
+  type StartTimerBody,
+  startTimerSchema,
+  type TimeEntryChangesBody,
+  timeEntryChangesSchema,
+} from '@tessera/shared';
 import type { RunningTimer, TimeEntry } from '../generated/prisma/client.js';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
 import { IdParam } from '../common/id-param.js';
 import { ZodPipe } from '../common/zod-pipe.js';
 import type { CardTotals } from './card-totals.js';
 import { CardTotalsService } from './card-totals.service.js';
-import { MAX_ENTRY_MINUTES } from './time-input.js';
 import {
   TimeEntriesService,
   type TimeEntryWithPerson,
 } from './time-entries.service.js';
 import { type StartTimerResult, TimerService } from './timer.service.js';
-
-const minutesField = z.number().int().min(1).max(MAX_ENTRY_MINUTES);
-// A day not yet started anywhere in the world is refused by the service.
-const workDateField = z.iso.date();
-const noteField = z.string().trim().max(1000);
-
-const newEntrySchema = z.strictObject({
-  minutes: minutesField,
-  workDate: workDateField,
-  note: noteField.optional(),
-});
-
-const entryChangesSchema = z.strictObject({
-  minutes: minutesField.optional(),
-  workDate: workDateField.optional(),
-  // Null removes the note.
-  note: noteField.nullable().optional(),
-});
-
-const startTimerSchema = z.strictObject({
-  // The person's time zone, e.g. "Europe/London", so the entry is dated
-  // the day the timer starts there. Defaults to UTC.
-  timeZone: z.string().max(100).optional(),
-  // Go ahead even though a timer is running on another card.
-  stopRunning: z.boolean().optional(),
-});
 
 @Controller()
 export class TimeController {
@@ -70,7 +50,7 @@ export class TimeController {
   log(
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
-    @Body(new ZodPipe(newEntrySchema)) body: z.infer<typeof newEntrySchema>,
+    @Body(new ZodPipe(newTimeEntrySchema)) body: NewTimeEntryBody,
   ): Promise<TimeEntry> {
     return this.entries.logTime(user.id, cardId, body);
   }
@@ -80,8 +60,8 @@ export class TimeController {
   change(
     @CurrentUser() user: SignedInUser,
     @Param('entryId', IdParam) entryId: string,
-    @Body(new ZodPipe(entryChangesSchema))
-    body: z.infer<typeof entryChangesSchema>,
+    @Body(new ZodPipe(timeEntryChangesSchema))
+    body: TimeEntryChangesBody,
   ): Promise<TimeEntry> {
     return this.entries.updateEntry(user.id, entryId, body);
   }
@@ -110,7 +90,7 @@ export class TimeController {
   startTimer(
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
-    @Body(new ZodPipe(startTimerSchema)) body: z.infer<typeof startTimerSchema>,
+    @Body(new ZodPipe(startTimerSchema)) body: StartTimerBody,
   ): Promise<StartTimerResult> {
     return this.timer.startTimer(user.id, cardId, body);
   }

@@ -8,7 +8,7 @@ import {
   newSubtaskSchema,
   type ParentChange,
   parentChangeSchema,
-} from './cards.schemas.js';
+} from '@tessera/shared';
 import {
   type DueDateWarnings,
   SubtasksService,

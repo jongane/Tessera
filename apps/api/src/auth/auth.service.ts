@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { ChangePassword, SignIn, SignUp } from './auth.schemas.js';
+import type { ChangePassword, SignIn, SignUp } from '@tessera/shared';
 import { hashPassword, verifyPassword } from './password.js';
 import { SESSION_LIFETIME_MS } from './session-cookie.js';
 import { hashToken, newSessionToken } from './session-token.js';

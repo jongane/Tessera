@@ -9,7 +9,16 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { z } from 'zod';
+import {
+  type ChecklistChangesBody,
+  checklistChangesSchema,
+  type ChecklistItemChangesBody,
+  checklistItemChangesSchema,
+  type NewChecklistBody,
+  type NewChecklistItemBody,
+  newChecklistItemSchema,
+  newChecklistSchema,
+} from '@tessera/shared';
 import type { Card, ChecklistItem } from '../generated/prisma/client.js';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
 import { IdParam } from '../common/id-param.js';
@@ -19,24 +28,6 @@ import {
   ChecklistsService,
   type NewChecklist,
 } from './checklists.service.js';
-
-// The service trims and checks lengths (names up to 100, items up to 500).
-const nameField = z.string().max(200);
-const textField = z.string().max(1000);
-// Where to move it: 0 is first. Past the end puts it last.
-const positionField = z.number().int().min(0);
-
-const newChecklistSchema = z.strictObject({ name: nameField });
-const checklistChangesSchema = z.strictObject({
-  name: nameField.optional(),
-  position: positionField.optional(),
-});
-const newItemSchema = z.strictObject({ text: textField });
-const itemChangesSchema = z.strictObject({
-  text: textField.optional(),
-  isDone: z.boolean().optional(),
-  position: positionField.optional(),
-});
 
 @Controller()
 export class ChecklistsController {
@@ -57,7 +48,7 @@ export class ChecklistsController {
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
     @Body(new ZodPipe(newChecklistSchema))
-    body: z.infer<typeof newChecklistSchema>,
+    body: NewChecklistBody,
   ): Promise<NewChecklist> {
     return this.checklists.createChecklist(user.id, cardId, body.name);
   }
@@ -69,7 +60,7 @@ export class ChecklistsController {
     @CurrentUser() user: SignedInUser,
     @Param('checklistId', IdParam) checklistId: string,
     @Body(new ZodPipe(checklistChangesSchema))
-    body: z.infer<typeof checklistChangesSchema>,
+    body: ChecklistChangesBody,
   ): Promise<void> {
     if (body.name !== undefined) {
       await this.checklists.renameChecklist(user.id, checklistId, body.name);
@@ -94,7 +85,7 @@ export class ChecklistsController {
   addItem(
     @CurrentUser() user: SignedInUser,
     @Param('checklistId', IdParam) checklistId: string,
-    @Body(new ZodPipe(newItemSchema)) body: z.infer<typeof newItemSchema>,
+    @Body(new ZodPipe(newChecklistItemSchema)) body: NewChecklistItemBody,
   ): Promise<ChecklistItem> {
     return this.checklists.addItem(user.id, checklistId, body.text);
   }
@@ -104,8 +95,8 @@ export class ChecklistsController {
   changeItem(
     @CurrentUser() user: SignedInUser,
     @Param('itemId', IdParam) itemId: string,
-    @Body(new ZodPipe(itemChangesSchema))
-    body: z.infer<typeof itemChangesSchema>,
+    @Body(new ZodPipe(checklistItemChangesSchema))
+    body: ChecklistItemChangesBody,
   ): Promise<ChecklistItem> {
     return this.checklists.updateItem(user.id, itemId, body);
   }

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Put } from '@nestjs/common';
-import { z } from 'zod';
+import { type OwnerChange, ownerChangeSchema } from '@tessera/shared';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
 import { IdParam } from '../common/id-param.js';
 import { ZodPipe } from '../common/zod-pipe.js';
@@ -7,8 +7,6 @@ import {
   AssigneesService,
   type AssigneeWithPerson,
 } from './assignees.service.js';
-
-const ownerSchema = z.strictObject({ userId: z.uuid() });
 
 // Each endpoint answers with the card's assignees afterwards, owner first.
 @Controller('cards/:cardId')
@@ -47,7 +45,7 @@ export class AssigneesController {
   setOwner(
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
-    @Body(new ZodPipe(ownerSchema)) body: z.infer<typeof ownerSchema>,
+    @Body(new ZodPipe(ownerChangeSchema)) body: OwnerChange,
   ): Promise<AssigneeWithPerson[]> {
     return this.assignees.setOwner(user.id, cardId, body.userId);
   }

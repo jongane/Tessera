@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// The project's own code rules (2 to 6 letters) are checked by
+// The project's own code rules (2 to 6 letters) are checked by the API's
 // ProjectsService, which gives a clearer message.
 const codeField = z.string().max(20);
 

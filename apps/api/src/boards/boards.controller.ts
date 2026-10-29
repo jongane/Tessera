@@ -17,7 +17,7 @@ import {
   columnChangesSchema,
   type NewBoardBody,
   newBoardSchema,
-} from './boards.schemas.js';
+} from '@tessera/shared';
 import { BoardsService, type BoardView } from './boards.service.js';
 
 @Controller()

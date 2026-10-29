@@ -18,7 +18,7 @@ import {
   newThreadSchema,
   type ThreadLink,
   threadLinkSchema,
-} from './threads.schemas.js';
+} from '@tessera/shared';
 import { ThreadsService } from './threads.service.js';
 
 @Controller()

@@ -10,25 +10,17 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { z } from 'zod';
-import { type Label, LabelColour } from '../generated/prisma/client.js';
+import {
+  type LabelChangesBody,
+  labelChangesSchema,
+  type NewLabelBody,
+  newLabelSchema,
+} from '@tessera/shared';
+import type { Label } from '../generated/prisma/client.js';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
 import { IdParam } from '../common/id-param.js';
 import { ZodPipe } from '../common/zod-pipe.js';
 import { LabelsService } from './labels.service.js';
-
-const nameField = z.string().trim().min(1).max(50);
-const colourField = z.enum(LabelColour);
-
-const newLabelSchema = z.strictObject({
-  name: nameField,
-  colour: colourField,
-});
-
-const labelChangesSchema = z.strictObject({
-  name: nameField.optional(),
-  colour: colourField.optional(),
-});
 
 @Controller()
 export class LabelsController {
@@ -48,7 +40,7 @@ export class LabelsController {
   create(
     @CurrentUser() user: SignedInUser,
     @Param('projectId', IdParam) projectId: string,
-    @Body(new ZodPipe(newLabelSchema)) body: z.infer<typeof newLabelSchema>,
+    @Body(new ZodPipe(newLabelSchema)) body: NewLabelBody,
   ): Promise<Label> {
     return this.labels.createLabel(user.id, projectId, body);
   }
@@ -59,7 +51,7 @@ export class LabelsController {
     @CurrentUser() user: SignedInUser,
     @Param('labelId', IdParam) labelId: string,
     @Body(new ZodPipe(labelChangesSchema))
-    body: z.infer<typeof labelChangesSchema>,
+    body: LabelChangesBody,
   ): Promise<Label> {
     return this.labels.updateLabel(user.id, labelId, body);
   }
