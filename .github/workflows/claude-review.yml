@@ -1,0 +1,88 @@
+name: Claude review
+
+# Claude reviews every push to a pull request, using the checklist in
+# .claude/agents/reviewer.md. It comments on the pull request, and this check
+# fails when it finds something serious, which blocks the merge.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Read the code, and write review comments. Nothing else.
+permissions:
+  contents: read
+  pull-requests: write
+
+# If you push again while a review is in progress, cancel the old review.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Claude review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # GitHub does not give secrets to pull requests from forks, so the
+      # review cannot run there. Say so plainly instead of failing oddly.
+      - name: Check the Claude token is available
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "::error::The CLAUDE_CODE_OAUTH_TOKEN secret is not available. Add it under Settings > Secrets and variables > Actions. Pull requests from forks never receive secrets, so the owner reviews those by hand."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Review the pull request
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PULL REQUEST: #${{ github.event.pull_request.number }}
+
+            Review this pull request. Read .claude/agents/reviewer.md and follow its
+            checklist and its rules for what is serious and what is minor.
+
+            - Get the changes with `gh pr diff ${{ github.event.pull_request.number }}`.
+            - Read earlier review comments with
+              `gh pr view ${{ github.event.pull_request.number }} --comments` and do not
+              repeat a finding that is already there and still unchanged.
+            - Post an inline comment on the line for each new finding. Start each one with
+              **Serious** or **Minor**.
+            - Post one summary comment with
+              `gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "..."`
+              so each push updates the same comment. Start it with the verdict, then list
+              every finding still open, serious first. Write in plain English for a
+              reader who is new to TypeScript.
+
+            Finally, return the verdict: "block" if any serious finding is still open in
+            the current code, otherwise "pass".
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["pass","block"]},"serious_findings":{"type":"array","items":{"type":"string"}}},"required":["verdict","serious_findings"]}'
+
+      - name: Fail the check if the review found something serious
+        env:
+          RESULT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          verdict=$(echo "$RESULT" | jq -r '.verdict // empty')
+          if [ "$verdict" = "pass" ]; then
+            echo "Claude review passed."
+            exit 0
+          fi
+          if [ "$verdict" = "block" ]; then
+            echo "::error::Claude review found serious problems. See the review comments on the pull request."
+            echo "$RESULT" | jq -r '.serious_findings[] | "- " + .'
+            exit 1
+          fi
+          echo "::error::Claude review did not return a verdict, so the check fails to be safe."
+          exit 1
