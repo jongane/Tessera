@@ -16,7 +16,7 @@ Tessera links them: **every piece of work has a conversation, and every conversa
 - Files attach to the card or message they belong to, so you find them by context.
 - An optional AI assistant can summarise threads and answer questions about a project. It is **off by default**, only a project admin can turn it on, and it proposes changes for a person to approve.
 
-Read [PROJECT.md](PROJECT.md) for the full vision, the first-version scope and the open questions. The draft data model is in [docs/data-model.md](docs/data-model.md).
+Read [PROJECT.md](PROJECT.md) for the full vision, the first-version scope and the open questions. The draft data model is in [docs/data-model.md](docs/data-model.md), the web app design in [docs/web-app.md](docs/web-app.md), and the words we use in [CONTEXT.md](CONTEXT.md).
 
 ## Technology
 

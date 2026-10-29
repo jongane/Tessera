@@ -1,0 +1,3 @@
+# The web app and the API are served from one origin
+
+Sign-in uses a session cookie that is `HttpOnly` and `SameSite=Lax` (see [api.md](../api.md)), so the web app must be served from the same address as the API. In production a single server (or a reverse proxy in Docker Compose) serves the built web app and `/api`. In development the Vite dev server passes `/api` on to the API. We decided this on 2026-10-29 instead of hosting the two apart, because that would need CORS settings and cross-site cookies (`SameSite=None`), which are easier to get wrong and weaken protection against other sites making requests as the signed-in person. The API therefore has no CORS settings, on purpose.

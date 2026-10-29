@@ -1,0 +1,89 @@
+# Web app v1
+
+Status: agreed with the project owner on 2026-10-29 in a design session. Nothing in this document is built yet. The look is shown in the board mock-up (the "Look" screens): https://claude.ai/artifact/7N2n8s3gW14KMZiNbMPRr1
+
+Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to is described in [api.md](api.md).
+
+## 1. What the first release covers
+
+- Sign in, sign up and sign out.
+- The project list, with "New project".
+- The board view: columns, cards, adding a card, dragging cards, and the board's threads in the sidebar.
+- New threads, the "Create a card for this thread?" prompt, and linking or unlinking a thread and a card.
+- The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, and the Activity tab.
+- Project settings: members (add by email, change role, remove, leave), labels, project code and time zone.
+- A server admin screen with the sign-up switch.
+
+Not in this release: chat messages (the API has none yet, so the thread panel shows a thread's title and its card, with "Messages are coming soon"), live updates, file attachments and AI features.
+
+## 2. Screens and addresses
+
+| Address | Screen |
+|---|---|
+| `/sign-in`, `/sign-up` | Signing in, and making an account (hidden when sign-up is off) |
+| `/projects` | Your projects. When empty, it offers "Create your first project" |
+| `/WEB/boards/<board id>` | A board |
+| `/WEB-12` | Opens card WEB-12 on its board, with the card panel open. Old card numbers and project codes keep working |
+| `/WEB/settings` | Project settings |
+| `/admin` | Server settings, for server admins |
+
+- After signing in you land on the **last board you used**. The first time, you land on the project list.
+- If your session has ended, you are sent to the sign-in page and brought back to the same place afterwards.
+
+## 3. Layout of the board screen
+
+- A sidebar on the left lists the project's boards and the board's threads (the general thread first).
+- The board's columns fill the middle.
+- The **card panel** and the **thread panel** are two separate panels, so you can read a card's thread while editing the card.
+- People can dock the thread panel on the right, left or bottom, and drag its edge to resize it. A floating window and a separate browser window may come later, so the panel code must not assume where it sits.
+- The card panel is one self-contained component. The board screen only decides where it is placed, so it can move into a dialog or onto its own page later with a small change.
+- Panel positions are remembered in the browser for now. They must move to the person's account later (this needs a small API addition).
+- Desktop and tablet come first. On a phone the screen stays usable: panels stack, and the card and thread panels become tabs.
+
+## 4. Cards on the board
+
+- Cards can be dragged up and down within a column and into other columns. Dragging also works with the keyboard, and every card has a "Move to" menu as a non-drag option.
+- Dropping a card into a done column while some of its subtasks are open asks "Complete anyway?" first.
+- A card shows its number, title, priority (when set), labels, due date, checklist and subtask progress, and its assignees.
+- **API change needed first**: moving a card currently always puts it at the bottom of a column. The move needs to take a position, and cards need to be reorderable within a column.
+
+## 5. Editing
+
+- The description is edited with a formatting toolbar (Tiptap) and stored as Markdown, as [card-features.md](card-features.md) says. It has Save and Cancel buttons.
+- Small fields (title, priority, due date, estimate) save as soon as they change.
+- Quick actions such as dragging a card or ticking a checklist item show on screen straight away. If saving fails, the change is undone and a short message says "Couldn't save, try again".
+
+## 6. Keeping screens up to date
+
+- No live updates in this release. A screen reloads its data after your own changes, when you come back to the browser tab, and every 30 seconds while a board is open.
+- Two people changing the same field: the last save wins.
+- Live updates (WebSockets) are built together with chat, because chat needs them anyway.
+
+## 7. Look
+
+- Tailwind CSS for styling, and Radix for accessible building blocks (menus, dialogs, tabs).
+- The mock-up's colours and the Inter font.
+- Accessibility target: WCAG 2.2 AA (keyboard use, screen readers, contrast), with automatic checks (axe) in the tests.
+
+## 8. Code structure
+
+- The API's input rules (zod schemas) move into a shared package, `packages/shared`, used by both apps. Forms then show the same errors the API would give.
+- The web app and the API are served from the same address, so the sign-in cookie just works. During development the web app's dev server passes `/api` requests on to the API. See [ADR 0001](adr/0001-web-app-and-api-on-one-origin.md).
+- Data loading uses TanStack Query (caching, reloading on tab focus and every 30 seconds, undoing a failed change). Addresses use React Router. Dragging uses dnd-kit. (Library choices are confirmed in each PR's plan.)
+
+## 9. Testing
+
+- Component tests with Vitest and Testing Library, describing what a person sees. The API is faked with MSW.
+- A few end-to-end tests in a real browser (Playwright) against the real API in CI: sign in, create a card, move it, open it. The first one comes with the foundation PR.
+
+## 10. Build order
+
+One pull request at a time, each with its plan approved first:
+
+1. Shared validation package (moves code, no change in behaviour).
+2. API: card order within a column, and moving to a position.
+3. Web foundation: addresses, API client, look, sign in and sign up, project list, first Playwright test.
+4. Board view: columns, cards, dragging, threads in the sidebar, new threads and the "Create a card?" prompt, the thread panel and its docking.
+5. Project settings and the server admin screen.
+6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting.
+7. Card panel extras: subtasks, checklists, time and the timer, Activity tab.
