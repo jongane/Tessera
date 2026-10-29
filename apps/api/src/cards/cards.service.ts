@@ -27,6 +27,11 @@ export interface CardChanges {
   title?: string;
   // An empty description clears it.
   description?: string;
+  priority?: string;
+  // A day, a day with a time, or null to clear it (see card-fields.ts).
+  due?: DueInput;
+  // Null clears it.
+  estimateMinutes?: number | null;
 }
 
 // A card as the card screen shows it: with its full number (WEB-12.1,
@@ -91,8 +96,9 @@ export class CardsService {
     });
   }
 
-  // Changes the title and/or description. The history keeps the old and new
-  // text of each.
+  // Changes any of the card's fields. Every value is checked before anything
+  // is saved, and all are saved together. The history keeps the old and new
+  // value of each field that changed.
   async updateCard(
     userId: string,
     cardId: string,
@@ -106,25 +112,65 @@ export class CardsService {
         : changes.description.trim() === ''
           ? null
           : changes.description;
+    const priority =
+      changes.priority === undefined
+        ? undefined
+        : requirePriority(changes.priority);
+    const due = changes.due === undefined ? undefined : parseDue(changes.due);
+    const estimateMinutes =
+      changes.estimateMinutes === undefined
+        ? undefined
+        : requireEstimateMinutes(changes.estimateMinutes);
     const visible = await this.findVisibleCard(userId, cardId);
     return this.prisma.$transaction(async (tx) => {
       const card = await lockCard(tx, visible.id);
+      const data: Prisma.CardUpdateInput = {};
       if (title !== undefined && title !== card.title) {
         await recordActivity(tx, card, userId, 'TITLE_CHANGED', {
           from: card.title,
           to: title,
         });
+        data.title = title;
       }
       if (description !== undefined && description !== card.description) {
         await recordActivity(tx, card, userId, 'DESCRIPTION_CHANGED', {
           from: card.description,
           to: description,
         });
+        data.description = description;
       }
-      return tx.card.update({
-        where: { id: card.id },
-        data: { title, description },
-      });
+      if (priority !== undefined && priority !== card.priority) {
+        await recordActivity(tx, card, userId, 'PRIORITY_CHANGED', {
+          from: card.priority,
+          to: priority,
+        });
+        data.priority = priority;
+      }
+      if (due !== undefined) {
+        const from = dueRef(card);
+        const to = dueRef(due);
+        if (from.at !== to.at || from.hasTime !== to.hasTime) {
+          await recordActivity(tx, card, userId, 'DUE_DATE_CHANGED', {
+            from,
+            to,
+          });
+          Object.assign(data, due);
+        }
+      }
+      if (
+        estimateMinutes !== undefined &&
+        estimateMinutes !== card.estimateMinutes
+      ) {
+        await recordActivity(tx, card, userId, 'ESTIMATE_CHANGED', {
+          from: card.estimateMinutes,
+          to: estimateMinutes,
+        });
+        data.estimateMinutes = estimateMinutes;
+      }
+      if (Object.keys(data).length === 0) {
+        return card;
+      }
+      return tx.card.update({ where: { id: card.id }, data });
     });
   }
 
@@ -273,70 +319,21 @@ export class CardsService {
 
   // The card's own estimate in minutes; null clears it. A card with subtasks
   // shows the sum of theirs instead (CardTotalsService).
-  async setEstimate(
+  setEstimate(
     userId: string,
     cardId: string,
     minutes: number | null,
   ): Promise<Card> {
-    const estimateMinutes = requireEstimateMinutes(minutes);
-    const visible = await this.findVisibleCard(userId, cardId);
-    return this.prisma.$transaction(async (tx) => {
-      const card = await lockCard(tx, visible.id);
-      if (card.estimateMinutes === estimateMinutes) {
-        return card;
-      }
-      await recordActivity(tx, card, userId, 'ESTIMATE_CHANGED', {
-        from: card.estimateMinutes,
-        to: estimateMinutes,
-      });
-      return tx.card.update({
-        where: { id: card.id },
-        data: { estimateMinutes },
-      });
-    });
+    return this.updateCard(userId, cardId, { estimateMinutes: minutes });
   }
 
-  async setPriority(
-    userId: string,
-    cardId: string,
-    priority: string,
-  ): Promise<Card> {
-    const value = requirePriority(priority);
-    const visible = await this.findVisibleCard(userId, cardId);
-    return this.prisma.$transaction(async (tx) => {
-      const card = await lockCard(tx, visible.id);
-      if (card.priority === value) {
-        return card;
-      }
-      await recordActivity(tx, card, userId, 'PRIORITY_CHANGED', {
-        from: card.priority,
-        to: value,
-      });
-      return tx.card.update({
-        where: { id: card.id },
-        data: { priority: value },
-      });
-    });
+  setPriority(userId: string, cardId: string, priority: string): Promise<Card> {
+    return this.updateCard(userId, cardId, { priority });
   }
 
   // A day, a day with a time, or null to clear it (see card-fields.ts).
-  async setDueDate(
-    userId: string,
-    cardId: string,
-    due: DueInput,
-  ): Promise<Card> {
-    const value = parseDue(due);
-    const visible = await this.findVisibleCard(userId, cardId);
-    return this.prisma.$transaction(async (tx) => {
-      const card = await lockCard(tx, visible.id);
-      const from = dueRef(card);
-      const to = dueRef(value);
-      if (from.at === to.at && from.hasTime === to.hasTime) {
-        return card;
-      }
-      await recordActivity(tx, card, userId, 'DUE_DATE_CHANGED', { from, to });
-      return tx.card.update({ where: { id: card.id }, data: value });
-    });
+  setDueDate(userId: string, cardId: string, due: DueInput): Promise<Card> {
+    return this.updateCard(userId, cardId, { due });
   }
 
   async reopenCard(userId: string, cardId: string): Promise<Card> {

@@ -71,6 +71,8 @@ describe('Card features (e2e)', () => {
         { estimateMinutes: -5 },
         { estimateMinutes: 1.5 },
         { title: 'Sign in', priority: 'SOON' },
+        // Passes the schema but not the service's stricter check.
+        { title: 'Sign in', due: { at: '2026-11-02T17:00:00.123456+01:00' } },
       ]) {
         await ana.agent.patch(cardUrl).send(bad).expect(400);
       }
@@ -348,6 +350,60 @@ describe('Card features (e2e)', () => {
         .delete(`/api/checklist-items/${items[0]!.id}`)
         .expect(204);
       await ana.agent.delete(`/api/checklists/${list.id}`).expect(204);
+    });
+
+    it('refuses a bad item change without moving the item', async () => {
+      const { ana, cardUrl } = await setUp();
+      const list = (
+        await ana.agent.post(`${cardUrl}/checklists`).send({ name: 'QA' })
+      ).body as { id: string };
+      const items = [];
+      for (const text of ['A', 'B']) {
+        items.push(
+          (
+            await ana.agent
+              .post(`/api/checklists/${list.id}/items`)
+              .send({ text })
+          ).body as { id: string },
+        );
+      }
+
+      for (const text of ['', ' ', 'x'.repeat(501)]) {
+        await ana.agent
+          .patch(`/api/checklist-items/${items[1]!.id}`)
+          .send({ position: 0, text })
+          .expect(400);
+      }
+
+      const response = await ana.agent.get(`${cardUrl}/checklists`).expect(200);
+      expect(response.body[0].items).toEqual([
+        expect.objectContaining({ text: 'A' }),
+        expect.objectContaining({ text: 'B' }),
+      ]);
+    });
+
+    it('refuses a bad checklist change without moving the checklist', async () => {
+      const { ana, cardUrl } = await setUp();
+      const lists = [];
+      for (const name of ['One', 'Two']) {
+        lists.push(
+          (await ana.agent.post(`${cardUrl}/checklists`).send({ name }))
+            .body as { id: string },
+        );
+      }
+
+      for (const name of ['', 'x'.repeat(101)]) {
+        await ana.agent
+          .patch(`/api/checklists/${lists[1]!.id}`)
+          .send({ position: 0, name })
+          .expect(400);
+      }
+
+      const response = await ana.agent.get(`${cardUrl}/checklists`).expect(200);
+      expect(response.body).toEqual([
+        expect.objectContaining({ name: 'One' }),
+        expect.objectContaining({ name: 'Two' }),
+      ]);
     });
   });
 
