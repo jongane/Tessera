@@ -45,7 +45,7 @@ Not in this release: chat messages (the API has none yet, so the thread panel sh
 - Cards can be dragged up and down within a column and into other columns. Dragging also works with the keyboard, and every card has a "Move to" menu as a non-drag option.
 - Dropping a card into a done column while some of its subtasks are open asks "Complete anyway?" first.
 - A card shows its number, title, priority (when set), labels, due date, checklist and subtask progress, and its assignees.
-- **API change needed first**: moving a card currently always puts it at the bottom of a column. The move needs to take a position, and cards need to be reorderable within a column.
+- The API's "move card" takes a `position` in the column, which covers both reordering within a column and dropping into another column at a chosen place (agreed 2026-10-29). Reordering within a column is not recorded in the card's history.
 
 ## 5. Editing
 

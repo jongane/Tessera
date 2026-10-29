@@ -1,4 +1,5 @@
 import type { Prisma } from '../generated/prisma/client.js';
+import { reorder } from '../common/reorder.js';
 
 // Helpers for numbering and placing cards. Each takes the transaction it
 // runs in, so the number it takes is saved, or not, with the card.
@@ -13,6 +14,37 @@ export async function nextPosition(
     _max: { position: true },
   });
   return (_max.position ?? -1) + 1;
+}
+
+// Locks the columns until the transaction ends, so cards moved into them at
+// the same moment are placed one after the other. Always in id order, so two
+// moves between the same columns can't wait on each other forever.
+export async function lockColumns(
+  tx: Prisma.TransactionClient,
+  columnIds: string[],
+): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM columns WHERE id = ANY(${columnIds}::uuid[]) ORDER BY id FOR UPDATE`;
+}
+
+// Puts a card, already in the column, at `index` (0 is the top; past the end
+// is the bottom), and numbers the column's cards from 0 again. Lock the
+// column first (lockColumns).
+export async function placeCardAt(
+  tx: Prisma.TransactionClient,
+  card: { id: string; columnId: string },
+  index: number,
+): Promise<void> {
+  const cards = await tx.card.findMany({
+    where: { columnId: card.columnId },
+    orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true, position: true },
+  });
+  const current = new Map(cards.map((row) => [row.id, row.position]));
+  for (const [position, id] of reorder(cards, card.id, index)) {
+    if (current.get(id) !== position) {
+      await tx.card.update({ where: { id }, data: { position } });
+    }
+  }
 }
 
 // Takes the project's next card number and moves its counter on. The update

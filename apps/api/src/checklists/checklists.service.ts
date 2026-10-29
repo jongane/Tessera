@@ -15,6 +15,7 @@ import { boardsVisibleTo } from '../boards/board-access.js';
 import { findVisibleCard } from '../cards/card-access.js';
 import { insertSubtask } from '../cards/subtasks.service.js';
 import { recordActivity } from '../activity/activity.js';
+import { reorder } from '../common/reorder.js';
 
 const MAX_NAME_LENGTH = 100;
 const MAX_TEXT_LENGTH = 500;
@@ -313,22 +314,6 @@ async function moveItemTo(
 
 function cardOf(list: Checklist): { id: string; projectId: string } {
   return { id: list.cardId, projectId: list.projectId };
-}
-
-// The new [position, id] pairs after moving `movedId` to `toIndex`. An index
-// past the end puts it last.
-function reorder(
-  rows: { id: string }[],
-  movedId: string,
-  toIndex: number,
-): [number, string][] {
-  if (!Number.isInteger(toIndex) || toIndex < 0) {
-    throw new BadRequestException('A position must be 0 or more');
-  }
-  const ids = rows.map((row) => row.id).filter((id) => id !== movedId);
-  const index = Math.min(toIndex, ids.length);
-  ids.splice(index, 0, movedId);
-  return ids.map((id, position) => [position, id]);
 }
 
 function requireName(name: string): string {

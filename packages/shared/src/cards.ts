@@ -51,6 +51,9 @@ export const completionSchema = z.strictObject({
 
 export const moveCardSchema = completionSchema.extend({
   columnId: z.uuid(),
+  // Where in the column: 0 is the top, past the end is the bottom. Left
+  // out, the card goes to the bottom.
+  position: z.number().int().min(0).optional(),
 });
 
 const subtaskChoiceSchema = z.discriminatedUnion('action', [

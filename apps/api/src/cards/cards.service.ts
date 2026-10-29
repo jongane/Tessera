@@ -9,7 +9,12 @@ import type { Card, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import { parseCardReference } from './card-number.js';
-import { nextPosition, takeNextCardNumber } from './card-numbering.js';
+import {
+  lockColumns,
+  nextPosition,
+  placeCardAt,
+  takeNextCardNumber,
+} from './card-numbering.js';
 import { loadSubtree, moveSubtree } from './card-tree.js';
 import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
@@ -44,6 +49,12 @@ export type CardView = Card & {
 export interface CompletionOptions {
   // Complete a card even though some of its direct subtasks are still open.
   confirmOpenSubtasks?: boolean;
+}
+
+export interface MoveOptions extends CompletionOptions {
+  // Where in the column: 0 is the top, past the end is the bottom. Left
+  // out, the card goes to the bottom.
+  position?: number;
 }
 
 export interface CompleteCardResult {
@@ -225,13 +236,14 @@ export class CardsService {
     });
   }
 
-  // Moves a card to the bottom of another column on the same board. Moving
-  // into a done column completes the card; moving out of one reopens it.
+  // Moves a card to another column on the same board, or to another place in
+  // its own column. Moving into a done column completes the card; moving out
+  // of one reopens it.
   async moveCard(
     userId: string,
     cardId: string,
     toColumnId: string,
-    options: CompletionOptions = {},
+    options: MoveOptions = {},
   ): Promise<Card> {
     const card = await this.findVisibleCard(userId, cardId);
     const column = await this.prisma.column.findFirst({
@@ -251,12 +263,13 @@ export class CardsService {
         where: { id: current.columnId },
         select: { id: true, name: true, isDone: true },
       });
+      await lockColumns(tx, [fromColumn.id, column.id]);
       const completion = completionChange(
         current,
         fromColumn.isDone,
         column.isDone,
       );
-      const moved = await tx.card.update({
+      let moved = await tx.card.update({
         where: { id: card.id },
         data: {
           columnId: column.id,
@@ -264,6 +277,10 @@ export class CardsService {
           ...completion,
         },
       });
+      if (options.position !== undefined) {
+        await placeCardAt(tx, moved, options.position);
+        moved = await tx.card.findUniqueOrThrow({ where: { id: card.id } });
+      }
       if (fromColumn.id !== column.id) {
         await recordActivity(tx, card, userId, 'MOVED', {
           from: { columnId: fromColumn.id, name: fromColumn.name },

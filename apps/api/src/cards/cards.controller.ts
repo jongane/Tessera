@@ -83,9 +83,11 @@ export class CardsController {
     return this.cards.getCard(user.id, cardId);
   }
 
-  // To the bottom of another column on the same board. Into a done column
-  // completes the card; out of one reopens it. 409 with `openSubtasks`
-  // when subtasks are open, unless confirmOpenSubtasks is true.
+  // To another column on the same board, or another place in its own:
+  // `position` 0 is the top, and left out means the bottom. Into a done
+  // column completes the card; out of one reopens it. 409 with
+  // `openSubtasks` when subtasks are open, unless confirmOpenSubtasks is
+  // true.
   @Post('cards/:cardId/move')
   @HttpCode(HttpStatus.OK)
   move(
