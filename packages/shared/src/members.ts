@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { emailField } from '../auth/auth.schemas.js';
+import { emailField } from './auth.js';
 
 const roleField = z.enum(['ADMIN', 'MEMBER']);
 

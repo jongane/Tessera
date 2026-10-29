@@ -17,7 +17,7 @@ import {
   memberChangesSchema,
   type NewMember,
   newMemberSchema,
-} from './members.schemas.js';
+} from '@tessera/shared';
 import { MembersService, type MemberView } from './members.service.js';
 
 @Controller('projects/:projectId/members')

@@ -15,7 +15,7 @@ import {
 import {
   type ServerSettingsChanges,
   serverSettingsChangesSchema,
-} from './server-settings.schemas.js';
+} from '@tessera/shared';
 
 export interface ServerSettingsView {
   signUpOpen: boolean;

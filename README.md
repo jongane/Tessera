@@ -38,6 +38,8 @@ TypeScript throughout:
 apps/
   api/      NestJS back end
   web/      React front end
+packages/
+  shared/   Input rules shared by the API and the web app
 docs/       Design documents
 PROJECT.md  Vision, scope and decisions
 CLAUDE.md   Rules for AI coding assistants

@@ -19,7 +19,7 @@ import {
   projectChangesSchema,
   type SuggestCodeQuery,
   suggestCodeQuerySchema,
-} from './projects.schemas.js';
+} from '@tessera/shared';
 import { ProjectsService } from './projects.service.js';
 
 @Controller('projects')

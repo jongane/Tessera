@@ -18,7 +18,7 @@ import {
   signInSchema,
   type SignUp,
   signUpSchema,
-} from './auth.schemas.js';
+} from '@tessera/shared';
 import { AuthService } from './auth.service.js';
 import {
   clearSessionCookie,

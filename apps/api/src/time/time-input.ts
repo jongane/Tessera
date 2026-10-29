@@ -1,11 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import { MAX_ENTRY_MINUTES, MAX_ESTIMATE_MINUTES } from '@tessera/shared';
 
 // Checks for the numbers and dates people type in for estimates and time
 // (docs/card-features.md, section 6). Each one refuses bad input with a
 // BadRequestException that says what is allowed.
-
-export const MAX_ENTRY_MINUTES = 24 * 60;
-export const MAX_ESTIMATE_MINUTES = 10_000 * 60;
 
 // The latest any time zone runs ahead of UTC (Kiribati, UTC+14).
 const LATEST_ZONE_OFFSET_MS = 14 * 60 * 60 * 1000;

@@ -25,7 +25,7 @@ import {
   moveCardSchema,
   type NewCardBody,
   newCardSchema,
-} from './cards.schemas.js';
+} from '@tessera/shared';
 import {
   type CardView,
   CardsService,

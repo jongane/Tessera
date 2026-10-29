@@ -7,7 +7,7 @@ import {
 import type { Prisma, ProjectRole, User } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { saveTimer } from '../time/timer.service.js';
-import type { MemberChanges, NewMember } from './members.schemas.js';
+import type { MemberChanges, NewMember } from '@tessera/shared';
 import { requireAdmin, requireMember } from './project-access.js';
 
 export interface MemberView {
