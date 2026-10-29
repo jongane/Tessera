@@ -32,7 +32,7 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 
 ## Code standards
 - TypeScript strict mode. No `any` without a comment saying why.
-- Validate all input at the API boundary.
+- Validate all input at the API boundary, with the zod rules in `packages/shared`, so the web app can check forms with the same rules.
 - Database changes go through Prisma migrations (`prisma/migrations`), never by editing tables by hand. Each table change comes with a database test (`*.db-spec.ts`) against a real PostgreSQL.
 - Check permissions on every request: a user only sees projects they belong to.
 - Never commit secrets (API keys, passwords, .env files). Hash passwords.
@@ -83,3 +83,14 @@ Web app (`apps/web`), same pattern:
 | Build (type-checks, then packages) | `npm run build -w apps/web` |
 
 The web app listens on http://localhost:5173.
+
+Shared input rules (`packages/shared`, imported as `@tessera/shared`), same pattern:
+
+| Task | Command |
+|---|---|
+| Rebuild after changing it | `npm run build -w packages/shared` |
+| Rebuild on every save | `npm run dev -w packages/shared` |
+| Tests (once) | `npm test -w packages/shared` |
+| Lint | `npm run lint -w packages/shared` |
+
+`npm install` builds it automatically. The apps use the built copy, so after changing a rule, rebuild it before running the API or its tests.
