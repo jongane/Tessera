@@ -1,17 +1,55 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Board, Card, Column } from '../generated/prisma/client.js';
+import type {
+  Board,
+  Card,
+  Column,
+  LabelColour,
+  Prisma,
+} from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatCardNumber } from '../cards/card-number.js';
 import { boardsVisibleTo } from './board-access.js';
 
 export interface NewBoard {
   name: string;
 }
 
-// Everything the board screen shows: its columns in order, each with its
-// cards from top to bottom.
-export type BoardView = Board & {
-  columns: (Column & { cards: Card[] })[];
+// A card as the board shows it: its own fields plus its number, labels,
+// assignees (owner first), progress counts and the id of its thread.
+export type BoardCard = Card & {
+  number: string;
+  labels: { id: string; name: string; colour: LabelColour }[];
+  assignees: { id: string; displayName: string; isOwner: boolean }[];
+  checklistProgress: { done: number; total: number };
+  // Direct subtasks only (docs/card-features.md, section 4).
+  subtaskProgress: { complete: number; total: number };
+  threadId: string | null;
 };
+
+// Everything the board screen shows: its columns in order, each with its
+// cards from top to bottom. One request, so the board needs no extra
+// request per card.
+export type BoardView = Board & {
+  columns: (Column & { cards: BoardCard[] })[];
+};
+
+// What getBoardView reads for each card, beyond the card's own fields.
+const boardCardDetails = {
+  labels: {
+    select: { label: { select: { id: true, name: true, colour: true } } },
+    orderBy: { label: { name: 'asc' } },
+  },
+  assignees: {
+    select: {
+      isOwner: true,
+      member: { select: { user: { select: { id: true, displayName: true } } } },
+    },
+    orderBy: [{ isOwner: 'desc' }, { assignedAt: 'asc' }],
+  },
+  checklists: { select: { items: { select: { isDone: true } } } },
+  subtasks: { select: { isComplete: true } },
+  thread: { select: { id: true } },
+} satisfies Prisma.CardInclude;
 
 // The columns every new board starts with, in order. People can change them later.
 const DONE_COLUMN_NAME = 'Done';
@@ -79,16 +117,26 @@ export class BoardsService {
     const board = await this.prisma.board.findFirst({
       where: { id: boardId, ...boardsVisibleTo(userId) },
       include: {
+        project: { select: { code: true } },
         columns: {
           orderBy: { position: 'asc' },
-          include: { cards: { orderBy: { position: 'asc' } } },
+          include: {
+            cards: { orderBy: { position: 'asc' }, include: boardCardDetails },
+          },
         },
       },
     });
     if (!board) {
       throw new NotFoundException('Board not found');
     }
-    return board;
+    const { project, columns, ...rest } = board;
+    return {
+      ...rest,
+      columns: columns.map((column) => ({
+        ...column,
+        cards: column.cards.map((card) => toBoardCard(card, project.code)),
+      })),
+    };
   }
 
   // Marks a column as a done column, or not. Moving a card into a done
@@ -110,4 +158,31 @@ export class BoardsService {
       data: { isDone },
     });
   }
+}
+
+type CardWithDetails = Prisma.CardGetPayload<{
+  include: typeof boardCardDetails;
+}>;
+
+function toBoardCard(card: CardWithDetails, projectCode: string): BoardCard {
+  const { labels, assignees, checklists, subtasks, thread, ...fields } = card;
+  const items = checklists.flatMap((checklist) => checklist.items);
+  return {
+    ...fields,
+    number: formatCardNumber(projectCode, card.numberPath),
+    labels: labels.map(({ label }) => label),
+    assignees: assignees.map(({ isOwner, member }) => ({
+      ...member.user,
+      isOwner,
+    })),
+    checklistProgress: {
+      done: items.filter((item) => item.isDone).length,
+      total: items.length,
+    },
+    subtaskProgress: {
+      complete: subtasks.filter((subtask) => subtask.isComplete).length,
+      total: subtasks.length,
+    },
+    threadId: thread?.id ?? null,
+  };
 }

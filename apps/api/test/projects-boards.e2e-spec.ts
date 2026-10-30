@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types.js';
 import type { PrismaService } from '../src/prisma/prisma.service.js';
+import { boardScenario } from './support/board-scenario.js';
 import { resetDatabase } from './support/reset-database.js';
 import { signedUpAs, startTestApp } from './support/test-app.js';
 
@@ -171,6 +172,85 @@ describe('Projects and boards (e2e)', () => {
         ['In progress', false, []],
         ['Done', true, []],
       ]);
+    });
+
+    it('gives each card what the board shows on it', async () => {
+      const { ana, cara, project, board, toDo, done, card, cardUrl } =
+        await boardScenario(app);
+      const frontend = (
+        await ana.agent
+          .post(`/api/projects/${project.id}/labels`)
+          .send({ name: 'Frontend', colour: 'BLUE' })
+      ).body as { id: string };
+      const backend = (
+        await ana.agent
+          .post(`/api/projects/${project.id}/labels`)
+          .send({ name: 'Backend', colour: 'GREEN' })
+      ).body as { id: string };
+      await ana.agent.put(`${cardUrl}/labels/${frontend.id}`).expect(204);
+      await ana.agent.put(`${cardUrl}/labels/${backend.id}`).expect(204);
+      await ana.agent.put(`${cardUrl}/assignees/${cara.user.id}`).expect(200);
+      await ana.agent.put(`${cardUrl}/assignees/${ana.user.id}`).expect(200);
+      const checklist = (
+        await ana.agent.post(`${cardUrl}/checklists`).send({ name: 'Browsers' })
+      ).body as { id: string };
+      for (const text of ['Chrome', 'Safari', 'Firefox']) {
+        const item = (
+          await ana.agent
+            .post(`/api/checklists/${checklist.id}/items`)
+            .send({ text })
+        ).body as { id: string };
+        if (text === 'Chrome') {
+          await ana.agent
+            .patch(`/api/checklist-items/${item.id}`)
+            .send({ isDone: true })
+            .expect(200);
+        }
+      }
+      const form = (
+        await ana.agent
+          .post(`${cardUrl}/subtasks`)
+          .send({ title: 'Form', columnId: toDo.id })
+      ).body as { id: string };
+      await ana.agent
+        .post(`${cardUrl}/subtasks`)
+        .send({ title: 'Errors', columnId: toDo.id })
+        .expect(201);
+      await ana.agent
+        .post(`/api/cards/${form.id}/move`)
+        .send({ columnId: done.id })
+        .expect(200);
+
+      const response = await ana.agent
+        .get(`/api/boards/${board.id}`)
+        .expect(200);
+
+      const login = response.body.columns[0].cards.find(
+        (c: { id: string }) => c.id === card.id,
+      );
+      expect(login).toMatchObject({
+        number: 'WEB-1',
+        title: 'Login',
+        labels: [
+          { id: backend.id, name: 'Backend', colour: 'GREEN' },
+          { id: frontend.id, name: 'Frontend', colour: 'BLUE' },
+        ],
+        assignees: [
+          { id: cara.user.id, displayName: 'cara', isOwner: true },
+          { id: ana.user.id, displayName: 'ana', isOwner: false },
+        ],
+        checklistProgress: { done: 1, total: 3 },
+        subtaskProgress: { complete: 1, total: 2 },
+      });
+      expect(login.threadId).toEqual(expect.any(String));
+      const formOnBoard = response.body.columns[2].cards[0];
+      expect(formOnBoard).toMatchObject({
+        number: 'WEB-1.1',
+        labels: [],
+        assignees: [],
+        checklistProgress: { done: 0, total: 0 },
+        subtaskProgress: { complete: 0, total: 0 },
+      });
     });
 
     it('lets members mark which columns are done', async () => {
