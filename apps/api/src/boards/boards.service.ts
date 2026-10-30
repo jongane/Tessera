@@ -16,7 +16,7 @@ export interface NewBoard {
 
 // A card as the board shows it: its own fields plus its number, labels,
 // assignees (owner first), progress counts and the id of its thread.
-export type BoardCard = Card & {
+export type BoardCard = Omit<Card, 'nextSubtaskNumber'> & {
   number: string;
   labels: { id: string; name: string; colour: LabelColour }[];
   assignees: { id: string; displayName: string; isOwner: boolean }[];
@@ -165,7 +165,16 @@ type CardWithDetails = Prisma.CardGetPayload<{
 }>;
 
 function toBoardCard(card: CardWithDetails, projectCode: string): BoardCard {
-  const { labels, assignees, checklists, subtasks, thread, ...fields } = card;
+  // nextSubtaskNumber is bookkeeping for numbering, not something to show.
+  const {
+    labels,
+    assignees,
+    checklists,
+    subtasks,
+    thread,
+    nextSubtaskNumber: _nextSubtaskNumber,
+    ...fields
+  } = card;
   const items = checklists.flatMap((checklist) => checklist.items);
   return {
     ...fields,

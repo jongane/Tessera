@@ -243,6 +243,7 @@ describe('Projects and boards (e2e)', () => {
         subtaskProgress: { complete: 1, total: 2 },
       });
       expect(login.threadId).toEqual(expect.any(String));
+      expect(login).not.toHaveProperty('nextSubtaskNumber');
       const formOnBoard = response.body.columns[2].cards[0];
       expect(formOnBoard).toMatchObject({
         number: 'WEB-1.1',
