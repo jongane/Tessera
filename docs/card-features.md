@@ -19,7 +19,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - Any checklist item can be **turned into a subtask**. The item leaves the checklist, and a subtask with the item's text as its title appears in the card's column, unassigned. (Agreed 2026-10-28.)
 - Any project member can add, edit, tick, reorder and delete checklists and items. (Agreed 2026-10-28.)
 - An item's text is up to 500 characters, and a checklist holds up to 100 items. A checklist name is up to 100 characters. There is no limit on how many checklists a card has, but adding an 11th or later checklist suggests starting a new card instead. Items are reordered within their own checklist; moving an item to another checklist may come later. (Agreed 2026-10-28.)
-- A checklist's progress ("2 of 4") shows only on its own card. It does not count towards a parent's progress.
+- A checklist's progress ("2 of 4") shows only on its own card. It does not count towards a parent's progress. On the board, a card shows one total across all its checklists (agreed 2026-10-30, see web-app.md §4).
 
 ## 3. Assignees
 
