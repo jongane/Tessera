@@ -26,7 +26,7 @@ Read `CLAUDE.md`, `PROJECT.md` and `CONTEXT.md` first: they hold the rules you c
 3. **Permissions**: every request checks that the user belongs to the project they are reading or changing.
 4. **Data safety**: database changes go through a Prisma migration; nothing deletes or overwrites data the user did not ask to change; each table change has a `*.db-spec.ts` test.
 5. **Tests**: changed or new behaviour has tests in the same change; web tests describe what a user sees (roles, visible text), not component internals.
-6. **Project rules**: TypeScript strict, no `any` without a comment saying why, relative imports end in `.js`, words from `CONTEXT.md` (for example "thread", never "channel"), the domain rules and AI rules in `CLAUDE.md`.
+6. **Project rules**: TypeScript strict, no `any` without a comment saying why, relative imports end in `.js` in `apps/api` and `packages/shared` but have no extension in `apps/web`, words from `CONTEXT.md` (for example "thread", never "channel"), the domain rules and AI rules in `CLAUDE.md`.
 7. **Clarity**: small functions named for what they do, no dead code, comments that explain why.
 
 ## Serious or minor
