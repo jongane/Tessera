@@ -10,6 +10,14 @@ Use the words defined in CONTEXT.md, in code, docs and screens.
 - If a requirement is ambiguous or a process is complicated, ask before building.
 - Propose a plan and wait for approval before large changes.
 
+## Checking for contradictions
+This applies in design interviews and whenever the owner asks for a change, including in PR plans.
+- Before writing a new answer or request down, check it against what is already decided: PROJECT.md, CONTEXT.md, the specs in `docs/` (such as card-features.md and web-app.md), the ADRs in `docs/adr/`, and earlier answers in the same conversation.
+- If it contradicts any of these, say so straight away. Quote both statements and say where each one comes from (file and section, or "your answer to Q3").
+- Ask which one wins. Do not pick one yourself, and do not write either one into a doc or code until the owner answers.
+- Also flag a "possible conflict" when it quietly narrows or changes an earlier decision without clearly contradicting it.
+- Once the owner decides, update every place that holds the old version in the same change, so the docs never disagree with each other.
+
 ## Stack
 TypeScript (strict, ES modules), NestJS, React (Vite), PostgreSQL, Prisma, MinIO, Docker Compose.
 Tests: Vitest (web tests also use jsdom and Testing Library). Linting: oxlint. Formatting: Prettier. Node version: see `.nvmrc`.
