@@ -69,7 +69,15 @@ npm run start:dev -w apps/api   # API on http://localhost:3000
 npm run dev -w apps/web         # Web app on http://localhost:5173
 ```
 
-Both reload when you save a file. Stop them with Ctrl+C.
+Open http://localhost:5173. The web app passes `/api` requests on to the API. Both reload when you save a file. Stop them with Ctrl+C.
+
+To run it the way a server would, build both apps and start the API, which then also serves the web app on http://localhost:3000:
+
+```powershell
+npm run build -w apps/web
+npm run build -w apps/api
+npm run start:prod -w apps/api
+```
 
 `-w apps/api` means "run this script inside the `apps/api` workspace". All commands are run from the repository root.
 
