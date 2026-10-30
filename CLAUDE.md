@@ -28,6 +28,8 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 - Small commits with Conventional Commit messages (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`).
 - Changes reach `main` through a pull request.
 - CI (GitHub Actions, `.github/workflows/ci.yml`) runs lint, tests (including database tests against PostgreSQL) and build for both apps on every pull request. Do not merge while it is red.
+- Before opening a pull request, and before pushing new commits to an open one, run the `reviewer` agent (`.claude/agents/reviewer.md`) on the branch's changes. Fix every serious finding. List any minor findings you leave in the pull request description, with the reason.
+- The "Claude review" check (`.github/workflows/claude-review.yml`) runs the same review on every push to a pull request. It fails when it finds something serious. Do not merge while it is red.
 
 ## Testing (test-driven development)
 1. Write a failing test first.

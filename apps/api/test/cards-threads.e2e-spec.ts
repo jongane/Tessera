@@ -132,6 +132,32 @@ describe('Cards and threads (e2e)', () => {
         .expect((r) => expect(r.body).toMatchObject({ isComplete: false }));
     });
 
+    it('moves a card to a position, as the board view shows', async () => {
+      const { ana, board, cardUrl, toDo } = await setUp();
+      await ana.agent
+        .post(`/api/columns/${toDo.id}/cards`)
+        .send({ title: 'Second' })
+        .expect(201);
+
+      await ana.agent
+        .post(`${cardUrl}/move`)
+        .send({ columnId: toDo.id, position: 99 })
+        .expect(200);
+      await ana.agent
+        .post(`${cardUrl}/move`)
+        .send({ columnId: toDo.id, position: -1 })
+        .expect(400);
+
+      const view = await ana.agent.get(`/api/boards/${board.id}`).expect(200);
+      const column = view.body.columns.find(
+        (c: { id: string }) => c.id === toDo.id,
+      );
+      expect(column.cards.map((c: { title: string }) => c.title)).toEqual([
+        'Second',
+        'Login',
+      ]);
+    });
+
     it('completes a card and offers the done column, then reopens it', async () => {
       const { ana, cardUrl, done } = await setUp();
 
