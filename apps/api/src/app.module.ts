@@ -11,6 +11,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ThreadsModule } from './threads/threads.module.js';
 import { TimeModule } from './time/time.module.js';
+import { webAppModules } from './web-app.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { TimeModule } from './time/time.module.js';
     LabelsModule,
     ThreadsModule,
     TimeModule,
+    ...webAppModules(),
   ],
   controllers: [AppController],
   providers: [AppService],
