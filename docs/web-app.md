@@ -20,8 +20,9 @@ Not in this release: chat messages (the API has none yet, so the thread panel sh
 
 | Address | Screen |
 |---|---|
-| `/sign-in`, `/sign-up` | Signing in, and making an account (hidden when sign-up is off) |
+| `/sign-in`, `/sign-up` | Signing in, and making an account. When sign-up is off, the sign-in page hides its "Create an account" link and `/sign-up` says "Sign-up is closed. Ask your server admin for an account." (agreed 2026-10-30) |
 | `/projects` | Your projects. When empty, it offers "Create your first project" |
+| `/WEB` | A project. It opens the last board you used in it, or offers "Create your first board" when it has none (agreed 2026-10-30). Until the board view exists it lists the project's boards, with "New board" |
 | `/WEB/boards/<board id>` | A board |
 | `/WEB-12` | Opens card WEB-12 on its board, with the card panel open. Old card numbers and project codes keep working |
 | `/WEB/settings` | Project settings |
@@ -68,13 +69,14 @@ Not in this release: chat messages (the API has none yet, so the thread panel sh
 ## 8. Code structure
 
 - The API's input rules (zod schemas) move into a shared package, `packages/shared`, used by both apps. Forms then show the same errors the API would give.
-- The web app and the API are served from the same address, so the sign-in cookie just works. During development the web app's dev server passes `/api` requests on to the API. See [ADR 0001](adr/0001-web-app-and-api-on-one-origin.md).
+- The web app and the API are served from the same address, so the sign-in cookie just works. During development the web app's dev server passes `/api` requests on to the API. In production the API also serves the built web app, so `npm run start:prod -w apps/api` runs everything on one address (agreed 2026-10-30). See [ADR 0001](adr/0001-web-app-and-api-on-one-origin.md).
+- What the API sends back is described by plain TypeScript types in `packages/shared` (`responses.ts`). The answers are not checked again at run time, because both apps are built together (agreed 2026-10-30).
 - Data loading uses TanStack Query (caching, reloading on tab focus and every 30 seconds, undoing a failed change). Addresses use React Router. Dragging uses dnd-kit. (Library choices are confirmed in each PR's plan.)
 
 ## 9. Testing
 
 - Component tests with Vitest and Testing Library, describing what a person sees. The API is faked with MSW.
-- A few end-to-end tests in a real browser (Playwright) against the real API in CI: sign in, create a card, move it, open it. The first one comes with the foundation PR.
+- A few end-to-end tests in a real browser (Playwright) against the real API in CI: sign in, create a card, move it, open it. They run in their own CI job ("Browser"), which starts PostgreSQL and the API serving the built web app (agreed 2026-10-30). They also check accessibility with axe, colour contrast included.
 
 ## 10. Build order
 

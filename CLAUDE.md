@@ -91,8 +91,11 @@ Web app (`apps/web`), same pattern:
 | Tests (watch) | `npm run test:watch -w apps/web` |
 | Lint | `npm run lint -w apps/web` |
 | Build (type-checks, then packages) | `npm run build -w apps/web` |
+| Browser tests (Playwright) | `npm run test:browser -w apps/web` |
 
-The web app listens on http://localhost:5173.
+The web app listens on http://localhost:5173 and passes `/api` on to the API, so run both. Browser tests need PostgreSQL running and, once, `npx playwright install chromium` (from `apps/web`). They build everything and start the API on port 3100 against the test database.
+
+In production the API also serves the built web app: `npm run build -w apps/web`, `npm run build -w apps/api`, then `npm run start:prod -w apps/api` (http://localhost:3000).
 
 Shared input rules (`packages/shared`, imported as `@tessera/shared`), same pattern:
 
