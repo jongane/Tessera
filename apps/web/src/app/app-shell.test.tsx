@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
+import { meKey } from '../api/auth'
 import { currentPath, renderApp } from '../test/render'
 import {
   ana,
@@ -77,6 +78,26 @@ describe('Ended sessions and problems', () => {
       'Tessera could not be reached',
     )
     expect(currentPath(router)).toBe('/projects')
+  })
+
+  it('keeps the page when a later reload of the signed-in person fails', async () => {
+    server.use(
+      signedInAs(ana),
+      http.get('/api/projects', () => HttpResponse.json([])),
+    )
+    const { queryClient } = renderApp('/projects')
+    await screen.findByRole('heading', { name: 'Your projects' })
+
+    server.use(http.get('/api/auth/me', () => HttpResponse.error()))
+    await queryClient.refetchQueries({ queryKey: meKey }).catch(() => {})
+
+    expect(queryClient.getQueryState(meKey)?.status).toBe('error')
+    // Let the page catch up with the failed reload.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Your projects' }),
+    ).toBeInTheDocument()
   })
 
   it('keeps the account menu open and explains when signing out fails', async () => {

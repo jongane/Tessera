@@ -18,7 +18,7 @@ export function renderApp(path: string) {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
-  return { ...view, router, user }
+  return { ...view, queryClient, router, user }
 }
 
 // The current address, e.g. "/projects?x=1".

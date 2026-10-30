@@ -21,7 +21,8 @@ export function NewProjectDialog({
   const [typedCode, setTypedCode] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const suggestion = useSuggestedCode(typedCode === null ? name : '')
-  const code = typedCode ?? suggestion.data?.code ?? ''
+  const suggested = name.trim() ? suggestion.data?.code : undefined
+  const code = typedCode ?? suggested ?? ''
   const createProject = useCreateProject()
   const navigate = useNavigate()
 

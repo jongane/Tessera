@@ -12,9 +12,10 @@ export function RequireSignedIn() {
   if (me.isPending) {
     return <Loading />
   }
-  // The API is down or unreachable: say so, rather than asking the person
-  // to sign in again.
-  if (me.error) {
+  // The API is down or unreachable before anything loaded: say so, rather
+  // than asking the person to sign in again. A failed reload later keeps
+  // the page as it is.
+  if (me.error && me.data === undefined) {
     return (
       <div className="mx-auto max-w-xl p-6">
         <Alert>{me.error.message}</Alert>
