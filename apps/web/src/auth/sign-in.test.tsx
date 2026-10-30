@@ -116,3 +116,27 @@ describe('Sign in', () => {
     )
   })
 })
+
+describe('Already signed in', () => {
+  it('goes straight on from the sign-in page', async () => {
+    server.use(
+      signedInAs(ana),
+      signUpOpen(true),
+      http.get('/api/projects', () => HttpResponse.json([])),
+    )
+    const { router } = renderApp('/sign-in?returnTo=%2Fprojects')
+
+    await waitFor(() => expect(currentPath(router)).toBe('/projects'))
+  })
+
+  it('goes straight to the project list from the sign-up page', async () => {
+    server.use(
+      signedInAs(ana),
+      signUpOpen(true),
+      http.get('/api/projects', () => HttpResponse.json([])),
+    )
+    const { router } = renderApp('/sign-up')
+
+    await waitFor(() => expect(currentPath(router)).toBe('/projects'))
+  })
+})

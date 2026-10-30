@@ -14,7 +14,12 @@ test('sign up, create a project and see it in the list', async ({ page }) => {
   ).toBeVisible()
   await expectNoAccessibilityProblems(page)
 
-  await page.getByRole('link', { name: 'Create an account' }).click()
+  const signUpLink = page.getByRole('link', { name: 'Create an account' })
+  await expect(
+    signUpLink,
+    'Sign-up must be open on the test database (server_settings.sign_up_open)',
+  ).toBeVisible()
+  await signUpLink.click()
   await page.getByLabel('Your name').fill('Ana')
   await page.getByLabel('Email').fill(`ana-${run}@example.com`)
   await page.getByLabel('Password', { exact: true }).fill('a long enough password')

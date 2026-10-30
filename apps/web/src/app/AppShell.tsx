@@ -57,13 +57,21 @@ function AccountMenu() {
             <p className="text-muted">{me.email}</p>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-line" />
+          {signOut.error && (
+            <p role="alert" className="max-w-56 px-3 py-2 text-danger">
+              Couldn’t sign out. {signOut.error.message}
+            </p>
+          )}
           <DropdownMenu.Item
             className="flex min-h-11 cursor-pointer items-center rounded-md px-3 outline-none data-highlighted:bg-accent-soft"
-            onSelect={() =>
+            onSelect={(event) => {
+              // Keep the menu open until signing out has worked, so a
+              // failure can be shown here.
+              event.preventDefault()
               signOut.mutate(undefined, {
                 onSuccess: () => navigate('/sign-in', { replace: true }),
               })
-            }
+            }}
           >
             Sign out
           </DropdownMenu.Item>

@@ -186,3 +186,32 @@ describe('Project page', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('New project code', () => {
+  it('brings the suggestion back when the code is left empty', async () => {
+    server.use(
+      signedInAs(ana),
+      http.get('/api/projects', () => HttpResponse.json([])),
+      http.get('/api/projects/suggest-code', () =>
+        HttpResponse.json({ code: 'WEB' }),
+      ),
+    )
+    const { user } = renderApp('/projects')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Create your first project' }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'New project' })
+    await user.type(within(dialog).getByLabelText('Name'), 'Website')
+    const code = within(dialog).getByLabelText('Code')
+    await waitFor(() => expect(code).toHaveValue('WEB'))
+    await user.clear(code)
+    await user.type(code, 'site')
+    expect(code).toHaveValue('SITE')
+    await user.clear(code)
+    expect(code).toHaveValue('')
+    await user.tab()
+
+    await waitFor(() => expect(code).toHaveValue('WEB'))
+  })
+})

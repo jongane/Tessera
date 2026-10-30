@@ -52,6 +52,12 @@ export function NewProjectDialog({
           label="Code"
           value={code}
           onChange={(event) => setTypedCode(event.target.value.toUpperCase())}
+          // Leaving the field empty brings the suggestion back.
+          onBlur={() => {
+            if (typedCode === '') {
+              setTypedCode(null)
+            }
+          }}
           error={errors.code}
           hint="2 to 6 letters. Card numbers start with it, like WEB-12."
           maxLength={6}

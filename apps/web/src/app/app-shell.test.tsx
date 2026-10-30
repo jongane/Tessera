@@ -2,7 +2,13 @@ import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { currentPath, renderApp } from '../test/render'
-import { ana, server, signedInAs, signUpOpen } from '../test/server'
+import {
+  ana,
+  apiError,
+  server,
+  signedInAs,
+  signUpOpen,
+} from '../test/server'
 
 describe('App frame', () => {
   it('shows who is signed in and signs out from the account menu', async () => {
@@ -46,5 +52,49 @@ describe('App frame', () => {
     expect(
       await screen.findByRole('heading', { name: 'Page not found' }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('Ended sessions and problems', () => {
+  it('sends the person to sign in when their session ends, and back afterwards', async () => {
+    server.use(
+      signedInAs(ana),
+      signUpOpen(true),
+      http.get('/api/projects', () => apiError(401, 'Not signed in')),
+    )
+    const { router } = renderApp('/projects')
+
+    await waitFor(() =>
+      expect(currentPath(router)).toBe('/sign-in?returnTo=%2Fprojects'),
+    )
+  })
+
+  it('says when Tessera cannot be reached, instead of asking to sign in', async () => {
+    server.use(http.get('/api/auth/me', () => HttpResponse.error()))
+    const { router } = renderApp('/projects')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Tessera could not be reached',
+    )
+    expect(currentPath(router)).toBe('/projects')
+  })
+
+  it('keeps the account menu open and explains when signing out fails', async () => {
+    server.use(
+      signedInAs(ana),
+      http.get('/api/projects', () => HttpResponse.json([])),
+      http.post('/api/auth/sign-out', () => apiError(500, 'Server error')),
+    )
+    const { router, user } = renderApp('/projects')
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Account menu for Ana' }),
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Sign out' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Couldn’t sign out. Server error',
+    )
+    expect(currentPath(router)).toBe('/projects')
   })
 })

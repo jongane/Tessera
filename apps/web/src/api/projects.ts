@@ -5,7 +5,12 @@ import type {
   Project,
   SuggestedCode,
 } from '@tessera/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api } from './client'
 
 export function useProjects() {
@@ -33,6 +38,8 @@ export function useSuggestedCode(name: string) {
         `/projects/suggest-code?name=${encodeURIComponent(trimmed)}`,
       ),
     enabled: trimmed.length > 0,
+    // Keep showing the last suggestion while the next one loads.
+    placeholderData: keepPreviousData,
   })
 }
 
