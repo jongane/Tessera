@@ -45,6 +45,20 @@ describe('CardsService (database)', () => {
     return { ana, ben, project, board, toDo: toDo!, inProgress: inProgress! };
   }
 
+  // The ids of a column's cards, top to bottom.
+  async function cardOrder(columnId: string): Promise<string[]> {
+    const rows = await prisma.card.findMany({
+      where: { columnId },
+      orderBy: { position: 'asc' },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  async function movesRecorded(cardId: string): Promise<number> {
+    return prisma.cardActivity.count({ where: { cardId, kind: 'MOVED' } });
+  }
+
   describe('createCard', () => {
     it('creates the card with its own thread', async () => {
       const { ana, board, toDo } = await setUp();
@@ -103,6 +117,78 @@ describe('CardsService (database)', () => {
 
       expect(moved.columnId).toBe(inProgress.id);
       expect(moved.position).toBeGreaterThan(waiting.position);
+    });
+
+    it('moves a card to a position in another column, 0 being the top', async () => {
+      const { ana, toDo, inProgress } = await setUp();
+      const a = await cards.createCard(ana.id, inProgress.id, { title: 'A' });
+      const b = await cards.createCard(ana.id, inProgress.id, { title: 'B' });
+      const card = await cards.createCard(ana.id, toDo.id, { title: 'New' });
+
+      await cards.moveCard(ana.id, card.id, inProgress.id, { position: 1 });
+
+      await expect(cardOrder(inProgress.id)).resolves.toEqual([
+        a.id,
+        card.id,
+        b.id,
+      ]);
+    });
+
+    it('reorders cards within their column', async () => {
+      const { ana, toDo } = await setUp();
+      const a = await cards.createCard(ana.id, toDo.id, { title: 'A' });
+      const b = await cards.createCard(ana.id, toDo.id, { title: 'B' });
+      const c = await cards.createCard(ana.id, toDo.id, { title: 'C' });
+
+      await cards.moveCard(ana.id, c.id, toDo.id, { position: 0 });
+      await expect(cardOrder(toDo.id)).resolves.toEqual([c.id, a.id, b.id]);
+
+      await cards.moveCard(ana.id, c.id, toDo.id, { position: 1 });
+      await expect(cardOrder(toDo.id)).resolves.toEqual([a.id, c.id, b.id]);
+    });
+
+    it('puts the card last when the position is past the end', async () => {
+      const { ana, toDo } = await setUp();
+      const a = await cards.createCard(ana.id, toDo.id, { title: 'A' });
+      const b = await cards.createCard(ana.id, toDo.id, { title: 'B' });
+
+      await cards.moveCard(ana.id, a.id, toDo.id, { position: 99 });
+
+      await expect(cardOrder(toDo.id)).resolves.toEqual([b.id, a.id]);
+    });
+
+    it('records a move between columns, but not a reorder within one', async () => {
+      const { ana, toDo, inProgress } = await setUp();
+      const a = await cards.createCard(ana.id, toDo.id, { title: 'A' });
+      await cards.createCard(ana.id, toDo.id, { title: 'B' });
+
+      await cards.moveCard(ana.id, a.id, toDo.id, { position: 1 });
+      await expect(movesRecorded(a.id)).resolves.toBe(0);
+
+      await cards.moveCard(ana.id, a.id, inProgress.id, { position: 0 });
+      await expect(movesRecorded(a.id)).resolves.toBe(1);
+    });
+
+    it('keeps the order when two cards are moved at the same moment', async () => {
+      const { ana, toDo, inProgress } = await setUp();
+      const a = await cards.createCard(ana.id, toDo.id, { title: 'A' });
+      const b = await cards.createCard(ana.id, toDo.id, { title: 'B' });
+      const c = await cards.createCard(ana.id, inProgress.id, { title: 'C' });
+
+      await Promise.all([
+        cards.moveCard(ana.id, a.id, inProgress.id, { position: 0 }),
+        cards.moveCard(ana.id, b.id, inProgress.id, { position: 0 }),
+      ]);
+
+      const order = await cardOrder(inProgress.id);
+      expect(order).toHaveLength(3);
+      expect(new Set(order)).toEqual(new Set([a.id, b.id, c.id]));
+      const positions = await prisma.card.findMany({
+        where: { columnId: inProgress.id },
+        orderBy: { position: 'asc' },
+        select: { position: true },
+      });
+      expect(positions.map((p) => p.position)).toEqual([0, 1, 2]);
     });
 
     it('refuses a column on another board', async () => {

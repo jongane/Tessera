@@ -84,6 +84,20 @@ describe('completing and moving', () => {
     expect(completionSchema.safeParse({}).success).toBe(true);
   });
 
+  it('accepts a position to move to, 0 being the top', () => {
+    expect(
+      moveCardSchema.safeParse({ columnId: id, position: 0 }).success,
+    ).toBe(true);
+  });
+
+  it('refuses a negative or fractional position', () => {
+    for (const position of [-1, 1.5]) {
+      expect(moveCardSchema.safeParse({ columnId: id, position }).success).toBe(
+        false,
+      );
+    }
+  });
+
   it('needs a column to move to', () => {
     expect(
       moveCardSchema.safeParse({ confirmOpenSubtasks: true }).success,
