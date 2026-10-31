@@ -49,7 +49,7 @@ erDiagram
     }
 ```
 
-`LINK` connects cards and threads to each other (card to card, card to thread, thread to thread). It is drawn on its own because it points at more than one kind of thing.
+`LINK` connects cards, chats (`THREAD` in the diagram) and messages to each other. Each link has a type from a list the project admin keeps. Links get their own design round with chat. It is drawn on its own because it points at more than one kind of thing.
 
 ## Entities
 
@@ -67,7 +67,7 @@ erDiagram
 | Thread | A chat conversation | id, board_id, card_id (optional), kind |
 | Message | One chat message | id, thread_id, author_id, body, created_at, deleted_at |
 | File | Uploaded file metadata | id, project_id, uploader_id, filename, mime_type, size, storage_key, card_id or message_id |
-| Link | Relationship between cards and threads | from_type, from_id, to_type, to_id |
+| Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, designed with chat) | from_type, from_id, to_type, to_id, link type |
 | ProjectAiConfig | Whether AI is on for a project, and which provider it uses | project_id, enabled, enabled_by, enabled_at, provider, model, encrypted_api_key |
 | AiRequest | Audit log of AI use | id, thread_id, user_id, kind, provider, created_at |
 
@@ -95,7 +95,7 @@ Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`
 
 ## Decisions and trade-offs
 
-- **"Thread" only.** The earlier word "channel" is dropped, because a card's chat and a board's chat are the same kind of thing.
+- **"Chat", not "channel".** A card's chat and a board's chat are the same kind of thing. In the database and code a chat is still called `Thread` until the rename pull request after the board view (agreed 2026-10-31). After that, "thread" means only the replies to one message (CONTEXT.md).
 - **Generic Link table.** One table is simple, but the database cannot check that the target exists. The alternative is separate tables for each kind of link, which is stricter but longer. Revisit when links are built.
 - **AI settings.** AI is switched on per project by an admin, so the setting lives in `ProjectAiConfig`. Once on, every thread in the project can be sent to the AI provider. A way to exclude individual threads may be added later.
 - **API keys.** Stored encrypted and never returned by the API.

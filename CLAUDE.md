@@ -51,9 +51,9 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 - In `apps/web`, relative imports have no extension (e.g. `./AppShell`). Vite (and Playwright, for `e2e/`) finds the file itself.
 
 ## Domain rules (from PROJECT.md)
-- A card has at most one thread. A thread may exist without a card, and the reverse.
-- Each board has exactly one general thread that is not linked to a card.
-- Use the word "thread", not "channel".
+- A card has at most one chat of its own. A chat may exist without a card, and the reverse.
+- Each board has exactly one general chat that is not linked to a card.
+- A conversation is a "chat", never a "channel". A "thread" is only the replies to one message (CONTEXT.md). Until the rename pull request, the API and database still say "thread" for a chat.
 - Only a project admin can turn AI on or change AI settings.
 
 ## AI features

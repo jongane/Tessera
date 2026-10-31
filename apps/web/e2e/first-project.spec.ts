@@ -22,7 +22,9 @@ test('sign up, create a project and see it in the list', async ({ page }) => {
   await signUpLink.click()
   await page.getByLabel('Your name').fill('Ana')
   await page.getByLabel('Email').fill(`ana-${run}@example.com`)
-  await page.getByLabel('Password', { exact: true }).fill('a long enough password')
+  await page
+    .getByLabel('Password', { exact: true })
+    .fill('a long enough password')
   await page.getByRole('button', { name: 'Create account' }).click()
 
   await expect(page).toHaveURL(/\/projects$/)
@@ -40,6 +42,7 @@ test('sign up, create a project and see it in the list', async ({ page }) => {
   await expectNoAccessibilityProblems(page)
 
   await page.getByRole('link', { name: 'Your projects' }).click()
-  await expect(page.getByRole('link', { name: new RegExp(projectName) }))
-    .toBeVisible()
+  await expect(
+    page.getByRole('link', { name: new RegExp(projectName) }),
+  ).toBeVisible()
 })

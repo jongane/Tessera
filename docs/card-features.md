@@ -32,7 +32,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 
 ## 4. Subtasks
 
-- A subtask is an ordinary card with a parent card. It has its own column, assignees, estimate, time, checklist and thread.
+- A subtask is an ordinary card with a parent card. It has its own column, assignees, estimate, time, checklist and chat.
 - Subtasks can be nested **up to 5 levels** deep.
 - A subtask can be on **any board in the same project**, but never in another project.
 - The parent card shows a **list of its subtasks**, and each subtask shows its parent.
@@ -87,12 +87,12 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - **Due date:** a date, with an optional time. If a subtask is due after its parent, both cards show a warning. The date is not blocked. The warning is worked out when a card is read, not stored. Two times are compared exactly. When either card has no time, only the days are compared, and a due time's day is the day it falls on in the **project's time zone**. (Agreed 2026-10-28.)
 - Each project has a **time zone**, set by an admin. New projects start on UTC. (Agreed 2026-10-28.)
 - **Labels** are shared across the whole project and each has a name and a colour. Any member can create a label. Only admins can rename, recolour or delete one. Names are up to 50 characters. Colours come from a **fixed set of 10** that read well in light and dark mode (grey, red, orange, yellow, green, teal, blue, indigo, purple, pink), and two labels in a project cannot have the same name in any letter case. (Agreed 2026-10-28.)
-- **Attachments:** a file can be attached to the card itself or to a message in its thread. The card lists files from both. The default limit is 100 MB per file, and admins of a self-hosted server can change it. Attachments come in a later pull request, once file storage (MinIO) is set up. (Agreed 2026-10-28.)
+- **Attachments:** a file can be attached to the card itself or to a message in its chat. The card lists files from both. The default limit is 100 MB per file, and admins of a self-hosted server can change it. Attachments come in a later pull request, once file storage (MinIO) is set up. (Agreed 2026-10-28.)
 
 ## 9. History
 
 - Each card has an **Activity** tab. It records every field change, move, completion, assignment, subtask change and time-entry edit, with who made it and when.
-- History lines are **not** posted into the card's thread.
+- History lines are **not** posted into the card's chat.
 - What is recorded: the card being created; title, description, priority, due date and estimate changes; moves between columns, completing and reopening; assignees added and removed, and owner changes; labels added and removed; subtasks added, moved away or deleted, a change of parent, and card number changes; time entries added (typed or from the timer), edited and deleted. For checklists, only lists created, renamed or deleted, and items turned into subtasks; ticking and editing items is not recorded. (Agreed 2026-10-28.)
 - A description change keeps both the old and the new text. (Agreed 2026-10-28.)
 - Each line keeps the names as they were at the time (people, columns, labels, cards), so it still reads correctly after something is renamed.

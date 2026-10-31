@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams } from 'react-router'
 import { isApiError } from '../api/client'
 import { useBoards, useProjectByCode } from '../api/projects'
 import { NotFoundPage } from '../app/NotFoundPage'
+import { lastBoardIn } from '../boards/last-board'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
 import { NewBoardDialog } from './NewBoardDialog'
 
-// A project's boards. Later this opens the last board you used instead
-// (docs/web-app.md, section 2).
+// A project's boards. Opens the last board used in it instead, when this
+// browser remembers one that still exists (docs/web-app.md, section 2).
 export function ProjectPage() {
   const { code = '' } = useParams()
   const project = useProjectByCode(code)
@@ -36,6 +37,10 @@ export function ProjectPage() {
   }
 
   const { data } = project
+  const lastBoard = lastBoardIn(data.code)
+  if (lastBoard && boards.data?.some((board) => board.id === lastBoard)) {
+    return <Navigate to={`/${data.code}/boards/${lastBoard}`} replace />
+  }
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
       <nav aria-label="Breadcrumb" className="text-muted">
@@ -68,8 +73,14 @@ export function ProjectPage() {
         </div>
       )}
       {boards.data && boards.data.length > 0 && (
-        <section aria-labelledby="boards-heading" className="flex flex-col gap-2">
-          <h2 id="boards-heading" className="text-sm font-semibold text-muted uppercase">
+        <section
+          aria-labelledby="boards-heading"
+          className="flex flex-col gap-2"
+        >
+          <h2
+            id="boards-heading"
+            className="text-sm font-semibold text-muted uppercase"
+          >
             Boards
           </h2>
           <ul className="flex flex-col gap-2">
