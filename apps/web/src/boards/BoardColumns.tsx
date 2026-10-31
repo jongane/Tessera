@@ -24,7 +24,7 @@ import {
 import { useMemo, useState } from 'react'
 import { AddCardForm } from './AddCardForm'
 import { CardTile, DraggedCard } from './CardTile'
-import { plannedMove } from './move-card'
+import { cardsInLayout, plannedMove } from './move-card'
 
 // Card ids in each column, from the top, while a card is being dragged.
 type Layout = Record<string, string[]>
@@ -199,11 +199,7 @@ export function BoardColumns({
             key={column.id}
             boardId={view.id}
             column={column}
-            // The board can reload during a drag: a new column starts
-            // empty, and a card that has gone is left out.
-            cards={(shown[column.id] ?? []).flatMap(
-              (id) => cards.get(id) ?? [],
-            )}
+            cards={cardsInLayout(shown, column.id, cards)}
             columns={view.columns}
             timeZone={timeZone}
             selectedCardId={selectedCardId}

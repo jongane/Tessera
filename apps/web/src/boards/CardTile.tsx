@@ -92,7 +92,7 @@ function CardFace({
   return (
     <div
       {...dragListeners}
-      onClick={() => onSelect(card)}
+      onClick={interactive ? () => onSelect(card) : undefined}
       className={`flex cursor-grab touch-none flex-col gap-1.5 rounded-lg border bg-surface p-3 pr-11 text-left shadow-xs ${
         selected
           ? 'border-accent ring-2 ring-accent'

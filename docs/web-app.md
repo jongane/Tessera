@@ -22,7 +22,7 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
 |---|---|
 | `/sign-in`, `/sign-up` | Signing in, and making an account. When sign-up is off, the sign-in page hides its "Create an account" link and `/sign-up` says "Sign-up is closed. Ask your server admin for an account." (agreed 2026-10-30) |
 | `/projects` | Your projects. When empty, it offers "Create your first project" |
-| `/WEB` | A project. It opens the last board you used in it, or offers "Create your first board" when it has none (agreed 2026-10-30). With no board remembered in this browser, it lists the project's boards, with "New board" |
+| `/WEB` | A project. It opens the last board you used in it, or offers "Create your first board" when it has none (agreed 2026-10-30). With no board remembered in this browser, or one that has gone, it lists the project's boards, with "New board" |
 | `/WEB/boards/<board id>` | A board |
 | `/WEB-12` | Opens card WEB-12 on its board, with the card panel open. Old card numbers and project codes keep working |
 | `/WEB/settings` | Project settings |

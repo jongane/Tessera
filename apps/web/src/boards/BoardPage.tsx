@@ -96,7 +96,9 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
 
   function send(move: CardMove) {
     setSaveFailed(false)
-    moveCard.mutate(move, { onError: () => setSaveFailed(true) })
+    // Each move's own promise: options given to mutate() only reach the
+    // latest call, so an earlier move that fails would go unnoticed.
+    moveCard.mutateAsync(move).catch(() => setSaveFailed(true))
   }
 
   // An open card going into a done column with open subtasks asks first:

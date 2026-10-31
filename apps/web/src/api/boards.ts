@@ -55,7 +55,9 @@ export function useMoveCard(boardId: string) {
       }
       return { from }
     },
-    // Puts back only this card, so another move made meanwhile stays.
+    // Puts back only this card, so another move made meanwhile stays. Its
+    // old place can be one off if other cards moved meanwhile; the reload
+    // when the move settles puts that right.
     onError: (_error, move, context) => {
       const from = context?.from
       if (from) {

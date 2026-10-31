@@ -99,7 +99,12 @@ test('move a card with the keyboard', async ({ page }) => {
   await expect(announcement).toHaveText(/is in To do, place 2 of 2/)
   await page.keyboard.press('ArrowRight')
   await expect(announcement).toHaveText(/is in In progress/)
+  // Enter neither drops the card nor selects it while it is being moved.
+  await page.keyboard.press('Enter')
+  await expect(announcement).toHaveText(/is in In progress/)
+  expect(page.url()).not.toContain('card=')
   await page.keyboard.press('Space')
+  await expect(announcement).toHaveText(/was dropped in In progress/)
   await expect(card(page, 'In progress', 'Login page')).toBeVisible()
 })
 

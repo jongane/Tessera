@@ -231,6 +231,60 @@ describe('Board', () => {
     expect(cardTitles('In progress')).toEqual([])
   })
 
+  it('puts back only the card whose move failed', async () => {
+    const login = boardCard('12', 'Login page')
+    const header = boardCard('13', 'Header')
+    const toDo = boardColumn('To do', [login, header])
+    const doing = boardColumn('In progress', [])
+    let failLogin = () => {}
+    const loginFails = new Promise<void>((resolve) => (failLogin = resolve))
+    let answerReload = () => {}
+    const reloaded = new Promise<void>((resolve) => (answerReload = resolve))
+    const { user } = openBoard(boardView([toDo, doing]))
+    await screen.findByRole('button', { name: 'Move WEB-12 to…' })
+    server.use(
+      // What the server holds once both moves are done.
+      http.get(`/api/boards/${sprint.id}`, async () => {
+        await reloaded
+        return HttpResponse.json(
+          boardView([
+            boardColumn('To do', [login], { id: toDo.id }),
+            boardColumn('In progress', [header], { id: doing.id }),
+          ]),
+        )
+      }),
+      http.post(`/api/cards/${login.id}/move`, async () => {
+        await loginFails
+        return apiError(500, 'Something broke')
+      }),
+      http.post(`/api/cards/${header.id}/move`, () => HttpResponse.json({})),
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Move WEB-12 to…' }),
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'In progress' }))
+    await user.click(screen.getByRole('button', { name: 'Move WEB-13 to…' }))
+    await user.click(screen.getByRole('menuitem', { name: 'In progress' }))
+    await waitFor(() =>
+      expect(cardTitles('In progress')).toEqual([
+        'WEB-12 Login page',
+        'WEB-13 Header',
+      ]),
+    )
+    failLogin()
+
+    // Before the board reloads, only the failed card has gone back.
+    await waitFor(() =>
+      expect(cardTitles('To do')).toEqual(['WEB-12 Login page']),
+    )
+    expect(cardTitles('In progress')).toEqual(['WEB-13 Header'])
+    answerReload()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Couldn’t save, try again',
+    )
+  })
+
   it('asks first when a card with open subtasks goes into a done column', async () => {
     const card = boardCard('12', 'Login page', {
       subtaskProgress: { complete: 1, total: 4 },

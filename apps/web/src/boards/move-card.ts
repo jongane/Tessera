@@ -62,3 +62,17 @@ export function plannedMove(
   }
   return { column, position }
 }
+
+// The cards to show in a column, from the order captured when a drag
+// started. The board can reload during a drag: a column that is new then
+// starts empty, and a card that has gone is left out.
+export function cardsInLayout<Card>(
+  layout: Record<string, string[]>,
+  columnId: string,
+  cards: Map<string, Card>,
+): Card[] {
+  return (layout[columnId] ?? []).flatMap((id) => {
+    const card = cards.get(id)
+    return card ? [card] : []
+  })
+}
