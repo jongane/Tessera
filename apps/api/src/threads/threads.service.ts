@@ -6,6 +6,7 @@ import {
 import { Prisma, type Thread } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
+import { ALREADY_LINKED, refuseGeneralThread } from './thread-rules.js';
 
 export interface NewThread {
   title: string;
@@ -62,13 +63,9 @@ export class ThreadsService {
     if (!card) {
       throw new NotFoundException('Card not found');
     }
-    if (thread.kind === 'GENERAL') {
-      throw new ConflictException(
-        "A board's general thread cannot be linked to a card",
-      );
-    }
+    refuseGeneralThread(thread.kind);
     if (thread.cardId !== null && thread.cardId !== card.id) {
-      throw new ConflictException('This thread is already linked to a card');
+      throw new ConflictException(ALREADY_LINKED);
     }
     if (card.thread && card.thread.id !== thread.id) {
       throw new ConflictException('This card already has a thread');
