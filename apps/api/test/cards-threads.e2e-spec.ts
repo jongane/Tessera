@@ -265,6 +265,37 @@ describe('Cards and threads (e2e)', () => {
         .expect((r) => expect(r.body).toMatchObject({ cardId: null }));
     });
 
+    it('creates a card for a thread that has none', async () => {
+      const { ana, ben, board, toDo } = await setUp();
+      const thread = (
+        await ana.agent
+          .post(`/api/boards/${board.id}/threads`)
+          .send({ title: 'Release plan' })
+      ).body as { id: string };
+
+      await ben.agent
+        .post(`/api/columns/${toDo.id}/cards`)
+        .send({ title: 'Plan the release', threadId: thread.id })
+        .expect(404);
+      const card = (
+        await ana.agent
+          .post(`/api/columns/${toDo.id}/cards`)
+          .send({ title: 'Plan the release', threadId: thread.id })
+          .expect(201)
+      ).body as { id: string };
+
+      await ana.agent.get(`/api/cards/${card.id}`).expect((r) =>
+        expect(r.body.thread).toEqual({
+          id: thread.id,
+          title: 'Release plan',
+        }),
+      );
+      await ana.agent
+        .post(`/api/columns/${toDo.id}/cards`)
+        .send({ title: 'Again', threadId: thread.id })
+        .expect(409);
+    });
+
     it('refuses linking a card that already has a thread', async () => {
       const { ana, board, card } = await setUp();
       const thread = (

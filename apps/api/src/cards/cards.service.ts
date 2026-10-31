@@ -28,6 +28,11 @@ export interface NewCard {
   description?: string;
 }
 
+export interface NewBoardCard extends NewCard {
+  // A thread on the same board, with no card, to take instead of a new one.
+  threadId?: string;
+}
+
 export interface CardChanges {
   title?: string;
   // An empty description clears it.
@@ -76,12 +81,14 @@ export type SubtaskChoice =
 export class CardsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // A new card always gets its own thread, saved in the same step.
-  // It goes to the bottom of the column and takes the project's next number.
+  // A new card always gets its own thread, saved in the same step: a new one,
+  // or the existing thread named, which must be on the same board and not
+  // linked to a card. It goes to the bottom of the column and takes the
+  // project's next number.
   async createCard(
     userId: string,
     columnId: string,
-    card: NewCard,
+    { threadId, ...card }: NewBoardCard,
   ): Promise<Card> {
     const column = await this.findVisibleColumn(userId, columnId);
     const { projectId } = column.board;
@@ -96,9 +103,14 @@ export class CardsService {
           columnId,
           numberPath: await takeNextCardNumber(tx, projectId),
           position: await nextPosition(tx, columnId),
-          thread: { create: { title: card.title } },
+          ...(threadId === undefined && {
+            thread: { create: { title: card.title } },
+          }),
         },
       });
+      if (threadId !== undefined) {
+        await takeThread(tx, threadId, created);
+      }
       await recordActivity(tx, created, userId, 'CREATED', {
         numberPath: created.numberPath,
         title: created.title,
@@ -569,4 +581,34 @@ async function deleteKeepingThread(
     data: { cardId: null },
   });
   await tx.card.delete({ where: { id: cardId } });
+}
+
+// Links an existing thread to a card just made, refusing the board's general
+// thread and a thread already linked to a card. Only a thread with no card is
+// updated, so when two new cards ask for the same thread one of them is
+// refused, and its transaction is undone.
+async function takeThread(
+  tx: Prisma.TransactionClient,
+  threadId: string,
+  card: Card,
+): Promise<void> {
+  const thread = await tx.thread.findFirst({
+    where: { id: threadId, boardId: card.boardId },
+    select: { kind: true },
+  });
+  if (!thread) {
+    throw new NotFoundException('Thread not found');
+  }
+  if (thread.kind === 'GENERAL') {
+    throw new ConflictException(
+      "A board's general thread cannot be linked to a card",
+    );
+  }
+  const { count } = await tx.thread.updateMany({
+    where: { id: threadId, cardId: null },
+    data: { cardId: card.id },
+  });
+  if (count === 0) {
+    throw new ConflictException('This thread is already linked to a card');
+  }
 }
