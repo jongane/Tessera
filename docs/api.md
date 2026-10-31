@@ -87,7 +87,7 @@ Email invitations and "forgot password" need the server to send email, so they c
 |---|---|---|
 | `GET /api/projects/:projectId/boards` | Members | The project's boards, by name |
 | `POST /api/projects/:projectId/boards` | Members | Body `{ name }`. Creates a board with the columns To do, In progress and Done, and its general thread |
-| `GET /api/boards/:boardId` | Members | The board with its `columns` in order, each with its `cards` from top to bottom |
+| `GET /api/boards/:boardId` | Members | The board with its `columns` in order, each with its `cards` from top to bottom. Each card also has its `number` (`WEB-12`), `labels` (by name), `assignees` (owner first), `checklistProgress` `{ done, total }`, `subtaskProgress` `{ complete, total }` (direct subtasks only) and `threadId`, so the board needs no request per card |
 | `PATCH /api/columns/:columnId` | Members | Body `{ isDone }`. Marks a column as a done column, or not |
 
 ### Cards
