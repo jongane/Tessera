@@ -47,14 +47,23 @@ export function useChangeRole(projectId: string) {
 }
 
 // Removes someone, or, with your own id, leaves the project.
-export function useRemoveMember(projectId: string) {
+export function useRemoveMember(projectId: string, meId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (userId: string) =>
       api<void>(`/projects/${projectId}/members/${userId}`, {
         method: 'DELETE',
       }),
-    onSuccess: () => {
+    onSuccess: (_, userId) => {
+      if (userId === meId) {
+        // You can no longer see the project: drop its cached data (and the
+        // by-code lookups, which hold it too), so
+        // going Back doesn't show it again.
+        queryClient.removeQueries({
+          predicate: (query) => query.queryKey.includes(projectId),
+        })
+        queryClient.removeQueries({ queryKey: ['projects', 'by-code'] })
+      }
       // Not awaited: after leaving, the page moves on straight away.
       void queryClient.invalidateQueries({ queryKey: membersKey(projectId) })
       void queryClient.invalidateQueries({

@@ -65,6 +65,8 @@ function ChangeCodeDialog({
       {
         onSuccess: (changed) => {
           renameProject(project.code, changed.code)
+          // Closed here: the page may not reload if the new code is cached.
+          onOpenChange(false)
           navigate(`/${changed.code}/settings`, { replace: true })
         },
       },

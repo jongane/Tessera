@@ -2,7 +2,7 @@ import type { Label, Me, ProjectMember } from '@tessera/shared'
 import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { lastBoardIn, rememberBoard } from '../boards/last-board'
+import { lastBoardIn, lastBoardPath, rememberBoard } from '../boards/last-board'
 import { sprint, website } from '../test/fixtures'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import { currentPath, renderApp } from '../test/render'
@@ -94,7 +94,7 @@ describe('Project settings', () => {
     ).toBeInTheDocument()
   })
 
-  it('is linked from the project page and the board sidebar', async () => {
+  it('is linked from the project page', async () => {
     settingsApi()
     server.use(
       http.get(`/api/projects/${website.id}/boards`, () =>
@@ -294,6 +294,7 @@ describe('Project settings: members', () => {
     await waitFor(() => expect(currentPath(router)).toBe('/projects'))
     expect(left).toBe(true)
     expect(lastBoardIn('WEB')).toBeUndefined()
+    expect(lastBoardPath()).toBeUndefined()
   })
 })
 
@@ -444,6 +445,7 @@ describe('Project settings: project code', () => {
     await waitFor(() => expect(currentPath(router)).toBe('/SITE/settings'))
     expect(changed).toEqual({ code: 'SITE' })
     expect(lastBoardIn('SITE')).toBe(sprint.id)
+    expect(lastBoardPath()).toBe(`/SITE/boards/${sprint.id}`)
   })
 
   it('shows why a code was refused', async () => {

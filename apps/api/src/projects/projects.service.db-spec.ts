@@ -159,6 +159,7 @@ describe('ProjectsService (database)', () => {
 
       await expect(projects.suggestCode('Website')).resolves.toBe('WEBA');
     });
+
     it('never suggests ADMIN', async () => {
       const ana = await createUser('ana');
       // ADMI and the codes tried before ADMIN (ADMIA to ADMIM) are taken.

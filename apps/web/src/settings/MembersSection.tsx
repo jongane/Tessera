@@ -41,7 +41,7 @@ export function MembersSection({
   isAdmin: boolean
 }) {
   const changeRole = useChangeRole(project.id)
-  const remove = useRemoveMember(project.id)
+  const remove = useRemoveMember(project.id, meId)
   const navigate = useNavigate()
   const [removing, setRemoving] = useState<ProjectMember | null>(null)
   const [leaving, setLeaving] = useState(false)

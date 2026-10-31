@@ -83,7 +83,10 @@ function TimeZoneForm({ project, now }: { project: Project; now: string }) {
           list={listId}
           autoComplete="off"
           value={timeZone}
-          onChange={(event) => setTimeZone(event.target.value)}
+          onChange={(event) => {
+            changeProject.reset()
+            setTimeZone(event.target.value)
+          }}
           error={error}
           hint={`Type to search, e.g. Europe/London. Saved: ${project.timeZone}. ${now}`}
         />
