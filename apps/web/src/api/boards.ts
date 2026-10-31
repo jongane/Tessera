@@ -1,6 +1,6 @@
 import type { BoardView, Card, NewCardBody } from '@tessera/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { moveCardInView } from '../boards/move-card'
+import { findCard, moveCardInView } from '../boards/move-card'
 import { api } from './client'
 import { boardKey } from './query-keys'
 
@@ -46,16 +46,28 @@ export function useMoveCard(boardId: string) {
     mutationFn: ({ cardId, ...body }: CardMove) =>
       api<Card>(`/cards/${cardId}/move`, { method: 'POST', body }),
     onMutate: async (move) => {
-      await queryClient.cancelQueries({ queryKey: key })
+      // Only the board: its chats can go on loading.
+      await queryClient.cancelQueries({ queryKey: key, exact: true })
       const before = queryClient.getQueryData<BoardView>(key)
+      const from = before && findCard(before, move.cardId)
       if (before) {
         queryClient.setQueryData(key, moveCardInView(before, move))
       }
-      return { before }
+      return { from }
     },
-    onError: (_error, _move, context) => {
-      if (context?.before) {
-        queryClient.setQueryData(key, context.before)
+    // Puts back only this card, so another move made meanwhile stays.
+    onError: (_error, move, context) => {
+      const from = context?.from
+      if (from) {
+        queryClient.setQueryData<BoardView>(key, (now) =>
+          now
+            ? moveCardInView(now, {
+                cardId: move.cardId,
+                columnId: from.column.id,
+                position: from.index,
+              })
+            : now,
+        )
       }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),

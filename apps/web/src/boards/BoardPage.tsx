@@ -23,7 +23,7 @@ import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
 import { BoardColumns } from './BoardColumns'
 import { CompleteAnywayDialog } from './CompleteAnywayDialog'
-import { rememberBoard } from './last-board'
+import { forgetBoard, rememberBoard } from './last-board'
 import { findCard } from './move-card'
 import { NewThreadDialog } from './NewThreadDialog'
 import {
@@ -48,13 +48,13 @@ export function BoardPage() {
   if (project.isPending || board.isPending) {
     return <Loading />
   }
-  if (isApiError(project.error, 404) || isApiError(board.error, 404)) {
-    return (
-      <NotFoundPage
-        title="Board not found"
-        text="There’s no board at this address, or you’re not a member of its project."
-      />
-    )
+  const notFound =
+    isApiError(project.error, 404) ||
+    isApiError(board.error, 404) ||
+    // A board from another project, under this project's code.
+    (project.data && board.data && board.data.projectId !== project.data.id)
+  if (notFound) {
+    return <BoardNotFound code={code} boardId={boardId} />
   }
   if (!project.data || !board.data) {
     return (
@@ -64,6 +64,17 @@ export function BoardPage() {
     )
   }
   return <BoardScreen project={project.data} view={board.data} />
+}
+
+// The home page does not open this board again.
+function BoardNotFound({ code, boardId }: { code: string; boardId: string }) {
+  useEffect(() => forgetBoard(code, boardId), [code, boardId])
+  return (
+    <NotFoundPage
+      title="Board not found"
+      text="There’s no board at this address, or you’re not a member of its project."
+    />
+  )
 }
 
 function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
@@ -88,13 +99,13 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
     moveCard.mutate(move, { onError: () => setSaveFailed(true) })
   }
 
-  // Into a done column with open subtasks asks first: the move completes
-  // the card (docs/web-app.md, section 4).
+  // An open card going into a done column with open subtasks asks first:
+  // the move completes it (docs/web-app.md, section 4). The API checks the
+  // same way.
   function onMove(card: BoardCard, column: BoardColumn, position: number) {
-    const from = findCard(view, card.id)?.column
     const open = card.subtaskProgress.total - card.subtaskProgress.complete
     const move = { cardId: card.id, columnId: column.id, position }
-    if (column.isDone && !from?.isDone && open > 0) {
+    if (column.isDone && !card.isComplete && open > 0) {
       setConfirming({ move, openSubtasks: open })
     } else {
       send(move)
@@ -150,6 +161,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
             board={board}
             panel={(dock, onDock) => (
               <ThreadPanel
+                key={openThread.id}
                 thread={openThread}
                 cardPart={
                   <ThreadCard
@@ -318,7 +330,7 @@ function BoardSidebar({
           <Link
             key={thread.id}
             to={{ search: `?thread=${thread.id}` }}
-            aria-current={thread.id === openThreadId ? 'page' : undefined}
+            aria-current={thread.id === openThreadId ? 'true' : undefined}
             className={linkClass}
           >
             {thread.title}

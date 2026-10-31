@@ -91,6 +91,10 @@ describe('Chats on a board', () => {
     ).toBeInTheDocument()
     expect(panel).toHaveTextContent('Messages are coming soon')
     expect(currentPath(router)).toBe(`${boardPath}?thread=${releasePlan.id}`)
+    expect(screen.getByRole('link', { name: 'Release plan' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
     expect(
       screen.getByRole('separator', { name: 'Resize the chat panel' }),
     ).toBeInTheDocument()
@@ -301,6 +305,11 @@ describe('Chats and cards', () => {
     await user.type(within(dialog).getByLabelText('Find a card'), 'web-99')
     expect(dialog).toHaveTextContent('No cards without a chat match.')
     await user.clear(within(dialog).getByLabelText('Find a card'))
+    await user.type(within(dialog).getByLabelText('Find a card'), '13')
+    expect(
+      within(dialog).getByRole('button', { name: 'WEB-13 Sign-up page' }),
+    ).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText('Find a card'))
     await user.type(within(dialog).getByLabelText('Find a card'), 'sign')
     await user.click(
       within(dialog).getByRole('button', { name: 'WEB-13 Sign-up page' }),
@@ -315,6 +324,49 @@ describe('Chats and cards', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Link to a card' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('says in the picker when the link could not be made', async () => {
+    const { user } = openBoard(undefined, view)
+    server.use(
+      http.put(`/api/threads/${releasePlan.id}/card`, () =>
+        apiError(409, 'This card already has a thread'),
+      ),
+    )
+
+    await user.click(await screen.findByRole('link', { name: 'Release plan' }))
+    await user.click(
+      within(threadPanel()).getByRole('button', { name: 'Link to a card' }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Link to a card' })
+    await user.click(
+      within(dialog).getByRole('button', { name: 'WEB-13 Sign-up page' }),
+    )
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'This card already has a thread',
+    )
+  })
+
+  it('leaves a failure behind when another chat is opened', async () => {
+    const { user } = openBoard(undefined, view)
+    server.use(
+      http.post(`/api/columns/${toDo.id}/cards`, () =>
+        apiError(500, 'Something broke'),
+      ),
+    )
+    await user.click(await screen.findByRole('link', { name: 'Release plan' }))
+    await user.click(
+      within(threadPanel()).getByRole('button', { name: 'Create a card' }),
+    )
+    expect(await within(threadPanel()).findByRole('alert')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('link', { name: 'General' }))
+
+    expect(
+      await screen.findByRole('complementary', { name: 'Chat: General' }),
+    ).toBeInTheDocument()
+    expect(within(threadPanel()).queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('unlinks a chat from its card, keeping both', async () => {

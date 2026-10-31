@@ -41,3 +41,24 @@ export function findCard(view: BoardView, cardId: string) {
   }
   return undefined
 }
+
+// The move to send once a drag ends with the cards laid out as `layout`, or
+// null when the card ends where it started. Places are compared on screen,
+// not with the saved positions, which can have gaps.
+export function plannedMove(
+  view: BoardView,
+  layout: Record<string, string[]>,
+  cardId: string,
+): { column: BoardView['columns'][number]; position: number } | null {
+  const start = findCard(view, cardId)
+  const to = Object.keys(layout).find((id) => layout[id]!.includes(cardId))
+  const column = view.columns.find((c) => c.id === to)
+  if (!start || !column) {
+    return null
+  }
+  const position = layout[column.id]!.indexOf(cardId)
+  if (column.id === start.column.id && position === start.index) {
+    return null
+  }
+  return { column, position }
+}

@@ -26,7 +26,8 @@ export function ThreadCard({
   const link = useLinkThread(view.id, thread.id)
   const unlink = useUnlinkThread(view.id, thread.id)
   const [linking, setLinking] = useState(false)
-  const error = createCard.error ?? link.error ?? unlink.error
+  // A failed link is shown in the picker, which stays open.
+  const error = createCard.error ?? unlink.error
   const firstColumn = view.columns[0]
 
   if (thread.kind === 'GENERAL') {
@@ -80,7 +81,13 @@ export function ThreadCard({
                   Create a card
                 </Button>
               )}
-              <Button variant="secondary" onClick={() => setLinking(true)}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  link.reset()
+                  setLinking(true)
+                }}
+              >
                 Link to a card
               </Button>
             </div>
@@ -91,6 +98,7 @@ export function ThreadCard({
         <LinkCardDialog
           view={view}
           linking={link.isPending}
+          error={link.error?.message}
           onOpenChange={setLinking}
           onPick={(picked) =>
             link.mutate(

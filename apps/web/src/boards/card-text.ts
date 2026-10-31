@@ -60,3 +60,25 @@ export function assigneesText(card: BoardCard): string {
 export function initial(name: string): string {
   return name.trim().charAt(0).toUpperCase()
 }
+
+// Everything shown on a card besides its number and title, as one sentence
+// for screen readers. The pieces on screen are separate boxes, which would
+// otherwise be read out run together.
+export function detailsText(card: BoardCard, timeZone: string): string {
+  const { checklistProgress: checklist, subtaskProgress: subtasks } = card
+  const due = dueText(card, timeZone)
+  return [
+    card.priority !== 'NONE' && `${PRIORITY_NAMES[card.priority]} priority`,
+    card.labels.length > 0 &&
+      `Labels: ${card.labels.map((label) => label.name).join(', ')}`,
+    checklist.total > 0 &&
+      `${checklist.done} of ${checklist.total} checklist items done`,
+    subtasks.total > 0 &&
+      `${subtasks.complete} of ${subtasks.total} subtasks done`,
+    due,
+    card.assignees.length > 0 && assigneesText(card),
+  ]
+    .filter(Boolean)
+    .map((part) => `${part}.`)
+    .join(' ')
+}

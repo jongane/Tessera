@@ -24,6 +24,7 @@ import {
 import { useMemo, useState } from 'react'
 import { AddCardForm } from './AddCardForm'
 import { CardTile, DraggedCard } from './CardTile'
+import { plannedMove } from './move-card'
 
 // Card ids in each column, from the top, while a card is being dragged.
 type Layout = Record<string, string[]>
@@ -71,11 +72,11 @@ export function BoardColumns({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter,
-      // Enter selects the card, so only Space picks it up.
+      // Enter selects the card, so only Space picks it up and drops it.
       keyboardCodes: {
         start: ['Space'],
         cancel: ['Escape'],
-        end: ['Space', 'Enter'],
+        end: ['Space'],
       },
     }),
   )
@@ -139,11 +140,9 @@ export function BoardColumns({
     if (!final || !card) {
       return
     }
-    const to = columnOf(final, active.id)!
-    const position = final[to]!.indexOf(card.id)
-    const column = view.columns.find((c) => c.id === to)!
-    if (to !== card.columnId || position !== card.position) {
-      onMove(card, column, position)
+    const move = plannedMove(view, final, card.id)
+    if (move) {
+      onMove(card, move.column, move.position)
     }
   }
 
@@ -200,7 +199,11 @@ export function BoardColumns({
             key={column.id}
             boardId={view.id}
             column={column}
-            cards={shown[column.id]!.map((id) => cards.get(id)!)}
+            // The board can reload during a drag: a new column starts
+            // empty, and a card that has gone is left out.
+            cards={(shown[column.id] ?? []).flatMap(
+              (id) => cards.get(id) ?? [],
+            )}
             columns={view.columns}
             timeZone={timeZone}
             selectedCardId={selectedCardId}

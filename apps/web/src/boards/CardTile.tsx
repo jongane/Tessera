@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type KeyboardEvent, useId } from 'react'
 import {
-  assigneesText,
+  detailsText,
   dueText,
   initial,
   LABEL_STYLES,
@@ -44,6 +44,7 @@ export function CardTile(props: CardTileProps) {
         dragAttributes={attributes}
         dragListeners={listeners}
         activatorRef={setActivatorNodeRef}
+        isDragging={isDragging}
       />
       <MoveToMenu
         card={card}
@@ -58,7 +59,8 @@ type DragAttributes = ReturnType<typeof useSortable>['attributes']
 type DragListeners = ReturnType<typeof useSortable>['listeners']
 
 // The whole card can be dragged. Only its number and title are the button,
-// so its name stays short; the rest is read out as its description.
+// so its name stays short; the rest is read out as its description. The copy
+// that follows the pointer is not a button (`interactive` false).
 function CardFace({
   card,
   timeZone,
@@ -67,17 +69,22 @@ function CardFace({
   dragAttributes,
   dragListeners,
   activatorRef,
+  isDragging = false,
+  interactive = true,
 }: Omit<CardTileProps, 'columns' | 'onMoveTo'> & {
   dragAttributes?: DragAttributes
   dragListeners?: DragListeners
   activatorRef?: (element: HTMLElement | null) => void
+  isDragging?: boolean
+  interactive?: boolean
 }) {
   const detailsId = useId()
   const due = dueText(card, timeZone)
   const { checklistProgress: checklist, subtaskProgress: subtasks } = card
 
+  // While the card is being moved, the keys belong to the move.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !isDragging) {
       onSelect(card)
     }
   }
@@ -93,26 +100,30 @@ function CardFace({
       }`}
     >
       <div
-        {...dragAttributes}
-        ref={activatorRef}
-        onKeyDown={onKeyDown}
-        role="button"
-        tabIndex={0}
-        aria-label={`${card.number} ${card.title}`}
-        aria-current={selected ? 'true' : undefined}
-        aria-describedby={[detailsId, dragAttributes?.['aria-describedby']]
-          .filter(Boolean)
-          .join(' ')}
+        {...(interactive && {
+          ...dragAttributes,
+          ref: activatorRef,
+          onKeyDown,
+          role: 'button',
+          tabIndex: 0,
+          'aria-label': `${card.number} ${card.title}`,
+          'aria-current': selected ? 'true' : undefined,
+          'aria-describedby': [detailsId, dragAttributes?.['aria-describedby']]
+            .filter(Boolean)
+            .join(' '),
+        })}
         className="flex flex-col gap-1 rounded"
       >
         <span className="text-xs font-semibold text-muted">{card.number}</span>{' '}
         <span className="font-semibold">{card.title}</span>
       </div>
-      <div id={detailsId} className="flex flex-col gap-1.5">
+      <span id={detailsId} className="sr-only">
+        {detailsText(card, timeZone)}
+      </span>
+      <div aria-hidden="true" className="flex flex-col gap-1.5">
         {card.priority !== 'NONE' && (
           <span className="self-start rounded bg-[#fdeddf] px-1.5 py-0.5 text-xs font-semibold text-[#8a3b0b]">
             {PRIORITY_NAMES[card.priority]}
-            <span className="sr-only"> priority</span>
           </span>
         )}
         {card.labels.length > 0 && (
@@ -160,25 +171,17 @@ function CardFooter({
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
       {checklist.total > 0 && (
-        <Count
-          short={`☐ ${checklist.done}/${checklist.total}`}
-          full={`${checklist.done} of ${checklist.total} checklist items done`}
-        />
+        <span>{`☐ ${checklist.done}/${checklist.total}`}</span>
       )}
       {subtasks.total > 0 && (
-        <Count
-          short={`⤷ ${subtasks.complete}/${subtasks.total}`}
-          full={`${subtasks.complete} of ${subtasks.total} subtasks done`}
-        />
+        <span>{`⤷ ${subtasks.complete}/${subtasks.total}`}</span>
       )}
       {due && <span>{due}</span>}
       {card.assignees.length > 0 && (
         <span className="ml-auto flex -space-x-1">
-          <span className="sr-only">{assigneesText(card)}</span>
           {card.assignees.map((person) => (
             <span
               key={person.id}
-              aria-hidden="true"
               title={person.displayName}
               className="flex size-6 items-center justify-center rounded-full border-2 border-surface bg-accent-soft font-semibold text-accent-strong"
             >
@@ -191,23 +194,13 @@ function CardFooter({
   )
 }
 
-// A short count for the eye ("3/5"), with the words for screen readers.
-function Count({ short, full }: { short: string; full: string }) {
-  return (
-    <span>
-      <span aria-hidden="true">{short}</span>
-      <span className="sr-only">{full}</span>
-    </span>
-  )
-}
-
 // The card as it follows the pointer while being dragged.
 export function DraggedCard(
   props: Omit<CardTileProps, 'onMoveTo' | 'columns'>,
 ) {
   return (
     <div aria-hidden="true" className="rotate-1 shadow-lg">
-      <CardFace {...props} />
+      <CardFace {...props} interactive={false} />
     </div>
   )
 }

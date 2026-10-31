@@ -1,5 +1,6 @@
 import type { BoardCard, BoardView } from '@tessera/shared'
 import { useState } from 'react'
+import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { Dialog, DialogClose } from '../ui/Dialog'
 import { TextField } from '../ui/TextField'
@@ -9,11 +10,13 @@ import { TextField } from '../ui/TextField'
 export function LinkCardDialog({
   view,
   linking,
+  error,
   onPick,
   onOpenChange,
 }: {
   view: BoardView
   linking: boolean
+  error: string | undefined
   onPick: (card: BoardCard) => void
   onOpenChange: (open: boolean) => void
 }) {
@@ -25,6 +28,7 @@ export function LinkCardDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange} title="Link to a card">
+      {error && <Alert>{error}</Alert>}
       <TextField
         label="Find a card"
         hint="A number such as WEB-12, or words from the title"
@@ -67,6 +71,8 @@ function matches(card: BoardCard, search: string): boolean {
   const words = search.trim().toLowerCase()
   return (
     card.number.toLowerCase().startsWith(words) ||
+    // "12" finds WEB-12 without its project code.
+    card.numberPath.startsWith(words) ||
     card.title.toLowerCase().includes(words)
   )
 }

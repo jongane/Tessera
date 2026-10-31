@@ -37,7 +37,7 @@ function column(name: string) {
 function cardTitles(columnName: string) {
   return within(column(columnName))
     .queryAllByRole('button', { name: /^WEB-/ })
-    .map((card) => card.getAttribute('aria-label'))
+    .map((card) => card.textContent)
 }
 
 describe('Board', () => {
@@ -92,9 +92,6 @@ describe('Board', () => {
       name: 'WEB-12 Login page',
     })
     // The details are read out as the card's description.
-    const details = document.getElementById(
-      button.getAttribute('aria-describedby')!.split(' ')[0]!,
-    )!
     for (const text of [
       'High priority',
       'Frontend',
@@ -104,7 +101,7 @@ describe('Board', () => {
       'Due 31 Oct',
       'Assigned to Ben (owner) and Jon',
     ]) {
-      expect(details).toHaveTextContent(text)
+      expect(button).toHaveAccessibleDescription(expect.stringContaining(text))
     }
   })
 
@@ -133,6 +130,14 @@ describe('Board', () => {
       http.get(`/api/boards/${sprint.id}/threads`, () => HttpResponse.json([])),
     )
     renderApp(boardPath)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Board not found' }),
+    ).toBeInTheDocument()
+  })
+
+  it('says a board is not found when it belongs to another project', async () => {
+    openBoard({ ...boardView([]), projectId: 'another-project' })
 
     expect(
       await screen.findByRole('heading', { name: 'Board not found' }),
@@ -269,6 +274,57 @@ describe('Board', () => {
         confirmOpenSubtasks: true,
       }),
     )
+  })
+
+  it('does not ask again for a card that is already complete', async () => {
+    const card = boardCard('12', 'Login page', {
+      isComplete: true,
+      subtaskProgress: { complete: 1, total: 4 },
+    })
+    const done = boardColumn('Done', [], { isDone: true })
+    let moved: unknown
+    const { user } = openBoard(
+      boardView([boardColumn('In progress', [card]), done]),
+    )
+    server.use(
+      http.post(`/api/cards/${card.id}/move`, async ({ request }) => {
+        moved = await request.json()
+        return HttpResponse.json({})
+      }),
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Move WEB-12 to…' }),
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Done' }))
+
+    await waitFor(() =>
+      expect(moved).toEqual({ columnId: done.id, position: 0 }),
+    )
+    expect(
+      screen.queryByRole('dialog', { name: 'Complete anyway?' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('asks for a reopened card moving between done columns', async () => {
+    const card = boardCard('12', 'Login page', {
+      subtaskProgress: { complete: 0, total: 1 },
+    })
+    const { user } = openBoard(
+      boardView([
+        boardColumn('Done', [card], { isDone: true }),
+        boardColumn('Shipped', [], { isDone: true }),
+      ]),
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Move WEB-12 to…' }),
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Shipped' }))
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Complete anyway?' }),
+    ).toHaveTextContent('1 subtask is still open.')
   })
 
   it('highlights a card, and opens its chat, when it is clicked', async () => {

@@ -1,6 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   backlog,
   boardCard,
@@ -87,6 +87,65 @@ describe('Going back to the last board used', () => {
 
   it('lands on the project list the first time', async () => {
     fakeApi()
+    const { router } = renderApp('/')
+
+    await waitFor(() => expect(currentPath(router)).toBe('/projects'))
+  })
+})
+
+describe('A damaged or missing memory of the last board', () => {
+  it('ignores a remembered address that leads to another site', async () => {
+    fakeApi()
+    localStorage.setItem(
+      'tessera.lastBoard',
+      JSON.stringify({ path: '//evil.example/x' }),
+    )
+    const { router } = renderApp('/')
+
+    await waitFor(() => expect(currentPath(router)).toBe('/projects'))
+  })
+
+  it('ignores a damaged value', async () => {
+    fakeApi()
+    localStorage.setItem('tessera.lastBoard', '{not json')
+    const { router } = renderApp('/')
+
+    await waitFor(() => expect(currentPath(router)).toBe('/projects'))
+  })
+
+  it('still works when the browser blocks storage', async () => {
+    fakeApi()
+    const blocked = () => {
+      throw new Error('Storage is blocked')
+    }
+    const spies = [
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked),
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked),
+    ]
+    try {
+      await visitSprint()
+      const { router } = renderApp('/')
+
+      await waitFor(() => expect(currentPath(router)).toBe('/projects'))
+    } finally {
+      spies.forEach((spy) => spy.mockRestore())
+    }
+  })
+
+  it('forgets a remembered board that has gone', async () => {
+    fakeApi()
+    await visitSprint()
+    server.use(
+      http.get(`/api/boards/${sprint.id}`, () =>
+        apiError(404, 'Board not found'),
+      ),
+    )
+    const gone = renderApp('/')
+    expect(
+      await screen.findByRole('heading', { name: 'Board not found' }),
+    ).toBeInTheDocument()
+    gone.unmount()
+
     const { router } = renderApp('/')
 
     await waitFor(() => expect(currentPath(router)).toBe('/projects'))
