@@ -47,7 +47,8 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 - Check permissions on every request: a user only sees projects they belong to.
 - Never commit secrets (API keys, passwords, .env files). Hash passwords.
 - Keep functions small and named for what they do.
-- ES modules: relative imports in TypeScript files end in `.js` (e.g. `./app.service.js`), even though the source file is `.ts`.
+- ES modules in `apps/api` and `packages/shared`: relative imports end in `.js` (e.g. `./app.service.js`), even though the source file is `.ts`. Node runs the compiled files and needs the full name.
+- In `apps/web`, relative imports have no extension (e.g. `./AppShell`). Vite (and Playwright, for `e2e/`) finds the file itself.
 
 ## Domain rules (from PROJECT.md)
 - A card has at most one thread. A thread may exist without a card, and the reverse.
