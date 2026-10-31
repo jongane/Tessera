@@ -7,6 +7,7 @@ import {
   type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
+  type KeyboardCoordinateGetter,
   KeyboardSensor,
   PointerSensor,
   type UniqueIdentifier,
@@ -47,11 +48,29 @@ export function BoardColumns({
 }: BoardColumnsProps) {
   const [layout, setLayout] = useState<Layout | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  // Left and right go to the next column; up and down move within one.
+  const coordinateGetter: KeyboardCoordinateGetter = (event, args) => {
+    if (event.code !== 'ArrowLeft' && event.code !== 'ArrowRight') {
+      return sortableKeyboardCoordinates(event, args)
+    }
+    event.preventDefault()
+    const { active, over, droppableRects } = args.context
+    // Each column's cards are sorted under the column's id.
+    const where = over ?? active
+    const from = where
+      ? String(where.data.current?.sortable?.containerId ?? where.id)
+      : undefined
+    const order = view.columns.map((column) => column.id)
+    const step = event.code === 'ArrowRight' ? 1 : -1
+    const next = from ? order[order.indexOf(from) + step] : undefined
+    const rect = next ? droppableRects.get(next) : undefined
+    return rect ? { x: rect.left + 1, y: rect.top + 1 } : undefined
+  }
   const sensors = useSensors(
     // A small movement first, so a click still selects the card.
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter,
       // Enter selects the card, so only Space picks it up.
       keyboardCodes: {
         start: ['Space'],
@@ -134,12 +153,13 @@ export function BoardColumns({
       if (!over || !layout) {
         return undefined
       }
-      const to = columnOf(layout, over.id)
+      const final = finalLayout(layout, active.id, over.id)
+      const to = columnOf(final, active.id)
       if (!to) {
         return undefined
       }
-      const place = layout[to]!.indexOf(String(active.id)) + 1
-      return `Card ${numberOf(active.id)} is in ${columnName(to)}, place ${Math.max(place, 1)} of ${layout[to]!.length}.`
+      const place = final[to]!.indexOf(String(active.id)) + 1
+      return `Card ${numberOf(active.id)} is in ${columnName(to)}, place ${place} of ${final[to]!.length}.`
     },
     onDragEnd: ({ active, over }) => {
       if (!over || !layout) {
@@ -227,7 +247,7 @@ function ColumnView({
   return (
     <section
       aria-label={column.name}
-      className="flex max-h-full w-72 shrink-0 flex-col gap-2 rounded-xl bg-column p-2"
+      className="flex w-72 shrink-0 flex-col gap-2 rounded-xl bg-column p-2"
     >
       <div className="flex items-center gap-2 px-1 pt-1">
         <h2 id={headingId} className="font-semibold">
@@ -254,7 +274,7 @@ function ColumnView({
         <ul
           ref={setNodeRef}
           aria-labelledby={headingId}
-          className="flex min-h-12 flex-col gap-2 overflow-y-auto"
+          className="flex min-h-12 flex-col gap-2"
         >
           {cards.length === 0 && (
             <li className="px-1 py-3 text-center text-muted">No cards</li>

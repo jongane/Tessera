@@ -87,9 +87,13 @@ describe('Board', () => {
     ])
     openBoard(view)
 
-    const card = await screen.findByRole('button', {
+    const button = await screen.findByRole('button', {
       name: 'WEB-12 Login page',
     })
+    // The details are read out as the card's description.
+    const details = document.getElementById(
+      button.getAttribute('aria-describedby')!.split(' ')[0]!,
+    )!
     for (const text of [
       'High priority',
       'Frontend',
@@ -99,7 +103,7 @@ describe('Board', () => {
       'Due 31 Oct',
       'Assigned to Ben (owner) and Jon',
     ]) {
-      expect(card).toHaveTextContent(text)
+      expect(details).toHaveTextContent(text)
     }
   })
 

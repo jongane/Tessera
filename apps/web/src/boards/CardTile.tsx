@@ -26,6 +26,7 @@ export function CardTile(props: CardTileProps) {
   const { card } = props
   const {
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -42,6 +43,7 @@ export function CardTile(props: CardTileProps) {
         {...props}
         dragAttributes={attributes}
         dragListeners={listeners}
+        activatorRef={setActivatorNodeRef}
       />
       <MoveToMenu
         card={card}
@@ -55,6 +57,8 @@ export function CardTile(props: CardTileProps) {
 type DragAttributes = ReturnType<typeof useSortable>['attributes']
 type DragListeners = ReturnType<typeof useSortable>['listeners']
 
+// The whole card can be dragged. Only its number and title are the button,
+// so its name stays short; the rest is read out as its description.
 function CardFace({
   card,
   timeZone,
@@ -62,16 +66,17 @@ function CardFace({
   onSelect,
   dragAttributes,
   dragListeners,
-}: CardTileProps & {
+  activatorRef,
+}: Omit<CardTileProps, 'columns' | 'onMoveTo'> & {
   dragAttributes?: DragAttributes
   dragListeners?: DragListeners
+  activatorRef?: (element: HTMLElement | null) => void
 }) {
   const detailsId = useId()
   const due = dueText(card, timeZone)
   const { checklistProgress: checklist, subtaskProgress: subtasks } = card
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    dragListeners?.onKeyDown?.(event)
     if (event.key === 'Enter') {
       onSelect(card)
     }
@@ -79,34 +84,37 @@ function CardFace({
 
   return (
     <div
-      {...dragAttributes}
       {...dragListeners}
-      onKeyDown={onKeyDown}
       onClick={() => onSelect(card)}
-      role="button"
-      tabIndex={0}
-      aria-label={`${card.number} ${card.title}`}
-      aria-current={selected ? 'true' : undefined}
-      aria-describedby={[detailsId, dragAttributes?.['aria-describedby']]
-        .filter(Boolean)
-        .join(' ')}
       className={`flex cursor-grab touch-none flex-col gap-1.5 rounded-lg border bg-surface p-3 pr-11 text-left shadow-xs ${
         selected
           ? 'border-accent ring-2 ring-accent'
           : 'border-line hover:border-line-strong'
       }`}
     >
-      <span className="flex items-center gap-2 text-xs font-semibold text-muted">
-        {card.number}
+      <div
+        {...dragAttributes}
+        ref={activatorRef}
+        onKeyDown={onKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`${card.number} ${card.title}`}
+        aria-current={selected ? 'true' : undefined}
+        aria-describedby={[detailsId, dragAttributes?.['aria-describedby']]
+          .filter(Boolean)
+          .join(' ')}
+        className="flex flex-col gap-1 rounded"
+      >
+        <span className="text-xs font-semibold text-muted">{card.number}</span>{' '}
+        <span className="font-semibold">{card.title}</span>
+      </div>
+      <div id={detailsId} className="flex flex-col gap-1.5">
         {card.priority !== 'NONE' && (
-          <span className="rounded bg-[#fdeddf] px-1.5 py-0.5 text-[#8a3b0b]">
+          <span className="self-start rounded bg-[#fdeddf] px-1.5 py-0.5 text-xs font-semibold text-[#8a3b0b]">
             {PRIORITY_NAMES[card.priority]}
             <span className="sr-only"> priority</span>
           </span>
         )}
-      </span>
-      <span className="font-semibold">{card.title}</span>
-      <span id={detailsId} className="flex flex-col gap-1.5">
         {card.labels.length > 0 && (
           <span className="flex flex-wrap gap-1">
             {card.labels.map((label) => (
@@ -125,7 +133,7 @@ function CardFace({
           checklist={checklist}
           subtasks={subtasks}
         />
-      </span>
+      </div>
     </div>
   )
 }
@@ -198,8 +206,8 @@ export function DraggedCard(
   props: Omit<CardTileProps, 'onMoveTo' | 'columns'>,
 ) {
   return (
-    <div className="rotate-1 shadow-lg">
-      <CardFace {...props} columns={[]} onMoveTo={() => {}} />
+    <div aria-hidden="true" className="rotate-1 shadow-lg">
+      <CardFace {...props} />
     </div>
   )
 }

@@ -1,0 +1,104 @@
+import { expect, type Page, test } from '@playwright/test'
+import { expectNoAccessibilityProblems } from './accessibility'
+
+// Signs up someone new and opens a new board in a new project.
+async function openNewBoard(page: Page) {
+  const run = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+  await page.goto('/sign-up')
+  await page.getByLabel('Your name').fill('Ben')
+  await page.getByLabel('Email').fill(`ben-${run}@example.com`)
+  await page
+    .getByLabel('Password', { exact: true })
+    .fill('a long enough password')
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await page.getByRole('button', { name: 'Create your first project' }).click()
+  const project = page.getByRole('dialog', { name: 'New project' })
+  await project.getByLabel('Name').fill(`Board test ${run}`)
+  await expect(project.getByLabel('Code')).not.toHaveValue('')
+  await project.getByRole('button', { name: 'Create' }).click()
+  await page.getByRole('button', { name: 'Create your first board' }).click()
+  const board = page.getByRole('dialog', { name: 'New board' })
+  await board.getByLabel('Name').fill('Sprint 1')
+  await board.getByRole('button', { name: 'Create' }).click()
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Sprint 1' }),
+  ).toBeVisible()
+}
+
+async function addCard(page: Page, column: string, title: string) {
+  const region = page.getByRole('region', { name: column })
+  await region.getByRole('button', { name: 'Add a card' }).click()
+  await region.getByLabel('Card title').fill(title)
+  await region.getByRole('button', { name: 'Add' }).click()
+  await expect(
+    region.getByRole('button', { name: new RegExp(`-\\d+ ${title}$`) }),
+  ).toBeVisible()
+  await region.getByRole('button', { name: 'Cancel' }).click()
+}
+
+function card(page: Page, column: string, title: string) {
+  return page
+    .getByRole('region', { name: column })
+    .getByRole('button', { name: new RegExp(`-\\d+ ${title}$`) })
+}
+
+test('add cards and drag one to another column', async ({ page }) => {
+  await openNewBoard(page)
+  await addCard(page, 'To do', 'Login page')
+  await addCard(page, 'To do', 'Sign-up page')
+  await expectNoAccessibilityProblems(page)
+
+  const login = card(page, 'To do', 'Login page')
+  const target = page
+    .getByRole('region', { name: 'In progress' })
+    .getByText('No cards')
+  const from = (await login.boundingBox())!
+  const to = (await target.boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  // Several steps, so the drag starts and passes over the column.
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, {
+    steps: 15,
+  })
+  await page.mouse.up()
+
+  await expect(card(page, 'In progress', 'Login page')).toBeVisible()
+  await page.reload()
+  await expect(card(page, 'In progress', 'Login page')).toBeVisible()
+  await expect(card(page, 'To do', 'Sign-up page')).toBeVisible()
+})
+
+test('move a card with the keyboard', async ({ page }) => {
+  await openNewBoard(page)
+  await addCard(page, 'To do', 'Login page')
+  await addCard(page, 'To do', 'Sign-up page')
+
+  // Space picks the card up, the arrow keys move it, Space drops it. Each
+  // step is read out, so wait for it as a screen reader user would.
+  const announcement = page.getByRole('status')
+  await card(page, 'To do', 'Sign-up page').focus()
+  await page.keyboard.press('Space')
+  await expect(announcement).toHaveText(/is in To do, place 2 of 2/)
+  await page.keyboard.press('ArrowUp')
+  await expect(announcement).toHaveText(/is in To do, place 1 of 2/)
+  await page.keyboard.press('Space')
+
+  const toDo = page.getByRole('region', { name: 'To do' })
+  await expect(toDo.getByRole('button', { name: /^\w+-\d+ / })).toHaveText([
+    /Sign-up page/,
+    /Login page/,
+  ])
+  await page.reload()
+  await expect(toDo.getByRole('button', { name: /^\w+-\d+ / })).toHaveText([
+    /Sign-up page/,
+    /Login page/,
+  ])
+
+  await card(page, 'To do', 'Login page').focus()
+  await page.keyboard.press('Space')
+  await expect(announcement).toHaveText(/is in To do, place 2 of 2/)
+  await page.keyboard.press('ArrowRight')
+  await expect(announcement).toHaveText(/is in In progress/)
+  await page.keyboard.press('Space')
+  await expect(card(page, 'In progress', 'Login page')).toBeVisible()
+})
