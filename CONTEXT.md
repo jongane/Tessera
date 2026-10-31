@@ -13,7 +13,7 @@ The 2 to 6 capital letters that start a project's card numbers, such as `WEB`.
 _Avoid_: Prefix, key
 
 **Board**:
-A kanban board and a chat space in one: it holds columns of cards, and threads.
+A kanban board and a chat space in one: it holds columns of cards, and chats.
 _Avoid_: Channel, space
 
 **Column**:
@@ -52,17 +52,25 @@ _Avoid_: Timesheet line, log
 
 ## Conversation
 
-**Thread**:
-A conversation inside a board. A card has at most one thread, and a thread can exist without a card.
-_Avoid_: Channel, chat, chat window, conversation
+**Chat**:
+A conversation inside a board. A card has at most one chat of its own, and a chat can exist without a card. (Agreed 2026-10-31. Until the code is renamed in its own pull request, the API and database still call it a thread.)
+_Avoid_: Channel, conversation, chat window
 
-**General thread**:
-The one thread every board has from the start, never linked to a card.
-_Avoid_: Main chat, board chat
+**General chat**:
+The one chat every board has from the start, never linked to a card.
+_Avoid_: Main chat, board chat, general thread
 
 **Message**:
-One post in a thread.
-_Avoid_: Chat, comment
+One post in a chat.
+_Avoid_: Comment
+
+**Thread**:
+The replies to one message, kept with that message in its chat. A thread's replies open in their own sub-window. (Agreed 2026-10-31.)
+_Avoid_: Using "thread" for a whole chat
+
+**Link**:
+A connection between chats, cards and messages. The person making it picks its type from a list the project admin keeps, such as "blocks" or "needs resource". (Agreed 2026-10-31.)
+_Avoid_: Relation, reference
 
 ## People
 

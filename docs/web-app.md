@@ -1,6 +1,6 @@
 # Web app v1
 
-Status: agreed with the project owner on 2026-10-29 in a design session. Nothing in this document is built yet. The look is shown in the board mock-up (the "Look" screens): https://claude.ai/artifact/7N2n8s3gW14KMZiNbMPRr1
+Status: agreed with the project owner on 2026-10-29 in a design session. Sections are built in the order of section 10. The look is shown in the board mock-up (the "Look" screens): https://claude.ai/artifact/7N2n8s3gW14KMZiNbMPRr1
 
 Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to is described in [api.md](api.md).
 
@@ -8,13 +8,13 @@ Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to
 
 - Sign in, sign up and sign out.
 - The project list, with "New project".
-- The board view: columns, cards, adding a card, dragging cards, and the board's threads in the sidebar.
-- New threads, the "Create a card for this thread?" prompt, and linking or unlinking a thread and a card.
+- The board view: columns, cards, adding a card, dragging cards, and the board's chats in the sidebar.
+- New chats, the "Create a card for this chat?" prompt, and linking or unlinking a chat and a card.
 - The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, and the Activity tab.
 - Project settings: members (add by email, change role, remove, leave), labels, project code and time zone.
 - A server admin screen with the sign-up switch.
 
-Not in this release: chat messages (the API has none yet, so the thread panel shows a thread's title and its card, with "Messages are coming soon"), live updates, file attachments and AI features.
+Not in this release: chat messages (the API has none yet, so the chat panel shows a chat's title and its card, with "Messages are coming soon"), live updates, file attachments and AI features.
 
 ## 2. Screens and addresses
 
@@ -22,7 +22,7 @@ Not in this release: chat messages (the API has none yet, so the thread panel sh
 |---|---|
 | `/sign-in`, `/sign-up` | Signing in, and making an account. When sign-up is off, the sign-in page hides its "Create an account" link and `/sign-up` says "Sign-up is closed. Ask your server admin for an account." (agreed 2026-10-30) |
 | `/projects` | Your projects. When empty, it offers "Create your first project" |
-| `/WEB` | A project. It opens the last board you used in it, or offers "Create your first board" when it has none (agreed 2026-10-30). Until the board view exists it lists the project's boards, with "New board" |
+| `/WEB` | A project. It opens the last board you used in it, or offers "Create your first board" when it has none (agreed 2026-10-30). With no board remembered in this browser, or one that has gone, it lists the project's boards, with "New board" |
 | `/WEB/boards/<board id>` | A board |
 | `/WEB-12` | Opens card WEB-12 on its board, with the card panel open. Old card numbers and project codes keep working |
 | `/WEB/settings` | Project settings |
@@ -33,13 +33,15 @@ Not in this release: chat messages (the API has none yet, so the thread panel sh
 
 ## 3. Layout of the board screen
 
-- A sidebar on the left lists the project's boards and the board's threads (the general thread first).
+- A sidebar on the left lists the project's boards and the board's chats: the general chat first, then the chats not linked to a card. A card's chat is opened from its card. (Agreed 2026-10-31 as a trial.)
+- A chat with no card asks "Create a card for this chat?" in the chat panel. "Create a card" makes a card in the board's first column with the chat's title, and the card takes that chat as its own. "Link to a card" picks a card on the board, found by number or title. Only cards without a chat are offered, because a card has at most one chat. A linked chat can be unlinked from the panel, and both are kept. (Agreed 2026-10-31.)
 - The board's columns fill the middle.
-- The **card panel** and the **thread panel** are two separate panels, so you can read a card's thread while editing the card.
-- People can dock the thread panel on the right, left or bottom, and drag its edge to resize it. A floating window and a separate browser window may come later, so the panel code must not assume where it sits.
+- The **card panel** and the **chat panel** are two separate panels, so you can read a card's chat while editing the card.
+- When chat arrives, a message's **thread** (its replies) opens in its own sub-window, not inline in the chat (agreed 2026-10-31).
+- People can dock the chat panel on the right, left or bottom, and drag its edge to resize it. A floating window and a separate browser window may come later, so the panel code must not assume where it sits.
 - The card panel is one self-contained component. The board screen only decides where it is placed, so it can move into a dialog or onto its own page later with a small change.
 - Panel positions are remembered in the browser for now. They must move to the person's account later (this needs a small API addition).
-- Desktop and tablet come first. On a phone the screen stays usable: panels stack, and the card and thread panels become tabs.
+- Desktop and tablet come first. On a phone the screen stays usable: panels stack, and the card and chat panels become tabs.
 
 ## 4. Cards on the board
 
@@ -85,7 +87,8 @@ One pull request at a time, each with its plan approved first:
 1. Shared validation package (moves code, no change in behaviour).
 2. API: card order within a column, and moving to a position.
 3. Web foundation: addresses, API client, look, sign in and sign up, project list, first Playwright test.
-4. Board view: columns, cards, dragging, threads in the sidebar, new threads and the "Create a card?" prompt, the thread panel and its docking.
+4. Board view: columns, cards, dragging, chats in the sidebar, new chats and the "Create a card?" prompt, the chat panel and its docking.
+   Then, as its own pull request: rename "thread" to "chat" in the API, database and code (agreed 2026-10-31). Messages, threads (replies) and typed links get their own design round with chat.
 5. Project settings and the server admin screen.
 6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting.
 7. Card panel extras: subtasks, checklists, time and the timer, Activity tab.
