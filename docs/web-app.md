@@ -11,8 +11,8 @@ Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to
 - The board view: columns, cards, adding a card, dragging cards, and the board's chats in the sidebar.
 - New chats, the "Create a card for this chat?" prompt, and linking or unlinking a chat and a card.
 - The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, and the Activity tab.
-- Project settings: members (add by email, change role, remove, leave), labels, project code and time zone.
-- A server admin screen with the sign-up switch.
+- Project settings: members (add by email, change role, remove, leave), labels, project code and time zone. Every member can open it; for people who are not project admins it is read-only, except that they can add a label and leave the project (agreed 2026-10-31). Removing someone, leaving, deleting a label and changing the code ask "Are you sure?" first; role and time zone changes save straight away (agreed 2026-10-31). Renaming a project and changing its description come later, with a small API change.
+- A server admin screen with the sign-up switch, and nothing else for now (no list of accounts; agreed 2026-10-31). Server admins reach it from the account menu.
 
 Not in this release: chat messages (the API has none yet, so the chat panel shows a chat's title and its card, with "Messages are coming soon"), live updates, file attachments and AI features.
 
@@ -26,7 +26,7 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
 | `/WEB/boards/<board id>` | A board |
 | `/WEB-12` | Opens card WEB-12 on its board, with the card panel open. Old card numbers and project codes keep working |
 | `/WEB/settings` | Project settings |
-| `/admin` | Server settings, for server admins |
+| `/admin` | Server settings, for server admins. Anyone else sees "Page not found". No project may use the code `ADMIN`, because addresses ignore letter case (agreed 2026-10-31) |
 
 - After signing in you land on the **last board you used**. The first time, you land on the project list.
 - If your session has ended, you are sent to the sign-in page and brought back to the same place afterwards.
