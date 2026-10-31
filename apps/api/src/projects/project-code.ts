@@ -7,12 +7,21 @@ const MAX_CODE_LENGTH = 6;
 const MAX_INITIALS = 4;
 const FALLBACK_CODE = 'PRJ';
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+// Codes that clash with the web app's own addresses. Addresses ignore letter
+// case, so a project called ADMIN could never be opened at /ADMIN: it would
+// open the server settings at /admin instead.
+const RESERVED_CODES = new Set(['ADMIN']);
 
 // Trims and capitalises a code someone typed. Null when it is not 2 to 6
 // letters A to Z.
 export function normaliseProjectCode(code: string): string | null {
   const normalised = code.trim().toUpperCase();
   return PROJECT_CODE_PATTERN.test(normalised) ? normalised : null;
+}
+
+// True for a code no project may use. `code` must already be normalised.
+export function isReservedProjectCode(code: string): boolean {
+  return RESERVED_CODES.has(code);
 }
 
 // A code made from a project's name: the initials of its words (up to 4),

@@ -1,5 +1,6 @@
 import {
   codeCandidates,
+  isReservedProjectCode,
   normaliseProjectCode,
   suggestProjectCode,
 } from './project-code.js';
@@ -45,4 +46,17 @@ describe('normaliseProjectCode', () => {
       expect(normaliseProjectCode(code)).toBeNull();
     },
   );
+});
+
+describe('isReservedProjectCode', () => {
+  // /admin is the server settings address, and addresses ignore letter
+  // case, so a project called ADMIN could never be opened at /ADMIN.
+  it('reserves ADMIN', () => {
+    expect(isReservedProjectCode('ADMIN')).toBe(true);
+  });
+
+  it('allows other codes', () => {
+    expect(isReservedProjectCode('ADM')).toBe(false);
+    expect(isReservedProjectCode('WEB')).toBe(false);
+  });
 });

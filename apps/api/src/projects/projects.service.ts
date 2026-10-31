@@ -7,6 +7,7 @@ import { Prisma, type Project } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   codeCandidates,
+  isReservedProjectCode,
   normaliseProjectCode,
   suggestProjectCode,
 } from './project-code.js';
@@ -49,6 +50,9 @@ export class ProjectsService {
   // The first free code made from a project name, for the "new project" form.
   async suggestCode(name: string): Promise<string> {
     for (const candidate of codeCandidates(suggestProjectCode(name))) {
+      if (isReservedProjectCode(candidate)) {
+        continue;
+      }
       const taken = await this.prisma.projectCode.findUnique({
         where: { code: candidate },
       });
@@ -158,6 +162,11 @@ function requireValidCode(code: string): string {
   if (!normalised) {
     throw new BadRequestException(
       'A project code must be 2 to 6 letters, A to Z',
+    );
+  }
+  if (isReservedProjectCode(normalised)) {
+    throw new BadRequestException(
+      `${normalised} can't be a project code, because /${normalised.toLowerCase()} is the server settings address`,
     );
   }
   return normalised;
