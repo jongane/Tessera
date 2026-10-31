@@ -7,7 +7,7 @@ import { Logo } from '../ui/Logo'
 // menu along the top, and the page below.
 export function AppShell() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-dvh flex-col">
       <header className="flex flex-wrap items-center gap-4 border-b border-line bg-surface px-4 py-2.5 sm:px-5">
         <Link
           to="/projects"
@@ -20,7 +20,7 @@ export function AppShell() {
           <AccountMenu />
         </div>
       </header>
-      <main className="flex-1">
+      <main className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
     </div>
