@@ -14,6 +14,17 @@ import {
 const id = '3f2b8c1e-5d4a-4b6c-9e8f-1a2b3c4d5e6f';
 
 describe('newCardSchema', () => {
+  it('accepts an existing thread for the card to take as its own', () => {
+    expect(newCardSchema.parse({ title: 'Login page', threadId: id })).toEqual({
+      title: 'Login page',
+      threadId: id,
+    });
+    expect(
+      newCardSchema.safeParse({ title: 'Login page', threadId: 'nope' })
+        .success,
+    ).toBe(false);
+  });
+
   it('accepts a title, trimming it', () => {
     expect(newCardSchema.parse({ title: ' Login page ' })).toEqual({
       title: 'Login page',
@@ -72,6 +83,13 @@ describe('subtasks and parents', () => {
     expect(
       newSubtaskSchema.safeParse({ title: 'Form', columnId: id }).success,
     ).toBe(true);
+  });
+
+  it('refuses a thread for a new subtask', () => {
+    expect(
+      newSubtaskSchema.safeParse({ title: 'Form', columnId: id, threadId: id })
+        .success,
+    ).toBe(false);
   });
 
   it('accepts null as the parent, for a top-level card', () => {

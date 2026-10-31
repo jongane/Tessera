@@ -94,7 +94,7 @@ Email invitations and "forgot password" need the server to send email, so they c
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `POST /api/columns/:columnId/cards` | Members | Body `{ title, description? }`. Creates a card at the bottom of the column, with the next number and its own thread |
+| `POST /api/columns/:columnId/cards` | Members | Body `{ title, description?, threadId? }`. Creates a card at the bottom of the column, with the next number and its own thread. With `threadId`, the card takes that thread instead of a new one ("Create a card for this thread?"). The thread must be on the same board and not linked to a card, and can't be the general thread (409) |
 | `GET /api/cards/:cardId` | Members | The card, with its full `number` (e.g. `WEB-12.1`) and its `thread` |
 | `GET /api/cards/by-number/:number` | Members | A card by its number, e.g. `WEB-12`. Old numbers and codes work too |
 | `PATCH /api/cards/:cardId` | Members | Body with any of `title`, `description` (empty clears it), `priority` (`NONE`, `LOW`, `MEDIUM`, `HIGH` or `URGENT`), `due` and `estimateMinutes` (null clears it). `due` is `{ "date": "2026-11-02" }`, `{ "at": "2026-11-02T17:00:00+01:00" }` (the offset is required) or null. Everything is checked before anything changes. Answers with the card |

@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -81,6 +81,102 @@ describe('CardsService (database)', () => {
         boardId: board.id,
         kind: 'TOPIC',
         title: 'Login page',
+      });
+    });
+
+    describe('for an existing thread', () => {
+      async function topicThread(boardId: string, title = 'Release plan') {
+        return prisma.thread.create({
+          data: { boardId, kind: 'TOPIC', title },
+        });
+      }
+
+      it('takes the thread as its own instead of making a new one', async () => {
+        const { ana, board, toDo } = await setUp();
+        const thread = await topicThread(board.id);
+
+        const card = await cards.createCard(ana.id, toDo.id, {
+          title: 'Plan the release',
+          threadId: thread.id,
+        });
+
+        expect(
+          await prisma.thread.findUnique({ where: { cardId: card.id } }),
+        ).toMatchObject({ id: thread.id, title: 'Release plan' });
+        expect(await prisma.thread.count({ where: { kind: 'TOPIC' } })).toBe(1);
+      });
+
+      it('refuses a thread already linked to a card, and saves nothing', async () => {
+        const { ana, toDo } = await setUp();
+        const first = await cards.createCard(ana.id, toDo.id, {
+          title: 'Login page',
+        });
+        const taken = await prisma.thread.findUniqueOrThrow({
+          where: { cardId: first.id },
+        });
+
+        await expect(
+          cards.createCard(ana.id, toDo.id, {
+            title: 'Sign-up page',
+            threadId: taken.id,
+          }),
+        ).rejects.toThrow(ConflictException);
+        expect(await prisma.card.count()).toBe(1);
+      });
+
+      it('refuses the board’s general thread', async () => {
+        const { ana, board, toDo } = await setUp();
+        const general = await prisma.thread.findFirstOrThrow({
+          where: { boardId: board.id, kind: 'GENERAL' },
+        });
+
+        await expect(
+          cards.createCard(ana.id, toDo.id, {
+            title: 'Login page',
+            threadId: general.id,
+          }),
+        ).rejects.toThrow(ConflictException);
+        expect(await prisma.card.count()).toBe(0);
+      });
+
+      it('does not find a thread on another board', async () => {
+        const { ana, project, toDo } = await setUp();
+        const other = await boards.createBoard(ana.id, project.id, {
+          name: 'Backlog',
+        });
+        const thread = await topicThread(other.id);
+
+        await expect(
+          cards.createCard(ana.id, toDo.id, {
+            title: 'Login page',
+            threadId: thread.id,
+          }),
+        ).rejects.toThrow(new NotFoundException('Thread not found'));
+        expect(await prisma.card.count()).toBe(0);
+      });
+
+      it('lets only one of two new cards take the same thread', async () => {
+        const { ana, board, toDo } = await setUp();
+        const thread = await topicThread(board.id);
+
+        const results = await Promise.allSettled([
+          cards.createCard(ana.id, toDo.id, {
+            title: 'A',
+            threadId: thread.id,
+          }),
+          cards.createCard(ana.id, toDo.id, {
+            title: 'B',
+            threadId: thread.id,
+          }),
+        ]);
+
+        expect(results.map((result) => result.status).sort()).toEqual([
+          'fulfilled',
+          'rejected',
+        ]);
+        const refused = results.find((result) => result.status === 'rejected');
+        expect(refused?.reason).toBeInstanceOf(ConflictException);
+        expect(await prisma.card.count()).toBe(1);
       });
     });
 
