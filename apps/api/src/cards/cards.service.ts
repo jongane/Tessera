@@ -20,6 +20,10 @@ import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
 import { lockCard } from './card-access.js';
 import { cardRef, dueRef, recordActivity } from '../activity/activity.js';
+import {
+  ALREADY_LINKED,
+  refuseGeneralThread,
+} from '../threads/thread-rules.js';
 
 const MAX_TITLE_LENGTH = 200;
 
@@ -599,16 +603,12 @@ async function takeThread(
   if (!thread) {
     throw new NotFoundException('Thread not found');
   }
-  if (thread.kind === 'GENERAL') {
-    throw new ConflictException(
-      "A board's general thread cannot be linked to a card",
-    );
-  }
+  refuseGeneralThread(thread.kind);
   const { count } = await tx.thread.updateMany({
     where: { id: threadId, cardId: null },
     data: { cardId: card.id },
   });
   if (count === 0) {
-    throw new ConflictException('This thread is already linked to a card');
+    throw new ConflictException(ALREADY_LINKED);
   }
 }

@@ -136,6 +136,7 @@ describe('CardsService (database)', () => {
             threadId: general.id,
           }),
         ).rejects.toThrow(ConflictException);
+        expect(await prisma.card.count()).toBe(0);
       });
 
       it('does not find a thread on another board', async () => {
