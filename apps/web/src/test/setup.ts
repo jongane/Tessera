@@ -6,6 +6,7 @@ import { server } from './server'
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   cleanup()
+  localStorage.clear()
   server.resetHandlers()
 })
 afterAll(() => server.close())

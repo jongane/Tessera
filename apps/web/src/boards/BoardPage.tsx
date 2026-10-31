@@ -4,7 +4,7 @@ import type {
   BoardView,
   Project,
 } from '@tessera/shared'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { type CardMove, useBoardView, useMoveCard } from '../api/boards'
 import { isApiError } from '../api/client'
@@ -14,6 +14,7 @@ import { Alert } from '../ui/Alert'
 import { Loading } from '../ui/Loading'
 import { BoardColumns } from './BoardColumns'
 import { CompleteAnywayDialog } from './CompleteAnywayDialog'
+import { rememberBoard } from './last-board'
 import { findCard } from './move-card'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
@@ -48,6 +49,7 @@ export function BoardPage() {
 
 function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   const boardId = view.id
+  useEffect(() => rememberBoard(project.code, boardId), [project.code, boardId])
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedCardId = searchParams.get('card')
   const moveCard = useMoveCard(boardId)

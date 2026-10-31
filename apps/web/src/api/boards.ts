@@ -62,3 +62,15 @@ export function useMoveCard(boardId: string) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   })
 }
+
+// A card found by its number, such as WEB-12. Old numbers and project codes
+// work too; `number` is always the current one.
+export function useCardByNumber(reference: string) {
+  return useQuery({
+    queryKey: ['cards', 'by-number', reference.toUpperCase()],
+    queryFn: () =>
+      api<Card & { number: string }>(
+        `/cards/by-number/${encodeURIComponent(reference)}`,
+      ),
+  })
+}

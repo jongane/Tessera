@@ -6,9 +6,9 @@ describe('safeReturnTo', () => {
     expect(safeReturnTo('/WEB/boards/1?x=1')).toBe('/WEB/boards/1?x=1')
   })
 
-  it('goes to the project list when there is nowhere to return to', () => {
-    expect(safeReturnTo(null)).toBe('/projects')
-    expect(safeReturnTo('')).toBe('/projects')
+  it('goes to the home page, which opens the last board used, when there is nowhere to return to', () => {
+    expect(safeReturnTo(null)).toBe('/')
+    expect(safeReturnTo('')).toBe('/')
   })
 
   it('refuses addresses that lead to other websites', () => {
@@ -18,7 +18,7 @@ describe('safeReturnTo', () => {
       '/\\evil.example',
       'javascript:alert(1)',
     ]) {
-      expect(safeReturnTo(value)).toBe('/projects')
+      expect(safeReturnTo(value)).toBe('/')
     }
   })
 })
