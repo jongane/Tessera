@@ -22,7 +22,7 @@ Teams running complex projects usually split their work across a chat tool (e.g.
 - Creating a card (task / user story) creates its linked chat thread.
 - Creating a chat thread asks the user whether to create a card for it.
 - Either side can be created later: a card can gain a chat, and a chat can gain a card, whenever the team decides it is needed.
-- A card has exactly one chat thread, but can link to other cards and other threads.
+- A card has at most one chat thread of its own, but can link to other cards and other threads.
 - Every board also has a general chat, created with the board, that is not tied to any card.
 - Files attach to the card or message they belong to, so they are found by context, not by searching.
 
@@ -35,7 +35,7 @@ Teams running complex projects usually split their work across a chat tool (e.g.
 
 - **Project**: the top-level container for a team's work.
 - **Board**: both a kanban board and a chat space. Holds cards and chat threads, plus one general chat.
-- **Card**: a task or user story. Has at most one thread (exactly one once created).
+- **Card**: a task or user story. Has at most one thread of its own. A new card gets one, and it can be unlinked later.
 - **Thread**: a chat conversation inside a board. May be linked to a card.
 - **Link**: a relationship between cards and threads.
 - **Subtask**: a card that has a parent card. See [docs/card-features.md](docs/card-features.md).
