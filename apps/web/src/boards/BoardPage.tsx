@@ -117,9 +117,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   // Selecting a card also opens its chat (until the card panel exists).
   function onSelect(card: BoardCard) {
     setSearchParams(
-      card.chatId
-        ? { card: card.id, chat: card.chatId }
-        : { card: card.id },
+      card.chatId ? { card: card.id, chat: card.chatId } : { card: card.id },
     )
   }
 
@@ -339,6 +337,12 @@ function BoardSidebar({
           </Link>
         ))}
       </nav>
+      <Link
+        to={`/${project.code}/settings`}
+        className={`${linkClass} md:mt-auto`}
+      >
+        Project settings
+      </Link>
     </aside>
   )
 }

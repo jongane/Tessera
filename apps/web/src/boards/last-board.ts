@@ -68,3 +68,29 @@ export function lastBoardIn(projectCode: string): string | undefined {
   const id = read().byProject?.[projectCode]
   return typeof id === 'string' ? id : undefined
 }
+
+// After leaving a project: none of its boards open any more.
+export function forgetProject(projectCode: string) {
+  const saved = read()
+  const byProject = { ...saved.byProject }
+  delete byProject[projectCode]
+  save({
+    path: saved.path?.startsWith(`/${projectCode}/`) ? undefined : saved.path,
+    byProject,
+  })
+}
+
+// After a project's code changes, its remembered boards move with it.
+export function renameProject(oldCode: string, newCode: string) {
+  const saved = read()
+  const { [oldCode]: boardId, ...byProject } = saved.byProject ?? {}
+  if (boardId !== undefined) {
+    byProject[newCode] = boardId
+  }
+  save({
+    path: saved.path?.startsWith(`/${oldCode}/`)
+      ? `/${newCode}/${saved.path.slice(oldCode.length + 2)}`
+      : saved.path,
+    byProject,
+  })
+}

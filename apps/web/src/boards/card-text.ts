@@ -22,6 +22,19 @@ export const LABEL_STYLES: Record<LabelColourName, string> = {
   PINK: 'bg-[#fce7f1] text-[#962056]',
 }
 
+export const LABEL_COLOUR_NAMES: Record<LabelColourName, string> = {
+  GREY: 'Grey',
+  RED: 'Red',
+  ORANGE: 'Orange',
+  YELLOW: 'Yellow',
+  GREEN: 'Green',
+  TEAL: 'Teal',
+  BLUE: 'Blue',
+  INDIGO: 'Indigo',
+  PURPLE: 'Purple',
+  PINK: 'Pink',
+}
+
 // "Due 31 Oct", or "Due 31 Oct, 17:00" when a time is set. A date without a
 // time is stored as midnight UTC of that day, so it is read in UTC.
 export function dueText(card: BoardCard, timeZone: string): string | null {

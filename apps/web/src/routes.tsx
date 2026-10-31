@@ -36,10 +36,26 @@ export const routes: RouteObject[] = [
               })),
           },
           {
+            // Before '/:code' in meaning too: no project may use the code
+            // ADMIN (the API refuses it).
+            path: '/admin',
+            lazy: () =>
+              import('./admin/ServerSettingsPage').then((m) => ({
+                Component: m.ServerSettingsPage,
+              })),
+          },
+          {
             path: '/:code',
             lazy: () =>
               import('./app/ProjectOrCardPage').then((m) => ({
                 Component: m.ProjectOrCardPage,
+              })),
+          },
+          {
+            path: '/:code/settings',
+            lazy: () =>
+              import('./settings/ProjectSettingsPage').then((m) => ({
+                Component: m.ProjectSettingsPage,
               })),
           },
           {

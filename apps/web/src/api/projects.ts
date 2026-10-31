@@ -3,6 +3,7 @@ import type {
   NewBoardBody,
   NewProjectBody,
   Project,
+  ProjectChanges,
   SuggestedCode,
 } from '@tessera/shared'
 import {
@@ -69,5 +70,16 @@ export function useCreateBoard(projectId: string) {
       queryClient.invalidateQueries({
         queryKey: ['projects', projectId, 'boards'],
       }),
+  })
+}
+
+// Changes the project's code or time zone (project admins only).
+export function useChangeProject(projectId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ProjectChanges) =>
+      api<Project>(`/projects/${projectId}`, { method: 'PATCH', body }),
+    // Every copy of the project (the list, and by each of its codes).
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
   })
 }
