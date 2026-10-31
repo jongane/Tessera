@@ -242,7 +242,7 @@ describe('Projects and boards (e2e)', () => {
         checklistProgress: { done: 1, total: 3 },
         subtaskProgress: { complete: 1, total: 2 },
       });
-      expect(login.threadId).toEqual(expect.any(String));
+      expect(login.chatId).toEqual(expect.any(String));
       expect(login).not.toHaveProperty('nextSubtaskNumber');
       const formOnBoard = response.body.columns[2].cards[0];
       expect(formOnBoard).toMatchObject({

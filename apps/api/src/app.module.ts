@@ -9,7 +9,7 @@ import { ChecklistsModule } from './checklists/checklists.module.js';
 import { LabelsModule } from './labels/labels.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
-import { ThreadsModule } from './threads/threads.module.js';
+import { ChatsModule } from './chats/chats.module.js';
 import { TimeModule } from './time/time.module.js';
 import { webAppModules } from './web-app.module.js';
 
@@ -23,7 +23,7 @@ import { webAppModules } from './web-app.module.js';
     CardsModule,
     ChecklistsModule,
     LabelsModule,
-    ThreadsModule,
+    ChatsModule,
     TimeModule,
     ...webAppModules(),
   ],

@@ -25,7 +25,7 @@ function openBoard(view: BoardView) {
       HttpResponse.json([backlog, sprint]),
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
-    http.get(`/api/boards/${sprint.id}/threads`, () => HttpResponse.json([])),
+    http.get(`/api/boards/${sprint.id}/chats`, () => HttpResponse.json([])),
   )
   return renderApp(boardPath)
 }
@@ -127,7 +127,7 @@ describe('Board', () => {
       http.get(`/api/boards/${sprint.id}`, () =>
         apiError(404, 'Board not found'),
       ),
-      http.get(`/api/boards/${sprint.id}/threads`, () => HttpResponse.json([])),
+      http.get(`/api/boards/${sprint.id}/chats`, () => HttpResponse.json([])),
     )
     renderApp(boardPath)
 
@@ -394,7 +394,7 @@ describe('Board', () => {
 
     expect(button).toHaveAttribute('aria-current', 'true')
     expect(currentPath(router)).toBe(
-      `${boardPath}?card=${card.id}&thread=${card.threadId}`,
+      `${boardPath}?card=${card.id}&chat=${card.chatId}`,
     )
   })
 })

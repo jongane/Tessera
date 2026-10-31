@@ -53,7 +53,7 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 ## Domain rules (from PROJECT.md)
 - A card has at most one chat of its own. A chat may exist without a card, and the reverse.
 - Each board has exactly one general chat that is not linked to a card.
-- A conversation is a "chat", never a "channel". A "thread" is only the replies to one message (CONTEXT.md). Until the rename pull request, the API and database still say "thread" for a chat.
+- A conversation is a "chat", never a "channel". A "thread" is only the replies to one message (CONTEXT.md).
 - Only a project admin can turn AI on or change AI settings.
 
 ## AI features

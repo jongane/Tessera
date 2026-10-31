@@ -1,12 +1,12 @@
 import type { LayoutStorage } from 'react-resizable-panels'
 
-// Where the thread panel is docked, and how big it is, remembered in this
+// Where the chat panel is docked, and how big it is, remembered in this
 // browser for now. It must move to the person's account later
 // (docs/web-app.md, section 3).
 
 export type Dock = 'right' | 'left' | 'bottom'
 
-const DOCK_KEY = 'tessera.threadPanel.dock'
+const DOCK_KEY = 'tessera.chatPanel.dock'
 
 export function savedDock(): Dock {
   try {

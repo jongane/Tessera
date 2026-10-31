@@ -7,7 +7,7 @@ generator client {
   provider        = "prisma-client"
   output          = "../src/generated/prisma"
   moduleFormat    = "esm"
-  // Lets the schema describe partial unique indexes (see Thread).
+  // Lets the schema describe partial unique indexes (see Chat).
   previewFeatures = ["partialIndexes"]
 }
 
@@ -106,7 +106,7 @@ model Board {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   columns   Column[]
   cards     Card[]
-  threads   Thread[]
+  chats     Chat[]
 
   // Lets cards point at (board, project) together. See Card.board.
   @@unique([id, projectId])
@@ -180,7 +180,7 @@ model Card {
   labels            CardLabel[]
   checklists        Checklist[]
   activity          CardActivity[]
-  thread            Thread?
+  chat              Chat?
   // Points at (parent, project) so a parent is always in the same project.
   // NoAction: a card with subtasks cannot be deleted directly;
   // CardsService.deleteCard asks what to do with each subtask first.
@@ -190,7 +190,7 @@ model Card {
   timeEntries       TimeEntry[]
   runningTimers     RunningTimer[]
 
-  // Lets threads point at (card, board) together. See Thread.card.
+  // Lets chats point at (card, board) together. See Chat.card.
   @@unique([id, boardId])
   @@unique([projectId, numberPath])
   // Lets subtasks and old numbers point at (card, project) together.
@@ -212,40 +212,40 @@ enum CardPriority {
   @@map("card_priority")
 }
 
-enum ThreadKind {
+enum ChatKind {
   // The board's own chat. Every board has exactly one, never linked to a card.
   GENERAL
   // Any other chat. It may be linked to one card.
   TOPIC
 
-  @@map("thread_kind")
+  @@map("chat_kind")
 }
 
-// A chat conversation on a board.
+// A conversation on a board (CONTEXT.md: Chat).
 // Database rules (see docs/data-model.md):
-// - at most one thread per card (card_id is unique),
-// - one general thread per board (partial unique index below),
-// - a general thread has no card (check constraint written by hand in the
+// - at most one chat per card (card_id is unique),
+// - one general chat per board (partial unique index below),
+// - a general chat has no card (check constraint written by hand in the
 //   migration, as Prisma cannot describe one).
-model Thread {
-  id        String     @id @default(uuid()) @db.Uuid
-  boardId   String     @map("board_id") @db.Uuid
-  cardId    String?    @unique @map("card_id") @db.Uuid
-  kind      ThreadKind @default(TOPIC)
+model Chat {
+  id        String   @id @default(uuid()) @db.Uuid
+  boardId   String   @map("board_id") @db.Uuid
+  cardId    String?  @unique @map("card_id") @db.Uuid
+  kind      ChatKind @default(TOPIC)
   title     String
-  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  board     Board      @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  // Points at (card, board) so the card must be on the thread's board.
-  // NoAction: a card cannot be deleted while a thread is linked to it;
-  // CardsService.deleteCard unlinks the thread first so the chat is kept.
-  card      Card?      @relation(fields: [cardId, boardId], references: [id, boardId], onDelete: NoAction)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  // Points at (card, board) so the card must be on the chat's board.
+  // NoAction: a card cannot be deleted while a chat is linked to it;
+  // CardsService.deleteCard unlinks the chat first so it is kept.
+  card      Card?    @relation(fields: [cardId, boardId], references: [id, boardId], onDelete: NoAction)
 
   // Needed by Prisma for the one-to-one link to Card. card_id is already
   // unique on its own, so this adds no new rule.
   @@unique([cardId, boardId])
-  @@unique([boardId], map: "threads_one_general_per_board", where: raw("kind = 'GENERAL'"))
+  @@unique([boardId], map: "chats_one_general_per_board", where: raw("kind = 'GENERAL'"))
   @@index([boardId])
-  @@map("threads")
+  @@map("chats")
 }
 
 // Numbers a card used to have, so they still lead to it. A subtask's number

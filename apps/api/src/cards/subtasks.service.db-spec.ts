@@ -57,7 +57,7 @@ describe('SubtasksService (database)', () => {
   }
 
   describe('createSubtask', () => {
-    it('numbers subtasks under their parent, each with its own thread', async () => {
+    it('numbers subtasks under their parent, each with its own chat', async () => {
       const { ana, one, toDo } = await setUp();
 
       const first = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
@@ -78,7 +78,7 @@ describe('SubtasksService (database)', () => {
       expect(second.numberPath).toBe('1.2');
       expect(deeper).toMatchObject({ numberPath: '1.1.1', depth: 2 });
       await expect(
-        prisma.thread.findUnique({ where: { cardId: deeper.id } }),
+        prisma.chat.findUnique({ where: { cardId: deeper.id } }),
       ).resolves.toMatchObject({ title: 'Validation' });
     });
 

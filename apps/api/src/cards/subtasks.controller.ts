@@ -32,7 +32,7 @@ export class SubtasksController {
     return { subtasks, progress };
   }
 
-  // Numbered under the card (WEB-12.1), with its own thread.
+  // Numbered under the card (WEB-12.1), with its own chat.
   @Post('subtasks')
   create(
     @CurrentUser() user: SignedInUser,

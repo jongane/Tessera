@@ -13,15 +13,15 @@ erDiagram
     BOARD ||--o{ COLUMN : "has"
     BOARD ||--o{ CARD : "holds"
     COLUMN ||--o{ CARD : "places"
-    BOARD ||--o{ THREAD : "has"
-    CARD |o--o| THREAD : "linked to"
-    THREAD ||--o{ MESSAGE : "contains"
+    BOARD ||--o{ CHAT : "has"
+    CARD |o--o| CHAT : "linked to"
+    CHAT ||--o{ MESSAGE : "contains"
     USER ||--o{ MESSAGE : "writes"
     CARD ||--o{ FILE : "has attached"
     MESSAGE ||--o{ FILE : "has attached"
-    THREAD ||--o{ AI_REQUEST : "logged for"
+    CHAT ||--o{ AI_REQUEST : "logged for"
 
-    THREAD {
+    CHAT {
         uuid id
         uuid board_id
         uuid card_id "nullable, unique"
@@ -49,7 +49,7 @@ erDiagram
     }
 ```
 
-`LINK` connects cards, chats (`THREAD` in the diagram) and messages to each other. Each link has a type from a list the project admin keeps. Links get their own design round with chat. It is drawn on its own because it points at more than one kind of thing.
+`LINK` connects cards, chats and messages to each other. Each link has a type from a list the project admin keeps. Links get their own design round with chat. It is drawn on its own because it points at more than one kind of thing.
 
 ## Entities
 
@@ -64,40 +64,40 @@ erDiagram
 | Board | Kanban board and chat space | id, project_id, name |
 | Column | A kanban column | id, board_id, name, position |
 | Card | Task or user story | id, board_id, column_id, title, description, position (more fields planned: see below) |
-| Thread | A chat conversation | id, board_id, card_id (optional), kind |
-| Message | One chat message | id, thread_id, author_id, body, created_at, deleted_at |
+| Chat | A conversation on a board | id, board_id, card_id (optional), kind |
+| Message | One chat message | id, chat_id, author_id, body, created_at, deleted_at |
 | File | Uploaded file metadata | id, project_id, uploader_id, filename, mime_type, size, storage_key, card_id or message_id |
 | Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, designed with chat) | from_type, from_id, to_type, to_id, link type |
 | ProjectAiConfig | Whether AI is on for a project, and which provider it uses | project_id, enabled, enabled_by, enabled_at, provider, model, encrypted_api_key |
-| AiRequest | Audit log of AI use | id, thread_id, user_id, kind, provider, created_at |
+| AiRequest | Audit log of AI use | id, chat_id, user_id, kind, provider, created_at |
 
 ## Rules the database must enforce
 
-1. A card has at most one thread: `Thread.card_id` is unique and optional.
-2. Each board has exactly one thread with kind `general`, and it has no card.
+1. A card has at most one chat: `Chat.card_id` is unique and optional.
+2. Each board has exactly one chat with kind `general`, and it has no card.
 3. `ProjectAiConfig.enabled` defaults to false. No AI request is allowed for a project where it is false, and only a member with the admin role can change it.
 4. A file is attached to exactly one thing: a card or a message.
 5. Deleting a message marks it deleted (`deleted_at`); it is not erased, so history stays consistent.
 6. All IDs are UUIDs, so they do not reveal how many records exist.
-7. A card's column, and a thread's card, are on the same board as the card or thread (composite foreign keys).
-8. A column that still has cards cannot be deleted. A card that still has a thread cannot be deleted directly; deleting a card through the API unlinks its thread first, so the chat is kept.
-9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and threads.
+7. A card's column, and a chat's card, are on the same board as the card or chat (composite foreign keys).
+8. A column that still has cards cannot be deleted. A card that still has a chat cannot be deleted directly; deleting a card through the API unlinks its chat first, so the chat and its messages are kept.
+9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and chats.
 
-Rules 1, 2 (the "at most one general thread" part) and 7 to 9 are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general thread is the job of `BoardsService.createBoard`, which creates it with the board.
+Rules 1, 2 (the "at most one general chat" part) and 7 to 9 are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general chat is the job of `BoardsService.createBoard`, which creates it with the board.
 
 Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`: email addresses are stored in lower case, a session token hash is never stored twice, an account's sessions end when it is deleted, and there is exactly one row of server settings. How sign-in works is described in [api.md](api.md).
 
 ## Behaviour decided so far
 
-- A new board starts with the columns To do, In progress and Done, and its general thread.
-- A new card always gets its own thread, created with it. A thread made on its own can be linked to a card later, and a link can be removed.
+- A new board starts with the columns To do, In progress and Done, and its general chat.
+- A new card always gets its own chat, created with it. A chat made on its own can be linked to a card later, and a link can be removed.
 - New cards, and cards moved to another column, go to the bottom of that column.
 
 ## Decisions and trade-offs
 
-- **"Chat", not "channel".** A card's chat and a board's chat are the same kind of thing. In the database and code a chat is still called `Thread` until the rename pull request after the board view (agreed 2026-10-31). After that, "thread" means only the replies to one message (CONTEXT.md).
+- **"Chat", not "channel".** A card's chat and a board's chat are the same kind of thing. Until 2026-10-31 the database and code called it a thread; the migration `rename_threads_to_chats` renamed the table in place, keeping its rows. "Thread" now means only the replies to one message (CONTEXT.md).
 - **Generic Link table.** One table is simple, but the database cannot check that the target exists. The alternative is separate tables for each kind of link, which is stricter but longer. Revisit when links are built.
-- **AI settings.** AI is switched on per project by an admin, so the setting lives in `ProjectAiConfig`. Once on, every thread in the project can be sent to the AI provider. A way to exclude individual threads may be added later.
+- **AI settings.** AI is switched on per project by an admin, so the setting lives in `ProjectAiConfig`. Once on, every chat in the project can be sent to the AI provider. A way to exclude individual chats may be added later.
 - **API keys.** Stored encrypted and never returned by the API.
 
 ## Card features (planned)

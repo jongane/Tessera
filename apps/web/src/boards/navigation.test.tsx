@@ -24,7 +24,7 @@ function fakeApi() {
       HttpResponse.json([backlog, sprint]),
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
-    http.get(`/api/boards/${sprint.id}/threads`, () => HttpResponse.json([])),
+    http.get(`/api/boards/${sprint.id}/chats`, () => HttpResponse.json([])),
   )
 }
 
@@ -185,6 +185,20 @@ describe('Card addresses', () => {
         `/WEB/boards/${sprint.id}?card=${login.id}`,
       ),
     )
+  })
+
+  it('says the card is not found when its number is damaged', async () => {
+    fakeApi()
+    server.use(
+      http.get('/api/cards/by-number/WEB-12', () =>
+        HttpResponse.json({ ...login, number: 'WEB12', boardId: sprint.id }),
+      ),
+    )
+    renderApp('/WEB-12')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Card not found' }),
+    ).toBeInTheDocument()
   })
 
   it('says when there is no such card', async () => {

@@ -60,7 +60,7 @@ describe('CardsService (database)', () => {
   }
 
   describe('createCard', () => {
-    it('creates the card with its own thread', async () => {
+    it('creates the card with its own chat', async () => {
       const { ana, board, toDo } = await setUp();
 
       const card = await cards.createCard(ana.id, toDo.id, {
@@ -74,99 +74,99 @@ describe('CardsService (database)', () => {
         title: 'Login page',
         description: 'As a user I can sign in',
       });
-      const thread = await prisma.thread.findUnique({
+      const chat = await prisma.chat.findUnique({
         where: { cardId: card.id },
       });
-      expect(thread).toMatchObject({
+      expect(chat).toMatchObject({
         boardId: board.id,
         kind: 'TOPIC',
         title: 'Login page',
       });
     });
 
-    describe('for an existing thread', () => {
-      async function topicThread(boardId: string, title = 'Release plan') {
-        return prisma.thread.create({
+    describe('for an existing chat', () => {
+      async function topicChat(boardId: string, title = 'Release plan') {
+        return prisma.chat.create({
           data: { boardId, kind: 'TOPIC', title },
         });
       }
 
-      it('takes the thread as its own instead of making a new one', async () => {
+      it('takes the chat as its own instead of making a new one', async () => {
         const { ana, board, toDo } = await setUp();
-        const thread = await topicThread(board.id);
+        const chat = await topicChat(board.id);
 
         const card = await cards.createCard(ana.id, toDo.id, {
           title: 'Plan the release',
-          threadId: thread.id,
+          chatId: chat.id,
         });
 
         expect(
-          await prisma.thread.findUnique({ where: { cardId: card.id } }),
-        ).toMatchObject({ id: thread.id, title: 'Release plan' });
-        expect(await prisma.thread.count({ where: { kind: 'TOPIC' } })).toBe(1);
+          await prisma.chat.findUnique({ where: { cardId: card.id } }),
+        ).toMatchObject({ id: chat.id, title: 'Release plan' });
+        expect(await prisma.chat.count({ where: { kind: 'TOPIC' } })).toBe(1);
       });
 
-      it('refuses a thread already linked to a card, and saves nothing', async () => {
+      it('refuses a chat already linked to a card, and saves nothing', async () => {
         const { ana, toDo } = await setUp();
         const first = await cards.createCard(ana.id, toDo.id, {
           title: 'Login page',
         });
-        const taken = await prisma.thread.findUniqueOrThrow({
+        const taken = await prisma.chat.findUniqueOrThrow({
           where: { cardId: first.id },
         });
 
         await expect(
           cards.createCard(ana.id, toDo.id, {
             title: 'Sign-up page',
-            threadId: taken.id,
+            chatId: taken.id,
           }),
         ).rejects.toThrow(ConflictException);
         expect(await prisma.card.count()).toBe(1);
       });
 
-      it('refuses the board’s general thread', async () => {
+      it('refuses the board’s general chat', async () => {
         const { ana, board, toDo } = await setUp();
-        const general = await prisma.thread.findFirstOrThrow({
+        const general = await prisma.chat.findFirstOrThrow({
           where: { boardId: board.id, kind: 'GENERAL' },
         });
 
         await expect(
           cards.createCard(ana.id, toDo.id, {
             title: 'Login page',
-            threadId: general.id,
+            chatId: general.id,
           }),
         ).rejects.toThrow(ConflictException);
         expect(await prisma.card.count()).toBe(0);
       });
 
-      it('does not find a thread on another board', async () => {
+      it('does not find a chat on another board', async () => {
         const { ana, project, toDo } = await setUp();
         const other = await boards.createBoard(ana.id, project.id, {
           name: 'Backlog',
         });
-        const thread = await topicThread(other.id);
+        const chat = await topicChat(other.id);
 
         await expect(
           cards.createCard(ana.id, toDo.id, {
             title: 'Login page',
-            threadId: thread.id,
+            chatId: chat.id,
           }),
-        ).rejects.toThrow(new NotFoundException('Thread not found'));
+        ).rejects.toThrow(new NotFoundException('Chat not found'));
         expect(await prisma.card.count()).toBe(0);
       });
 
-      it('lets only one of two new cards take the same thread', async () => {
+      it('lets only one of two new cards take the same chat', async () => {
         const { ana, board, toDo } = await setUp();
-        const thread = await topicThread(board.id);
+        const chat = await topicChat(board.id);
 
         const results = await Promise.allSettled([
           cards.createCard(ana.id, toDo.id, {
             title: 'A',
-            threadId: thread.id,
+            chatId: chat.id,
           }),
           cards.createCard(ana.id, toDo.id, {
             title: 'B',
-            threadId: thread.id,
+            chatId: chat.id,
           }),
         ]);
 
@@ -317,12 +317,12 @@ describe('CardsService (database)', () => {
   });
 
   describe('deleteCard', () => {
-    it('deletes the card but keeps its thread, unlinked', async () => {
+    it('deletes the card but keeps its chat, unlinked', async () => {
       const { ana, toDo } = await setUp();
       const card = await cards.createCard(ana.id, toDo.id, {
         title: 'Login page',
       });
-      const thread = await prisma.thread.findUniqueOrThrow({
+      const chat = await prisma.chat.findUniqueOrThrow({
         where: { cardId: card.id },
       });
 
@@ -332,7 +332,7 @@ describe('CardsService (database)', () => {
         prisma.card.findUnique({ where: { id: card.id } }),
       ).resolves.toBeNull();
       await expect(
-        prisma.thread.findUnique({ where: { id: thread.id } }),
+        prisma.chat.findUnique({ where: { id: chat.id } }),
       ).resolves.toMatchObject({ cardId: null, title: 'Login page' });
     });
 

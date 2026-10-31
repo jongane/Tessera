@@ -21,7 +21,11 @@ export function createQueryClient(defaultOptions?: DefaultOptions) {
         // refused the request (4xx): asking again would get the same answer.
         retry: (failures, error) =>
           failures < 2 &&
-          !(error instanceof ApiError && error.status >= 400 && error.status < 500),
+          !(
+            error instanceof ApiError &&
+            error.status >= 400 &&
+            error.status < 500
+          ),
         ...defaultOptions?.queries,
       },
     },

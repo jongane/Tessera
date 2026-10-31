@@ -3,7 +3,7 @@ import type {
   BoardColumn,
   BoardView,
   Project,
-  Thread,
+  Chat,
 } from '@tessera/shared'
 import { type ReactNode, useEffect, useState } from 'react'
 import {
@@ -16,7 +16,7 @@ import { Link, useParams, useSearchParams } from 'react-router'
 import { type CardMove, useBoardView, useMoveCard } from '../api/boards'
 import { isApiError } from '../api/client'
 import { useBoards, useProjectByCode } from '../api/projects'
-import { useThreads } from '../api/threads'
+import { useChats } from '../api/chats'
 import { NotFoundPage } from '../app/NotFoundPage'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
@@ -25,20 +25,20 @@ import { BoardColumns } from './BoardColumns'
 import { CompleteAnywayDialog } from './CompleteAnywayDialog'
 import { forgetBoard, rememberBoard } from './last-board'
 import { findCard } from './move-card'
-import { NewThreadDialog } from './NewThreadDialog'
+import { NewChatDialog } from './NewChatDialog'
 import {
   type Dock,
   panelSizeStorage,
   savedDock,
   saveDock,
 } from './panel-layout'
-import { ThreadCard } from './ThreadCard'
-import { ThreadPanel } from './ThreadPanel'
+import { ChatCard } from './ChatCard'
+import { ChatPanel } from './ChatPanel'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
-// A board: the project's boards and the board's threads on the left, the
-// columns in the middle, and the thread panel docked where the person put
+// A board: the project's boards and the board's chats on the left, the
+// columns in the middle, and the chat panel docked where the person put
 // it (docs/web-app.md, section 3).
 export function BoardPage() {
   const { code = '', boardId = '' } = useParams()
@@ -82,11 +82,11 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   useEffect(() => rememberBoard(project.code, boardId), [project.code, boardId])
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedCardId = searchParams.get('card')
-  const threads = useThreads(boardId)
-  const openThread = threads.data?.find(
-    (thread) => thread.id === searchParams.get('thread'),
+  const chats = useChats(boardId)
+  const openChat = chats.data?.find(
+    (chat) => chat.id === searchParams.get('chat'),
   )
-  const [creatingThread, setCreatingThread] = useState(false)
+  const [creatingChat, setCreatingChat] = useState(false)
   const moveCard = useMoveCard(boardId)
   const [saveFailed, setSaveFailed] = useState(false)
   const [confirming, setConfirming] = useState<{
@@ -114,17 +114,17 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
     }
   }
 
-  // Selecting a card also opens its thread (until the card panel exists).
+  // Selecting a card also opens its chat (until the card panel exists).
   function onSelect(card: BoardCard) {
     setSearchParams(
-      card.threadId
-        ? { card: card.id, thread: card.threadId }
+      card.chatId
+        ? { card: card.id, chat: card.chatId }
         : { card: card.id },
     )
   }
 
-  function openThreadOnly(thread: Thread) {
-    setSearchParams({ thread: thread.id })
+  function openChatOnly(chat: Chat) {
+    setSearchParams({ chat: chat.id })
   }
 
   const board = (
@@ -153,30 +153,30 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
       <BoardSidebar
         project={project}
         boardId={boardId}
-        threads={threads.data ?? []}
-        openThreadId={openThread?.id}
-        onNewThread={() => setCreatingThread(true)}
+        chats={chats.data ?? []}
+        openChatId={openChat?.id}
+        onNewChat={() => setCreatingChat(true)}
       />
       <div className="min-h-0 min-w-0 flex-1">
-        {openThread ? (
-          <WithThreadPanel
+        {openChat ? (
+          <WithChatPanel
             board={board}
             panel={(dock, onDock) => (
-              <ThreadPanel
-                key={openThread.id}
-                thread={openThread}
+              <ChatPanel
+                key={openChat.id}
+                chat={openChat}
                 cardPart={
-                  <ThreadCard
+                  <ChatCard
                     view={view}
-                    thread={openThread}
+                    chat={openChat}
                     card={
-                      openThread.cardId
-                        ? findCard(view, openThread.cardId)?.card
+                      openChat.cardId
+                        ? findCard(view, openChat.cardId)?.card
                         : undefined
                     }
                     onOpenCard={onSelect}
                     onCardCreated={(cardId) =>
-                      setSearchParams({ card: cardId, thread: openThread.id })
+                      setSearchParams({ card: cardId, chat: openChat.id })
                     }
                   />
                 }
@@ -200,13 +200,13 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
           }}
         />
       )}
-      {creatingThread && (
-        <NewThreadDialog
+      {creatingChat && (
+        <NewChatDialog
           boardId={boardId}
-          onOpenChange={setCreatingThread}
-          onCreated={(thread) => {
-            setCreatingThread(false)
-            openThreadOnly(thread)
+          onOpenChange={setCreatingChat}
+          onCreated={(chat) => {
+            setCreatingChat(false)
+            openChatOnly(chat)
           }}
         />
       )}
@@ -214,9 +214,9 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   )
 }
 
-// The board with the thread panel docked on the right, left or bottom. The
+// The board with the chat panel docked on the right, left or bottom. The
 // edge between them can be dragged, or moved with the arrow keys.
-function WithThreadPanel({
+function WithChatPanel({
   board,
   panel,
 }: {
@@ -225,8 +225,8 @@ function WithThreadPanel({
 }) {
   const [dock, setDock] = useState(savedDock)
   const sizes = useDefaultLayout({
-    id: `tessera.threadPanel.${dock}`,
-    panelIds: ['board', 'thread'],
+    id: `tessera.chatPanel.${dock}`,
+    panelIds: ['board', 'chat'],
     storage: panelSizeStorage,
   })
 
@@ -240,8 +240,8 @@ function WithThreadPanel({
       {board}
     </Panel>
   )
-  const threadPanel = (
-    <Panel key="thread" id="thread" defaultSize="30" minSize={240}>
+  const chatPanel = (
+    <Panel key="chat" id="chat" defaultSize="30" minSize={240}>
       {panel(dock, onDock)}
     </Panel>
   )
@@ -263,8 +263,8 @@ function WithThreadPanel({
       className="h-full"
     >
       {dock === 'left'
-        ? [threadPanel, edge, boardPanel]
-        : [boardPanel, edge, threadPanel]}
+        ? [chatPanel, edge, boardPanel]
+        : [boardPanel, edge, chatPanel]}
     </Group>
   )
 }
@@ -272,20 +272,20 @@ function WithThreadPanel({
 function BoardSidebar({
   project,
   boardId,
-  threads,
-  openThreadId,
-  onNewThread,
+  chats,
+  openChatId,
+  onNewChat,
 }: {
   project: Project
   boardId: string
-  threads: Thread[]
-  openThreadId: string | undefined
-  onNewThread: () => void
+  chats: Chat[]
+  openChatId: string | undefined
+  onNewChat: () => void
 }) {
   const boards = useBoards(project.id)
-  // A card's thread opens from its card, so only the others are listed.
-  const listed = threads.filter(
-    (thread) => thread.kind === 'GENERAL' || thread.cardId === null,
+  // A card's chat opens from its card, so only the others are listed.
+  const listed = chats.filter(
+    (chat) => chat.kind === 'GENERAL' || chat.cardId === null,
   )
   const linkClass =
     'rounded-md px-2 py-1.5 hover:bg-subtle aria-[current=page]:bg-accent-soft aria-[current=page]:font-semibold aria-[current=page]:text-accent-strong'
@@ -312,10 +312,10 @@ function BoardSidebar({
           </Link>
         ))}
       </nav>
-      <nav aria-labelledby="sidebar-threads" className="flex flex-col gap-1">
+      <nav aria-labelledby="sidebar-chats" className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
           <h2
-            id="sidebar-threads"
+            id="sidebar-chats"
             className="px-2 text-xs font-semibold text-muted uppercase"
           >
             Chats
@@ -323,19 +323,19 @@ function BoardSidebar({
           <Button
             variant="link"
             className="min-h-6 px-1 text-xs"
-            onClick={onNewThread}
+            onClick={onNewChat}
           >
             New chat
           </Button>
         </div>
-        {listed.map((thread) => (
+        {listed.map((chat) => (
           <Link
-            key={thread.id}
-            to={{ search: `?thread=${thread.id}` }}
-            aria-current={thread.id === openThreadId ? 'true' : undefined}
+            key={chat.id}
+            to={{ search: `?chat=${chat.id}` }}
+            aria-current={chat.id === openChatId ? 'true' : undefined}
             className={linkClass}
           >
-            {thread.title}
+            {chat.title}
           </Link>
         ))}
       </nav>

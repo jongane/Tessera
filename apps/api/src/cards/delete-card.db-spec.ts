@@ -67,7 +67,7 @@ describe('Deleting a parent card (database)', () => {
 
   it('deletes, frees or moves each subtask as chosen, then deletes the card', async () => {
     const { ana, one, two, form, errors, emails } = await setUp();
-    const formThread = await prisma.thread.findUniqueOrThrow({
+    const formChat = await prisma.chat.findUniqueOrThrow({
       where: { cardId: form.id },
     });
 
@@ -89,7 +89,7 @@ describe('Deleting a parent card (database)', () => {
     });
     // Chats are kept, as when any card is deleted.
     await expect(
-      prisma.thread.findUnique({ where: { id: formThread.id } }),
+      prisma.chat.findUnique({ where: { id: formChat.id } }),
     ).resolves.toMatchObject({ cardId: null });
   });
 

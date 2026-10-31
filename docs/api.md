@@ -86,33 +86,33 @@ Email invitations and "forgot password" need the server to send email, so they c
 | Method and path | Who | What it does |
 |---|---|---|
 | `GET /api/projects/:projectId/boards` | Members | The project's boards, by name |
-| `POST /api/projects/:projectId/boards` | Members | Body `{ name }`. Creates a board with the columns To do, In progress and Done, and its general thread |
-| `GET /api/boards/:boardId` | Members | The board with its `columns` in order, each with its `cards` from top to bottom. Each card also has its `number` (`WEB-12`), `labels` (by name), `assignees` (owner first), `checklistProgress` `{ done, total }`, `subtaskProgress` `{ complete, total }` (direct subtasks only) and `threadId`, so the board needs no request per card |
+| `POST /api/projects/:projectId/boards` | Members | Body `{ name }`. Creates a board with the columns To do, In progress and Done, and its general chat |
+| `GET /api/boards/:boardId` | Members | The board with its `columns` in order, each with its `cards` from top to bottom. Each card also has its `number` (`WEB-12`), `labels` (by name), `assignees` (owner first), `checklistProgress` `{ done, total }`, `subtaskProgress` `{ complete, total }` (direct subtasks only) and `chatId`, so the board needs no request per card |
 | `PATCH /api/columns/:columnId` | Members | Body `{ isDone }`. Marks a column as a done column, or not |
 
 ### Cards
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `POST /api/columns/:columnId/cards` | Members | Body `{ title, description?, threadId? }`. Creates a card at the bottom of the column, with the next number and its own thread. With `threadId`, the card takes that thread instead of a new one ("Create a card for this thread?"). The thread must be on the same board and not linked to a card, and can't be the general thread (409) |
-| `GET /api/cards/:cardId` | Members | The card, with its full `number` (e.g. `WEB-12.1`) and its `thread` |
+| `POST /api/columns/:columnId/cards` | Members | Body `{ title, description?, chatId? }`. Creates a card at the bottom of the column, with the next number and its own chat. With `chatId`, the card takes that chat instead of a new one ("Create a card for this chat?"). The chat must be on the same board and not linked to a card, and can't be the general chat (409) |
+| `GET /api/cards/:cardId` | Members | The card, with its full `number` (e.g. `WEB-12.1`) and its `chat` |
 | `GET /api/cards/by-number/:number` | Members | A card by its number, e.g. `WEB-12`. Old numbers and codes work too |
 | `PATCH /api/cards/:cardId` | Members | Body with any of `title`, `description` (empty clears it), `priority` (`NONE`, `LOW`, `MEDIUM`, `HIGH` or `URGENT`), `due` and `estimateMinutes` (null clears it). `due` is `{ "date": "2026-11-02" }`, `{ "at": "2026-11-02T17:00:00+01:00" }` (the offset is required) or null. Everything is checked before anything changes. Answers with the card |
 | `POST /api/cards/:cardId/move` | Members | Body `{ columnId, position?, confirmOpenSubtasks? }`. Moves the card to another column on its board, or to another place in its own column. `position` 0 is the top; past the end, or left out, is the bottom. Into a done column completes it; out of one reopens it. Moving between columns is recorded in the card's history; reordering within a column is not |
 | `POST /api/cards/:cardId/complete` | Members | Body `{ confirmOpenSubtasks? }`. Completes the card. Answers `{ card, doneColumnId }`: the done column to offer moving it to, or null |
 | `POST /api/cards/:cardId/reopen` | Members | Reopens the card |
-| `DELETE /api/cards/:cardId` | The card's creator, or a project admin | Deletes the card; its thread is kept, unlinked. A card with subtasks needs body `{ subtasks: { "<subtask id>": { "action": "delete" or "standalone" } or { "action": "move", "parentId": "..." } } }` with a choice for each direct subtask |
+| `DELETE /api/cards/:cardId` | The card's creator, or a project admin | Deletes the card; its chat is kept, unlinked. A card with subtasks needs body `{ subtasks: { "<subtask id>": { "action": "delete" or "standalone" } or { "action": "move", "parentId": "..." } } }` with a choice for each direct subtask |
 
 Completing a card, or moving it into a done column, while some of its direct subtasks are open gets 409 with `openSubtasks` (how many). Send the request again with `confirmOpenSubtasks: true` to go ahead. Deleting a card with logged time gets 409 with `loggedMinutes`.
 
-### Threads
+### Chats
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `GET /api/boards/:boardId/threads` | Members | The board's threads: the general thread first, then the others oldest first |
-| `POST /api/boards/:boardId/threads` | Members | Body `{ title }`. Creates a thread that is not linked to a card |
-| `PUT /api/threads/:threadId/card` | Members | Body `{ cardId }`. Links the thread to a card on the same board. A card has at most one thread, and the general thread can't be linked (409) |
-| `DELETE /api/threads/:threadId/card` | Members | Removes the link. The thread and the card are both kept |
+| `GET /api/boards/:boardId/chats` | Members | The board's chats: the general chat first, then the others oldest first |
+| `POST /api/boards/:boardId/chats` | Members | Body `{ title }`. Creates a chat that is not linked to a card |
+| `PUT /api/chats/:chatId/card` | Members | Body `{ cardId }`. Links the chat to a card on the same board. A card has at most one chat, and the general chat can't be linked (409) |
+| `DELETE /api/chats/:chatId/card` | Members | Removes the link. The chat and the card are both kept |
 
 ### Subtasks
 

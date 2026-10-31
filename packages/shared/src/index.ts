@@ -11,5 +11,5 @@ export * from './members.js';
 export * from './projects.js';
 export type * from './responses.js';
 export * from './server-settings.js';
-export * from './threads.js';
+export * from './chats.js';
 export * from './time.js';

@@ -67,18 +67,18 @@ describe('BoardsService (database)', () => {
       expect(columns.map((c) => c.isDone)).toEqual([false, false, true]);
     });
 
-    it('gives the board one general thread with no card', async () => {
+    it('gives the board one general chat with no card', async () => {
       const { ana, project } = await setUp();
 
       const board = await boards.createBoard(ana.id, project.id, {
         name: 'Sprint 1',
       });
 
-      const threads = await prisma.thread.findMany({
+      const chats = await prisma.chat.findMany({
         where: { boardId: board.id },
       });
-      expect(threads).toHaveLength(1);
-      expect(threads[0]).toMatchObject({
+      expect(chats).toHaveLength(1);
+      expect(chats[0]).toMatchObject({
         kind: 'GENERAL',
         title: 'General',
         cardId: null,

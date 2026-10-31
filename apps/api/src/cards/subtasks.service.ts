@@ -31,7 +31,7 @@ export interface SubtaskProgress {
 export class SubtasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Like CardsService.createCard, the subtask gets its own thread. It is
+  // Like CardsService.createCard, the subtask gets its own chat. It is
   // numbered under its parent: WEB-12.1, WEB-12.2, ...
   async createSubtask(
     userId: string,
@@ -168,7 +168,7 @@ export async function insertSubtask(
       depth: parent.depth + 1,
       numberPath: await takeNextSubtaskNumber(tx, parent.id),
       position: await nextPosition(tx, column.id),
-      thread: { create: { title: card.title } },
+      chat: { create: { title: card.title } },
     },
   });
   await recordActivity(tx, subtask, userId, 'CREATED', {

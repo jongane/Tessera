@@ -53,7 +53,7 @@ _Avoid_: Timesheet line, log
 ## Conversation
 
 **Chat**:
-A conversation inside a board. A card has at most one chat of its own, and a chat can exist without a card. (Agreed 2026-10-31. Until the code is renamed in its own pull request, the API and database still call it a thread.)
+A conversation inside a board. A card has at most one chat of its own, and a chat can exist without a card. (Agreed 2026-10-31.)
 _Avoid_: Channel, conversation, chat window
 
 **General chat**:

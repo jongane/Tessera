@@ -14,7 +14,9 @@ export function CardAddressPage() {
   if (card.isPending) {
     return <Loading />
   }
-  if (isApiError(card.error, 404)) {
+  // The project code is the part of the number before the first "-".
+  const dash = card.data?.number.indexOf('-') ?? -1
+  if (isApiError(card.error, 404) || (card.data && dash < 1)) {
     return (
       <NotFoundPage
         title="Card not found"
@@ -30,6 +32,6 @@ export function CardAddressPage() {
     )
   }
   const { number, boardId, id } = card.data
-  const code = number.slice(0, number.indexOf('-'))
+  const code = number.slice(0, dash)
   return <Navigate to={`/${code}/boards/${boardId}?card=${id}`} replace />
 }
