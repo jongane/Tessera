@@ -136,3 +136,36 @@ test('open a thread, dock it on the left and resize it', async ({ page }) => {
     (await board.boundingBox())!.x,
   )
 })
+
+test('start a thread, make a card for it, then unlink and link it again', async ({
+  page,
+}) => {
+  await openNewBoard(page)
+  await page.getByRole('button', { name: 'New thread' }).click()
+  const dialog = page.getByRole('dialog', { name: 'New thread' })
+  await dialog.getByLabel('Title').fill('Release plan')
+  await dialog.getByRole('button', { name: 'Start' }).click()
+
+  const panel = page.getByRole('complementary', {
+    name: 'Thread: Release plan',
+  })
+  await expect(panel).toContainText('Create a card for this thread?')
+  await expectNoAccessibilityProblems(page)
+  await panel.getByRole('button', { name: 'Create a card' }).click()
+  await expect(card(page, 'To do', 'Release plan')).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  await expect(panel).toContainText(/For card \w+-\d+ Release plan/)
+
+  await panel.getByRole('button', { name: /^Unlink from / }).click()
+  await expect(panel).toContainText('Create a card for this thread?')
+
+  await panel.getByRole('button', { name: 'Link to a card' }).click()
+  const picker = page.getByRole('dialog', { name: 'Link to a card' })
+  await picker.getByLabel('Find a card').fill('release')
+  await picker.getByRole('button', { name: /Release plan$/ }).click()
+  await expect(panel).toContainText(/For card \w+-\d+ Release plan/)
+  await page.reload()
+  await expect(panel).toContainText(/For card \w+-\d+ Release plan/)
+})

@@ -32,6 +32,7 @@ import {
   savedDock,
   saveDock,
 } from './panel-layout'
+import { ThreadCard } from './ThreadCard'
 import { ThreadPanel } from './ThreadPanel'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
@@ -150,15 +151,24 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
             panel={(dock, onDock) => (
               <ThreadPanel
                 thread={openThread}
-                card={
-                  openThread.cardId
-                    ? findCard(view, openThread.cardId)?.card
-                    : undefined
+                cardPart={
+                  <ThreadCard
+                    view={view}
+                    thread={openThread}
+                    card={
+                      openThread.cardId
+                        ? findCard(view, openThread.cardId)?.card
+                        : undefined
+                    }
+                    onOpenCard={onSelect}
+                    onCardCreated={(cardId) =>
+                      setSearchParams({ card: cardId, thread: openThread.id })
+                    }
+                  />
                 }
                 dock={dock}
                 onDock={onDock}
                 onClose={() => setSearchParams({})}
-                onOpenCard={onSelect}
               />
             )}
           />

@@ -2,14 +2,11 @@ import type { BoardView, Card, NewCardBody } from '@tessera/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { moveCardInView } from '../boards/move-card'
 import { api } from './client'
+import { boardKey } from './query-keys'
 
 // While a board is open it reloads every 30 seconds, and when you come back
 // to the tab (docs/web-app.md, section 6).
 const BOARD_RELOAD_MS = 30_000
-
-export function boardKey(boardId: string) {
-  return ['boards', boardId] as const
-}
 
 export function useBoardView(boardId: string) {
   return useQuery({
@@ -19,6 +16,8 @@ export function useBoardView(boardId: string) {
   })
 }
 
+// Reloads the board and, as its key starts the same, the board's threads:
+// with a threadId the card takes that thread instead of a new one.
 export function useCreateCard(boardId: string) {
   const queryClient = useQueryClient()
   return useMutation({

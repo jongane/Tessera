@@ -33,7 +33,8 @@ Not in this release: chat messages (the API has none yet, so the thread panel sh
 
 ## 3. Layout of the board screen
 
-- A sidebar on the left lists the project's boards and the board's threads (the general thread first).
+- A sidebar on the left lists the project's boards and the board's threads: the general thread first, then the threads not linked to a card. A card's thread is opened from its card. (Agreed 2026-10-31 as a trial.)
+- A thread with no card asks "Create a card for this thread?" in the thread panel. "Create a card" makes a card in the board's first column with the thread's title, and the card takes that thread as its own. "Link to a card" picks a card on the board, found by number or title. Only cards without a thread are offered, because a card has at most one thread. A linked thread can be unlinked from the panel, and both are kept. (Agreed 2026-10-31.)
 - The board's columns fill the middle.
 - The **card panel** and the **thread panel** are two separate panels, so you can read a card's thread while editing the card.
 - People can dock the thread panel on the right, left or bottom, and drag its edge to resize it. A floating window and a separate browser window may come later, so the panel code must not assume where it sits.
