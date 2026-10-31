@@ -61,7 +61,7 @@ export function ThreadCard({
       ) : (
         thread.cardId === null && (
           <div className="flex flex-col gap-2 rounded-lg border border-line p-3">
-            <p className="font-semibold">Create a card for this thread?</p>
+            <p className="font-semibold">Create a card for this chat?</p>
             <div className="flex flex-wrap gap-2">
               {firstColumn && (
                 <Button

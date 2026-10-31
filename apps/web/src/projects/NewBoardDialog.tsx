@@ -44,7 +44,7 @@ export function NewBoardDialog({
           value={name}
           onChange={(event) => setName(event.target.value)}
           error={errors.name}
-          hint="It starts with the columns To do, In progress and Done, and a general thread."
+          hint="It starts with the columns To do, In progress and Done, and a general chat."
         />
         <div className="flex justify-end gap-2">
           <DialogClose asChild>

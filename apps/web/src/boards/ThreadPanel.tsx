@@ -27,7 +27,7 @@ export function ThreadPanel({
 }) {
   return (
     <aside
-      aria-label={`Thread: ${thread.title}`}
+      aria-label={`Chat: ${thread.title}`}
       className="flex h-full min-h-0 flex-col bg-surface"
     >
       <div className="flex items-center gap-1 border-b border-line px-3 py-2">
@@ -37,7 +37,7 @@ export function ThreadPanel({
         <DockMenu dock={dock} onDock={onDock} />
         <button
           type="button"
-          aria-label="Close thread"
+          aria-label="Close chat"
           onClick={onClose}
           className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
         >

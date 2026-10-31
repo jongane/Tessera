@@ -33,7 +33,7 @@ export function NewThreadDialog({
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange} title="New thread">
+    <Dialog open onOpenChange={onOpenChange} title="New chat">
       <form noValidate onSubmit={submit} className="flex flex-col gap-4">
         {createThread.error && <Alert>{createThread.error.message}</Alert>}
         <TextField

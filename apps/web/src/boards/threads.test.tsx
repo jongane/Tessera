@@ -63,14 +63,14 @@ function openBoard(
 }
 
 function threadPanel() {
-  return screen.getByRole('complementary', { name: /^Thread: / })
+  return screen.getByRole('complementary', { name: /^Chat: / })
 }
 
-describe('Threads on a board', () => {
-  it('lists the general thread first, then the threads not linked to a card', async () => {
+describe('Chats on a board', () => {
+  it('lists the general chat first, then the chats not linked to a card', async () => {
     openBoard()
 
-    const list = await screen.findByRole('navigation', { name: 'Threads' })
+    const list = await screen.findByRole('navigation', { name: 'Chats' })
     await waitFor(() =>
       expect(
         within(list)
@@ -80,7 +80,7 @@ describe('Threads on a board', () => {
     )
   })
 
-  it('opens a thread in the thread panel', async () => {
+  it('opens a chat in the chat panel', async () => {
     const { user, router, container } = openBoard()
 
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
@@ -92,20 +92,18 @@ describe('Threads on a board', () => {
     expect(panel).toHaveTextContent('Messages are coming soon')
     expect(currentPath(router)).toBe(`${boardPath}?thread=${releasePlan.id}`)
     expect(
-      screen.getByRole('separator', { name: 'Resize the thread panel' }),
+      screen.getByRole('separator', { name: 'Resize the chat panel' }),
     ).toBeInTheDocument()
     await expectNoAccessibilityProblems(container)
 
-    await user.click(
-      within(panel).getByRole('button', { name: 'Close thread' }),
-    )
+    await user.click(within(panel).getByRole('button', { name: 'Close chat' }))
     expect(
-      screen.queryByRole('complementary', { name: /^Thread: / }),
+      screen.queryByRole('complementary', { name: /^Chat: / }),
     ).not.toBeInTheDocument()
     expect(currentPath(router)).toBe(boardPath)
   })
 
-  it('opens a card’s thread when the card is clicked', async () => {
+  it('opens a card’s chat when the card is clicked', async () => {
     const { user, router } = openBoard()
 
     await user.click(
@@ -113,7 +111,7 @@ describe('Threads on a board', () => {
     )
 
     const panel = await screen.findByRole('complementary', {
-      name: 'Thread: Login page',
+      name: 'Chat: Login page',
     })
     expect(panel).toHaveTextContent('For card WEB-12 Login page')
     expect(currentPath(router)).toBe(
@@ -121,7 +119,7 @@ describe('Threads on a board', () => {
     )
   })
 
-  it('docks the thread panel where it is put, and remembers it', async () => {
+  it('docks the chat panel where it is put, and remembers it', async () => {
     const { user, unmount } = openBoard()
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
 
@@ -155,7 +153,7 @@ describe('Threads on a board', () => {
     )
   })
 
-  it('starts a new thread and opens it', async () => {
+  it('starts a new chat and opens it', async () => {
     let created: unknown
     const newThread = thread({
       id: '55555555-5555-4555-8555-000000000003',
@@ -174,8 +172,8 @@ describe('Threads on a board', () => {
       }),
     )
 
-    await user.click(await screen.findByRole('button', { name: 'New thread' }))
-    const dialog = screen.getByRole('dialog', { name: 'New thread' })
+    await user.click(await screen.findByRole('button', { name: 'New chat' }))
+    const dialog = screen.getByRole('dialog', { name: 'New chat' })
     await user.click(within(dialog).getByRole('button', { name: 'Start' }))
     expect(dialog).toHaveTextContent('This can’t be empty')
     await user.type(within(dialog).getByLabelText('Title'), 'Launch party')
@@ -183,7 +181,7 @@ describe('Threads on a board', () => {
 
     expect(
       await screen.findByRole('complementary', {
-        name: 'Thread: Launch party',
+        name: 'Chat: Launch party',
       }),
     ).toBeInTheDocument()
     expect(created).toEqual({ title: 'Launch party' })
@@ -194,12 +192,12 @@ describe('Threads on a board', () => {
   })
 })
 
-describe('Threads and cards', () => {
+describe('Chats and cards', () => {
   const signUp = boardCard('13', 'Sign-up page', { threadId: null })
   const toDo = boardColumn('To do', [login, signUp])
   const view = boardView([toDo, boardColumn('Done', [], { isDone: true })])
 
-  it('asks to create a card for a thread with no card, and makes one in the first column', async () => {
+  it('asks to create a card for a chat with no card, and makes one in the first column', async () => {
     let sent: unknown
     const planCard = boardCard('14', 'Release plan', {
       threadId: releasePlan.id,
@@ -227,7 +225,7 @@ describe('Threads and cards', () => {
     )
 
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
-    expect(threadPanel()).toHaveTextContent('Create a card for this thread?')
+    expect(threadPanel()).toHaveTextContent('Create a card for this chat?')
     await user.click(
       within(threadPanel()).getByRole('button', { name: 'Create a card' }),
     )
@@ -269,7 +267,7 @@ describe('Threads and cards', () => {
     )
   })
 
-  it('links a thread to a card that has no thread, found by number or title', async () => {
+  it('links a chat to a card that has no chat, found by number or title', async () => {
     let sent: unknown
     const { user, container } = openBoard(undefined, view)
     server.use(
@@ -301,7 +299,7 @@ describe('Threads and cards', () => {
     ).toEqual(['WEB-13 Sign-up page'])
     await expectNoAccessibilityProblems(container)
     await user.type(within(dialog).getByLabelText('Find a card'), 'web-99')
-    expect(dialog).toHaveTextContent('No cards without a thread match.')
+    expect(dialog).toHaveTextContent('No cards without a chat match.')
     await user.clear(within(dialog).getByLabelText('Find a card'))
     await user.type(within(dialog).getByLabelText('Find a card'), 'sign')
     await user.click(
@@ -319,7 +317,7 @@ describe('Threads and cards', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('unlinks a thread from its card, keeping both', async () => {
+  it('unlinks a chat from its card, keeping both', async () => {
     let unlinked = false
     const { user } = openBoard(undefined, view)
     server.use(
@@ -342,19 +340,19 @@ describe('Threads and cards', () => {
       await screen.findByRole('button', { name: 'WEB-12 Login page' }),
     )
     const panel = await screen.findByRole('complementary', {
-      name: 'Thread: Login page',
+      name: 'Chat: Login page',
     })
     await user.click(
       within(panel).getByRole('button', { name: 'Unlink from WEB-12' }),
     )
 
     expect(
-      await within(panel).findByText('Create a card for this thread?'),
+      await within(panel).findByText('Create a card for this chat?'),
     ).toBeInTheDocument()
     expect(unlinked).toBe(true)
   })
 
-  it('offers no card for the general thread', async () => {
+  it('offers no card for the general chat', async () => {
     const { user } = openBoard(undefined, view)
 
     await user.click(await screen.findByRole('link', { name: 'General' }))

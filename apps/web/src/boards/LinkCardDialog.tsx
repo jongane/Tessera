@@ -50,8 +50,8 @@ export function LinkCardDialog({
       ) : (
         <p className="text-muted">
           {free.length === 0
-            ? 'Every card on this board has a thread.'
-            : 'No cards without a thread match.'}
+            ? 'Every card on this board has a chat.'
+            : 'No cards without a chat match.'}
         </p>
       )}
       <div className="flex justify-end">

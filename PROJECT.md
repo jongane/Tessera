@@ -19,10 +19,10 @@ Teams running complex projects usually split their work across a chat tool (e.g.
 
 **Every piece of work has a conversation, and every conversation can have a piece of work.**
 
-- Creating a card (task / user story) creates its linked chat thread.
-- Creating a chat thread asks the user whether to create a card for it.
+- Creating a card (task / user story) creates its own chat.
+- Creating a chat asks the user whether to create a card for it.
 - Either side can be created later: a card can gain a chat, and a chat can gain a card, whenever the team decides it is needed.
-- A card has at most one chat thread of its own, but can link to other cards and other threads.
+- A card has at most one chat of its own, but can link to other cards, chats and messages.
 - Every board also has a general chat, created with the board, that is not tied to any card.
 - Files attach to the card or message they belong to, so they are found by context, not by searching.
 
@@ -34,17 +34,19 @@ Teams running complex projects usually split their work across a chat tool (e.g.
 ## Terminology (draft, to be confirmed)
 
 - **Project**: the top-level container for a team's work.
-- **Board**: both a kanban board and a chat space. Holds cards and chat threads, plus one general chat.
-- **Card**: a task or user story. Has at most one thread of its own. A new card gets one, and it can be unlinked later.
-- **Thread**: a chat conversation inside a board. May be linked to a card.
-- **Link**: a relationship between cards and threads.
+- **Board**: both a kanban board and a chat space. Holds cards and chats, plus one general chat.
+- **Card**: a task or user story. Has at most one chat of its own. A new card gets one, and it can be unlinked later.
+- **Chat**: a conversation inside a board. May be linked to a card.
+- **Message**: one post in a chat.
+- **Thread**: the replies to one message, opened in their own sub-window.
+- **Link**: a connection between chats, cards and messages, with a type the person picks from a list the project admin keeps.
 - **Subtask**: a card that has a parent card. See [docs/card-features.md](docs/card-features.md).
 
 ## AI assistant (central theme)
 
 AI assistance is part of the core design, not an add-on.
 
-- First features: summarise a thread, and answer questions about a project.
+- First features: summarise a chat, and answer questions about a project.
 - Claude is the first supported provider. A small provider layer lets teams choose their own provider, including a locally hosted model.
 - Privacy by default: AI is off for every project. Only a project admin can turn it on, and it then applies to that whole project.
 - The assistant proposes, and people approve, before anything is changed.
@@ -54,10 +56,10 @@ AI assistance is part of the core design, not an add-on.
 Focus: the chat-to-card relationship.
 
 1. Users and sign-in; a project with members.
-2. Boards with kanban cards, a general chat, and multiple chat threads.
-3. Card and thread linking, including the "create a card?" prompt and retroactive creation.
+2. Boards with kanban cards, a general chat, and multiple chats.
+3. Card and chat linking, including the "create a card?" prompt and retroactive creation.
 4. File upload attached to a card or message.
-5. AI provider layer with thread summaries and project questions, off by default.
+5. AI provider layer with chat summaries and project questions, off by default.
 
 ## Planned after the MVP
 
@@ -83,6 +85,5 @@ TypeScript end to end: NestJS backend, React frontend, PostgreSQL database, MinI
 
 ## Open questions
 
-1. **Term "thread" vs "channel".** The draft uses "thread" only. Confirm.
-2. **Excluding threads from AI.** Once a project admin turns AI on, it covers the whole project. Should individual threads be excludable later?
-3. **Name.** "Tessera" is a working title; other software already uses it. Re-check before public launch.
+1. **Excluding chats from AI.** Once a project admin turns AI on, it covers the whole project. Should individual chats be excludable later?
+2. **Name.** "Tessera" is a working title; other software already uses it. Re-check before public launch.

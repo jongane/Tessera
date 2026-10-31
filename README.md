@@ -10,11 +10,11 @@ Teams usually split their work between a chat tool and a separate task tool. Con
 
 Tessera links them: **every piece of work has a conversation, and every conversation can have a piece of work.**
 
-- Creating a card (a task or user story) creates its own thread.
-- Creating a thread offers to create a card for it. Either side can also be added later.
-- Every board has one general thread that is not tied to a card.
+- Creating a card (a task or user story) creates its own chat.
+- Creating a chat offers to create a card for it. Either side can also be added later.
+- Every board has one general chat that is not tied to a card.
 - Files attach to the card or message they belong to, so you find them by context.
-- An optional AI assistant can summarise threads and answer questions about a project. It is **off by default**, only a project admin can turn it on, and it proposes changes for a person to approve.
+- An optional AI assistant can summarise chats and answer questions about a project. It is **off by default**, only a project admin can turn it on, and it proposes changes for a person to approve.
 
 Read [PROJECT.md](PROJECT.md) for the full vision, the first-version scope and the open questions. The draft data model is in [docs/data-model.md](docs/data-model.md), the web app design in [docs/web-app.md](docs/web-app.md), and the words we use in [CONTEXT.md](CONTEXT.md).
 

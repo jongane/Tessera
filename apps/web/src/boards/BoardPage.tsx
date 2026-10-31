@@ -234,7 +234,7 @@ function WithThreadPanel({
   const edge = (
     <Separator
       key="edge"
-      aria-label="Resize the thread panel"
+      aria-label="Resize the chat panel"
       className={`bg-line hover:bg-accent focus-visible:bg-accent ${
         dock === 'bottom' ? 'h-1' : 'w-1'
       }`}
@@ -277,7 +277,7 @@ function BoardSidebar({
     'rounded-md px-2 py-1.5 hover:bg-subtle aria-[current=page]:bg-accent-soft aria-[current=page]:font-semibold aria-[current=page]:text-accent-strong'
   return (
     <aside
-      aria-label="Boards and threads"
+      aria-label="Boards and chats"
       className="flex shrink-0 flex-col gap-4 border-b border-line bg-surface p-3 md:w-56 md:border-r md:border-b-0"
     >
       <nav aria-labelledby="sidebar-boards" className="flex flex-col gap-1">
@@ -304,14 +304,14 @@ function BoardSidebar({
             id="sidebar-threads"
             className="px-2 text-xs font-semibold text-muted uppercase"
           >
-            Threads
+            Chats
           </h2>
           <Button
             variant="link"
             className="min-h-6 px-1 text-xs"
             onClick={onNewThread}
           >
-            New thread
+            New chat
           </Button>
         </div>
         {listed.map((thread) => (

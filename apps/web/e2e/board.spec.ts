@@ -103,14 +103,14 @@ test('move a card with the keyboard', async ({ page }) => {
   await expect(card(page, 'In progress', 'Login page')).toBeVisible()
 })
 
-test('open a thread, dock it on the left and resize it', async ({ page }) => {
+test('open a chat, dock it on the left and resize it', async ({ page }) => {
   await openNewBoard(page)
 
   await page
-    .getByRole('navigation', { name: 'Threads' })
+    .getByRole('navigation', { name: 'Chats' })
     .getByRole('link', { name: 'General' })
     .click()
-  const panel = page.getByRole('complementary', { name: 'Thread: General' })
+  const panel = page.getByRole('complementary', { name: 'Chat: General' })
   await expect(panel).toContainText('Messages are coming soon')
   await expectNoAccessibilityProblems(page)
 
@@ -122,7 +122,7 @@ test('open a thread, dock it on the left and resize it', async ({ page }) => {
   )
 
   const width = (await panel.boundingBox())!.width
-  await page.getByRole('separator', { name: 'Resize the thread panel' }).focus()
+  await page.getByRole('separator', { name: 'Resize the chat panel' }).focus()
   for (let i = 0; i < 5; i++) {
     await page.keyboard.press('ArrowRight')
   }
@@ -137,19 +137,19 @@ test('open a thread, dock it on the left and resize it', async ({ page }) => {
   )
 })
 
-test('start a thread, make a card for it, then unlink and link it again', async ({
+test('start a chat, make a card for it, then unlink and link it again', async ({
   page,
 }) => {
   await openNewBoard(page)
-  await page.getByRole('button', { name: 'New thread' }).click()
-  const dialog = page.getByRole('dialog', { name: 'New thread' })
+  await page.getByRole('button', { name: 'New chat' }).click()
+  const dialog = page.getByRole('dialog', { name: 'New chat' })
   await dialog.getByLabel('Title').fill('Release plan')
   await dialog.getByRole('button', { name: 'Start' }).click()
 
   const panel = page.getByRole('complementary', {
-    name: 'Thread: Release plan',
+    name: 'Chat: Release plan',
   })
-  await expect(panel).toContainText('Create a card for this thread?')
+  await expect(panel).toContainText('Create a card for this chat?')
   await expectNoAccessibilityProblems(page)
   await panel.getByRole('button', { name: 'Create a card' }).click()
   await expect(card(page, 'To do', 'Release plan')).toHaveAttribute(
@@ -159,7 +159,7 @@ test('start a thread, make a card for it, then unlink and link it again', async 
   await expect(panel).toContainText(/For card \w+-\d+ Release plan/)
 
   await panel.getByRole('button', { name: /^Unlink from / }).click()
-  await expect(panel).toContainText('Create a card for this thread?')
+  await expect(panel).toContainText('Create a card for this chat?')
 
   await panel.getByRole('button', { name: 'Link to a card' }).click()
   const picker = page.getByRole('dialog', { name: 'Link to a card' })

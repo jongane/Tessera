@@ -271,7 +271,7 @@ describe('Board', () => {
     )
   })
 
-  it('highlights a card, and opens its thread, when it is clicked', async () => {
+  it('highlights a card, and opens its chat, when it is clicked', async () => {
     const card = boardCard('12', 'Login page')
     const { user, router } = openBoard(
       boardView([boardColumn('To do', [card])]),
