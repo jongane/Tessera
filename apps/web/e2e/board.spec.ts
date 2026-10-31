@@ -102,3 +102,37 @@ test('move a card with the keyboard', async ({ page }) => {
   await page.keyboard.press('Space')
   await expect(card(page, 'In progress', 'Login page')).toBeVisible()
 })
+
+test('open a thread, dock it on the left and resize it', async ({ page }) => {
+  await openNewBoard(page)
+
+  await page
+    .getByRole('navigation', { name: 'Threads' })
+    .getByRole('link', { name: 'General' })
+    .click()
+  const panel = page.getByRole('complementary', { name: 'Thread: General' })
+  await expect(panel).toContainText('Messages are coming soon')
+  await expectNoAccessibilityProblems(page)
+
+  await panel.getByRole('button', { name: 'Dock the panel' }).click()
+  await page.getByRole('menuitemradio', { name: 'Left' }).click()
+  const board = page.getByRole('heading', { level: 1, name: 'Sprint 1' })
+  expect((await panel.boundingBox())!.x).toBeLessThan(
+    (await board.boundingBox())!.x,
+  )
+
+  const width = (await panel.boundingBox())!.width
+  await page.getByRole('separator', { name: 'Resize the thread panel' }).focus()
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press('ArrowRight')
+  }
+  await expect
+    .poll(async () => (await panel.boundingBox())!.width)
+    .toBeGreaterThan(width)
+
+  await page.reload()
+  await expect(panel).toBeVisible()
+  expect((await panel.boundingBox())!.x).toBeLessThan(
+    (await board.boundingBox())!.x,
+  )
+})

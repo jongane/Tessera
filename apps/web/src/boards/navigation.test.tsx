@@ -24,6 +24,7 @@ function fakeApi() {
       HttpResponse.json([backlog, sprint]),
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
+    http.get(`/api/boards/${sprint.id}/threads`, () => HttpResponse.json([])),
   )
 }
 

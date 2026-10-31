@@ -8,7 +8,5 @@ export async function expectNoAccessibilityProblems(container: Element) {
     runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'],
     rules: { 'color-contrast': { enabled: false } },
   })
-  expect(
-    results.violations.map((v) => `${v.id}: ${v.help}`),
-  ).toEqual([])
+  expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([])
 }

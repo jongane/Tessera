@@ -25,6 +25,7 @@ function openBoard(view: BoardView) {
       HttpResponse.json([backlog, sprint]),
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
+    http.get(`/api/boards/${sprint.id}/threads`, () => HttpResponse.json([])),
   )
   return renderApp(boardPath)
 }
@@ -129,6 +130,7 @@ describe('Board', () => {
       http.get(`/api/boards/${sprint.id}`, () =>
         apiError(404, 'Board not found'),
       ),
+      http.get(`/api/boards/${sprint.id}/threads`, () => HttpResponse.json([])),
     )
     renderApp(boardPath)
 
@@ -269,7 +271,7 @@ describe('Board', () => {
     )
   })
 
-  it('highlights a card when it is clicked', async () => {
+  it('highlights a card, and opens its thread, when it is clicked', async () => {
     const card = boardCard('12', 'Login page')
     const { user, router } = openBoard(
       boardView([boardColumn('To do', [card])]),
@@ -281,6 +283,8 @@ describe('Board', () => {
     await user.click(button)
 
     expect(button).toHaveAttribute('aria-current', 'true')
-    expect(currentPath(router)).toBe(`${boardPath}?card=${card.id}`)
+    expect(currentPath(router)).toBe(
+      `${boardPath}?card=${card.id}&thread=${card.threadId}`,
+    )
   })
 })

@@ -99,6 +99,17 @@ export interface BoardView extends Board {
   columns: BoardColumn[];
 }
 
+// GET /api/boards/:boardId/threads. A GENERAL thread is the board's own
+// and is never linked to a card; any other may be linked to one card.
+export interface Thread {
+  id: string;
+  boardId: string;
+  cardId: string | null;
+  kind: 'GENERAL' | 'TOPIC';
+  title: string;
+  createdAt: string;
+}
+
 // The body of every 4xx answer. `message` says what is wrong, in words that
 // can be shown to people.
 export interface ApiErrorBody {
