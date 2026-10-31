@@ -80,7 +80,7 @@ erDiagram
 5. Deleting a message marks it deleted (`deleted_at`); it is not erased, so history stays consistent.
 6. All IDs are UUIDs, so they do not reveal how many records exist.
 7. A card's column, and a chat's card, are on the same board as the card or chat (composite foreign keys).
-8. A column that still has cards cannot be deleted. A card that still has a chat cannot be deleted directly; deleting a card through the API unlinks its chat first, so the chat and its messages are kept.
+8. A column that still has cards cannot be deleted. A card that still has a chat cannot be deleted directly; deleting a card through the API unlinks its chat first, so the chat is kept.
 9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and chats.
 
 Rules 1, 2 (the "at most one general chat" part) and 7 to 9 are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general chat is the job of `BoardsService.createBoard`, which creates it with the board.

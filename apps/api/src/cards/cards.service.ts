@@ -572,7 +572,7 @@ function checkChoicesCoverSubtasks(
   }
 }
 
-// The card's chat is kept, unlinked, so its chat history is not lost.
+// The card's chat is kept, unlinked, so its history is not lost.
 async function deleteKeepingChat(
   tx: Prisma.TransactionClient,
   cardId: string,

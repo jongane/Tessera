@@ -9,8 +9,8 @@ const DOCKS: { value: Dock; label: string }[] = [
   { value: 'bottom', label: 'Bottom' },
 ]
 
-// One chat: its title and, from `cardPart`, its card. Messages come with chat
-// (docs/web-app.md, section 1). The panel does not know where it sits, so
+// One chat: its title and, from `cardPart`, its card. Messages come in a
+// later pull request (docs/web-app.md, section 1). The panel does not know where it sits, so
 // it can later float or open in its own window (section 3).
 export function ChatPanel({
   chat,

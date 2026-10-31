@@ -1,4 +1,4 @@
-// The cache keys of a board's data. The chats' key starts with the board's,
+// The cache keys of a board's data, and how often it reloads. The chats' key starts with the board's,
 // so reloading the board reloads its chats too.
 
 export function boardKey(boardId: string) {
