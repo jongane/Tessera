@@ -8,9 +8,9 @@ const descriptionField = z.string().max(50_000);
 export const newCardSchema = z.strictObject({
   title: titleField,
   description: descriptionField.optional(),
-  // A thread with no card, on the same board, for the card to take as its
-  // own ("Create a card for this thread?"). Without it the card gets a new one.
-  threadId: z.uuid().optional(),
+  // A chat with no card, on the same board, for the card to take as its
+  // own ("Create a card for this chat?"). Without it the card gets a new one.
+  chatId: z.uuid().optional(),
 });
 
 // A day ({ date: "2026-11-02" }), a day and time with its offset
@@ -37,7 +37,7 @@ export const cardChangesSchema = z.strictObject({
     .optional(),
 });
 
-export const newSubtaskSchema = newCardSchema.omit({ threadId: true }).extend({
+export const newSubtaskSchema = newCardSchema.omit({ chatId: true }).extend({
   // Any column on any board of the parent's project.
   columnId: z.uuid(),
 });

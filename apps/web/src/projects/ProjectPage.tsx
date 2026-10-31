@@ -65,7 +65,7 @@ export function ProjectPage() {
       {boards.data?.length === 0 && (
         <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-line-strong p-6">
           <p className="text-muted">
-            A board holds columns of cards and the threads about them.
+            A board holds columns of cards and the chats about them.
           </p>
           <Button onClick={() => setCreating(true)}>
             Create your first board

@@ -1,4 +1,4 @@
-import type { Thread } from '@tessera/shared'
+import type { Chat } from '@tessera/shared'
 import type { ReactNode } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import type { Dock } from './panel-layout'
@@ -9,17 +9,17 @@ const DOCKS: { value: Dock; label: string }[] = [
   { value: 'bottom', label: 'Bottom' },
 ]
 
-// One thread: its title and, from `cardPart`, its card. Messages come with chat
-// (docs/web-app.md, section 1). The panel does not know where it sits, so
+// One chat: its title and, from `cardPart`, its card. Messages come in a
+// later pull request (docs/web-app.md, section 1). The panel does not know where it sits, so
 // it can later float or open in its own window (section 3).
-export function ThreadPanel({
-  thread,
+export function ChatPanel({
+  chat,
   cardPart,
   dock,
   onDock,
   onClose,
 }: {
-  thread: Thread
+  chat: Chat
   cardPart: ReactNode
   dock: Dock
   onDock: (dock: Dock) => void
@@ -27,12 +27,12 @@ export function ThreadPanel({
 }) {
   return (
     <aside
-      aria-label={`Chat: ${thread.title}`}
+      aria-label={`Chat: ${chat.title}`}
       className="flex h-full min-h-0 flex-col bg-surface"
     >
       <div className="flex items-center gap-1 border-b border-line px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate font-semibold">
-          {thread.title}
+          {chat.title}
         </h2>
         <DockMenu dock={dock} onDock={onDock} />
         <button

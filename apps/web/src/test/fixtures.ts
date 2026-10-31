@@ -67,7 +67,7 @@ export function boardCard(
     assignees: [],
     checklistProgress: { done: 0, total: 0 },
     subtaskProgress: { complete: 0, total: 0 },
-    threadId: id(),
+    chatId: id(),
     ...fields,
   }
 }

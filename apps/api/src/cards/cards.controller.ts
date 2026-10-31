@@ -37,7 +37,7 @@ export class CardsController {
   constructor(private readonly cards: CardsService) {}
 
   // Goes to the bottom of the column, with the project's next number and
-  // its own thread: a new one, or with threadId an existing thread (see
+  // its own chat: a new one, or with chatId an existing chat (see
   // CardsService.createCard).
   @Post('columns/:columnId/cards')
   create(

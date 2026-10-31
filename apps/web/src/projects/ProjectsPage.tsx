@@ -25,7 +25,7 @@ export function ProjectsPage() {
       {projects.data?.length === 0 && (
         <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-line-strong p-6">
           <p className="text-muted">
-            A project holds your team’s boards, cards and threads.
+            A project holds your team’s boards, cards and chats.
           </p>
           <Button onClick={() => setCreating(true)}>
             Create your first project

@@ -1,4 +1,4 @@
-import type { Thread } from '@tessera/shared'
+import type { Chat } from '@tessera/shared'
 import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
@@ -16,36 +16,36 @@ import { ana, apiError, server, signedInAs } from '../test/server'
 
 const boardPath = `/WEB/boards/${sprint.id}`
 
-function thread(fields: Partial<Thread> & { id: string; title: string }) {
+function chat(fields: Partial<Chat> & { id: string; title: string }) {
   return {
     boardId: sprint.id,
     cardId: null,
     kind: 'TOPIC',
     createdAt: '2026-10-30T09:00:00.000Z',
     ...fields,
-  } satisfies Thread
+  } satisfies Chat
 }
 
 const login = boardCard('12', 'Login page', {
-  threadId: '55555555-5555-4555-8555-000000000012',
+  chatId: '55555555-5555-4555-8555-000000000012',
 })
-const general = thread({
+const general = chat({
   id: '55555555-5555-4555-8555-000000000001',
   title: 'General',
   kind: 'GENERAL',
 })
-const releasePlan = thread({
+const releasePlan = chat({
   id: '55555555-5555-4555-8555-000000000002',
   title: 'Release plan',
 })
-const loginThread = thread({
-  id: login.threadId!,
+const loginChat = chat({
+  id: login.chatId!,
   title: 'Login page',
   cardId: login.id,
 })
 
 function openBoard(
-  threads: Thread[] = [general, releasePlan, loginThread],
+  chats: Chat[] = [general, releasePlan, loginChat],
   view = boardView([boardColumn('To do', [login])]),
 ) {
   server.use(
@@ -55,14 +55,14 @@ function openBoard(
       HttpResponse.json([backlog, sprint]),
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
-    http.get(`/api/boards/${sprint.id}/threads`, () =>
-      HttpResponse.json(threads),
+    http.get(`/api/boards/${sprint.id}/chats`, () =>
+      HttpResponse.json(chats),
     ),
   )
   return renderApp(boardPath)
 }
 
-function threadPanel() {
+function chatPanel() {
   return screen.getByRole('complementary', { name: /^Chat: / })
 }
 
@@ -85,12 +85,12 @@ describe('Chats on a board', () => {
 
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
 
-    const panel = threadPanel()
+    const panel = chatPanel()
     expect(
       within(panel).getByRole('heading', { name: 'Release plan' }),
     ).toBeInTheDocument()
     expect(panel).toHaveTextContent('Messages are coming soon')
-    expect(currentPath(router)).toBe(`${boardPath}?thread=${releasePlan.id}`)
+    expect(currentPath(router)).toBe(`${boardPath}?chat=${releasePlan.id}`)
     expect(screen.getByRole('link', { name: 'Release plan' })).toHaveAttribute(
       'aria-current',
       'true',
@@ -119,7 +119,7 @@ describe('Chats on a board', () => {
     })
     expect(panel).toHaveTextContent('For card WEB-12 Login page')
     expect(currentPath(router)).toBe(
-      `${boardPath}?card=${login.id}&thread=${loginThread.id}`,
+      `${boardPath}?card=${login.id}&chat=${loginChat.id}`,
     )
   })
 
@@ -129,7 +129,7 @@ describe('Chats on a board', () => {
 
     // From the keyboard: in jsdom every element sits at 0,0, so the
     // resizable edge would take every pointer press.
-    within(threadPanel())
+    within(chatPanel())
       .getByRole('button', { name: 'Dock the panel' })
       .focus()
     await user.keyboard('{Enter}')
@@ -138,7 +138,7 @@ describe('Chats on a board', () => {
     const board = screen.getByRole('heading', { name: 'Sprint 1', level: 1 })
     // The panel now comes before the board.
     expect(
-      threadPanel().compareDocumentPosition(board) &
+      chatPanel().compareDocumentPosition(board) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     unmount()
@@ -147,7 +147,7 @@ describe('Chats on a board', () => {
     await again.user.click(
       await screen.findByRole('link', { name: 'Release plan' }),
     )
-    within(threadPanel())
+    within(chatPanel())
       .getByRole('button', { name: 'Dock the panel' })
       .focus()
     await again.user.keyboard('{Enter}')
@@ -159,20 +159,20 @@ describe('Chats on a board', () => {
 
   it('starts a new chat and opens it', async () => {
     let created: unknown
-    const newThread = thread({
+    const newChat = chat({
       id: '55555555-5555-4555-8555-000000000003',
       title: 'Launch party',
     })
     const { user, router } = openBoard()
     server.use(
-      http.post(`/api/boards/${sprint.id}/threads`, async ({ request }) => {
+      http.post(`/api/boards/${sprint.id}/chats`, async ({ request }) => {
         created = await request.json()
         server.use(
-          http.get(`/api/boards/${sprint.id}/threads`, () =>
-            HttpResponse.json([general, releasePlan, loginThread, newThread]),
+          http.get(`/api/boards/${sprint.id}/chats`, () =>
+            HttpResponse.json([general, releasePlan, loginChat, newChat]),
           ),
         )
-        return HttpResponse.json(newThread, { status: 201 })
+        return HttpResponse.json(newChat, { status: 201 })
       }),
     )
 
@@ -189,7 +189,7 @@ describe('Chats on a board', () => {
       }),
     ).toBeInTheDocument()
     expect(created).toEqual({ title: 'Launch party' })
-    expect(currentPath(router)).toBe(`${boardPath}?thread=${newThread.id}`)
+    expect(currentPath(router)).toBe(`${boardPath}?chat=${newChat.id}`)
     expect(
       await screen.findByRole('link', { name: 'Launch party' }),
     ).toBeInTheDocument()
@@ -197,14 +197,14 @@ describe('Chats on a board', () => {
 })
 
 describe('Chats and cards', () => {
-  const signUp = boardCard('13', 'Sign-up page', { threadId: null })
+  const signUp = boardCard('13', 'Sign-up page', { chatId: null })
   const toDo = boardColumn('To do', [login, signUp])
   const view = boardView([toDo, boardColumn('Done', [], { isDone: true })])
 
   it('asks to create a card for a chat with no card, and makes one in the first column', async () => {
     let sent: unknown
     const planCard = boardCard('14', 'Release plan', {
-      threadId: releasePlan.id,
+      chatId: releasePlan.id,
     })
     const { user, router } = openBoard(undefined, view)
     server.use(
@@ -216,11 +216,11 @@ describe('Chats and cards', () => {
               boardView([boardColumn('To do', [login, signUp, planCard])]),
             ),
           ),
-          http.get(`/api/boards/${sprint.id}/threads`, () =>
+          http.get(`/api/boards/${sprint.id}/chats`, () =>
             HttpResponse.json([
               general,
               { ...releasePlan, cardId: planCard.id },
-              loginThread,
+              loginChat,
             ]),
           ),
         )
@@ -229,19 +229,19 @@ describe('Chats and cards', () => {
     )
 
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
-    expect(threadPanel()).toHaveTextContent('Create a card for this chat?')
+    expect(chatPanel()).toHaveTextContent('Create a card for this chat?')
     await user.click(
-      within(threadPanel()).getByRole('button', { name: 'Create a card' }),
+      within(chatPanel()).getByRole('button', { name: 'Create a card' }),
     )
 
     expect(
-      await within(threadPanel()).findByRole('button', {
+      await within(chatPanel()).findByRole('button', {
         name: 'WEB-14 Release plan',
       }),
     ).toBeInTheDocument()
-    expect(sent).toEqual({ title: 'Release plan', threadId: releasePlan.id })
+    expect(sent).toEqual({ title: 'Release plan', chatId: releasePlan.id })
     expect(currentPath(router)).toBe(
-      `${boardPath}?card=${planCard.id}&thread=${releasePlan.id}`,
+      `${boardPath}?card=${planCard.id}&chat=${releasePlan.id}`,
     )
     await waitFor(() =>
       expect(
@@ -257,17 +257,17 @@ describe('Chats and cards', () => {
     const { user } = openBoard(undefined, view)
     server.use(
       http.post(`/api/columns/${toDo.id}/cards`, () =>
-        apiError(409, 'This thread is already linked to a card'),
+        apiError(409, 'This chat is already linked to a card'),
       ),
     )
 
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
     await user.click(
-      within(threadPanel()).getByRole('button', { name: 'Create a card' }),
+      within(chatPanel()).getByRole('button', { name: 'Create a card' }),
     )
 
-    expect(await within(threadPanel()).findByRole('alert')).toHaveTextContent(
-      'This thread is already linked to a card',
+    expect(await within(chatPanel()).findByRole('alert')).toHaveTextContent(
+      'This chat is already linked to a card',
     )
   })
 
@@ -275,14 +275,14 @@ describe('Chats and cards', () => {
     let sent: unknown
     const { user, container } = openBoard(undefined, view)
     server.use(
-      http.put(`/api/threads/${releasePlan.id}/card`, async ({ request }) => {
+      http.put(`/api/chats/${releasePlan.id}/card`, async ({ request }) => {
         sent = await request.json()
         server.use(
-          http.get(`/api/boards/${sprint.id}/threads`, () =>
+          http.get(`/api/boards/${sprint.id}/chats`, () =>
             HttpResponse.json([
               general,
               { ...releasePlan, cardId: signUp.id },
-              loginThread,
+              loginChat,
             ]),
           ),
         )
@@ -292,10 +292,10 @@ describe('Chats and cards', () => {
 
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
     await user.click(
-      within(threadPanel()).getByRole('button', { name: 'Link to a card' }),
+      within(chatPanel()).getByRole('button', { name: 'Link to a card' }),
     )
     const dialog = screen.getByRole('dialog', { name: 'Link to a card' })
-    // Only cards without a thread are offered.
+    // Only cards without a chat are offered.
     expect(
       within(dialog)
         .getAllByRole('button', { name: /^WEB-/ })
@@ -316,7 +316,7 @@ describe('Chats and cards', () => {
     )
 
     expect(
-      await within(threadPanel()).findByRole('button', {
+      await within(chatPanel()).findByRole('button', {
         name: 'WEB-13 Sign-up page',
       }),
     ).toBeInTheDocument()
@@ -329,14 +329,14 @@ describe('Chats and cards', () => {
   it('says in the picker when the link could not be made', async () => {
     const { user } = openBoard(undefined, view)
     server.use(
-      http.put(`/api/threads/${releasePlan.id}/card`, () =>
-        apiError(409, 'This card already has a thread'),
+      http.put(`/api/chats/${releasePlan.id}/card`, () =>
+        apiError(409, 'This card already has a chat'),
       ),
     )
 
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
     await user.click(
-      within(threadPanel()).getByRole('button', { name: 'Link to a card' }),
+      within(chatPanel()).getByRole('button', { name: 'Link to a card' }),
     )
     const dialog = screen.getByRole('dialog', { name: 'Link to a card' })
     await user.click(
@@ -344,7 +344,7 @@ describe('Chats and cards', () => {
     )
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'This card already has a thread',
+      'This card already has a chat',
     )
   })
 
@@ -357,34 +357,34 @@ describe('Chats and cards', () => {
     )
     await user.click(await screen.findByRole('link', { name: 'Release plan' }))
     await user.click(
-      within(threadPanel()).getByRole('button', { name: 'Create a card' }),
+      within(chatPanel()).getByRole('button', { name: 'Create a card' }),
     )
-    expect(await within(threadPanel()).findByRole('alert')).toBeInTheDocument()
+    expect(await within(chatPanel()).findByRole('alert')).toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: 'General' }))
 
     expect(
       await screen.findByRole('complementary', { name: 'Chat: General' }),
     ).toBeInTheDocument()
-    expect(within(threadPanel()).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(chatPanel()).queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('unlinks a chat from its card, keeping both', async () => {
     let unlinked = false
     const { user } = openBoard(undefined, view)
     server.use(
-      http.delete(`/api/threads/${loginThread.id}/card`, () => {
+      http.delete(`/api/chats/${loginChat.id}/card`, () => {
         unlinked = true
         server.use(
-          http.get(`/api/boards/${sprint.id}/threads`, () =>
+          http.get(`/api/boards/${sprint.id}/chats`, () =>
             HttpResponse.json([
               general,
               releasePlan,
-              { ...loginThread, cardId: null },
+              { ...loginChat, cardId: null },
             ]),
           ),
         )
-        return HttpResponse.json({ ...loginThread, cardId: null })
+        return HttpResponse.json({ ...loginChat, cardId: null })
       }),
     )
 
@@ -409,9 +409,9 @@ describe('Chats and cards', () => {
 
     await user.click(await screen.findByRole('link', { name: 'General' }))
 
-    expect(threadPanel()).not.toHaveTextContent('Create a card')
+    expect(chatPanel()).not.toHaveTextContent('Create a card')
     expect(
-      within(threadPanel()).queryByRole('button', { name: 'Link to a card' }),
+      within(chatPanel()).queryByRole('button', { name: 'Link to a card' }),
     ).not.toBeInTheDocument()
   })
 })

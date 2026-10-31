@@ -39,7 +39,7 @@ export function createProject(
   });
 }
 
-// A bare board with one column and no threads, for tests of the
+// A bare board with one column and no chats, for tests of the
 // database rules. Real boards are made by BoardsService.createBoard.
 export async function createBareBoard(
   prisma: PrismaService,
@@ -53,7 +53,7 @@ export async function createBareBoard(
   return { board, column };
 }
 
-// A bare card with no thread, for tests of the database rules. It takes the
+// A bare card with no chat, for tests of the database rules. It takes the
 // next number from its project's counter, as CardsService.createCard does.
 export async function createBareCard(
   prisma: PrismaService,

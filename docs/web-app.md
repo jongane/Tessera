@@ -88,7 +88,7 @@ One pull request at a time, each with its plan approved first:
 2. API: card order within a column, and moving to a position.
 3. Web foundation: addresses, API client, look, sign in and sign up, project list, first Playwright test.
 4. Board view: columns, cards, dragging, chats in the sidebar, new chats and the "Create a card?" prompt, the chat panel and its docking.
-   Then, as its own pull request: rename "thread" to "chat" in the API, database and code (agreed 2026-10-31). Messages, threads (replies) and typed links get their own design round with chat.
+   Then, as its own pull request: rename "thread" to "chat" in the API, database and code (agreed 2026-10-31; done). Messages, threads (replies) and typed links get their own design round with chat.
 5. Project settings and the server admin screen.
 6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting.
 7. Card panel extras: subtasks, checklists, time and the timer, Activity tab.

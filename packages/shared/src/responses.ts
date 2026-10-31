@@ -78,7 +78,7 @@ export interface BoardCard extends Card {
   checklistProgress: { done: number; total: number };
   // Direct subtasks only.
   subtaskProgress: { complete: number; total: number };
-  threadId: string | null;
+  chatId: string | null;
 }
 
 export interface BoardColumn {
@@ -99,9 +99,9 @@ export interface BoardView extends Board {
   columns: BoardColumn[];
 }
 
-// GET /api/boards/:boardId/threads. A GENERAL thread is the board's own
+// GET /api/boards/:boardId/chats. A GENERAL chat is the board's own
 // and is never linked to a card; any other may be linked to one card.
-export interface Thread {
+export interface Chat {
   id: string;
   boardId: string;
   cardId: string | null;

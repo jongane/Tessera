@@ -9,7 +9,7 @@ interface Column {
   name: string;
 }
 
-describe('Cards and threads (e2e)', () => {
+describe('Cards and chats (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
 
@@ -63,7 +63,7 @@ describe('Cards and threads (e2e)', () => {
   }
 
   describe('cards', () => {
-    it('creates a card with its number and its own thread', async () => {
+    it('creates a card with its number and its own chat', async () => {
       const { ana, card, cardUrl, toDo } = await setUp();
 
       const response = await ana.agent.get(cardUrl).expect(200);
@@ -75,7 +75,7 @@ describe('Cards and threads (e2e)', () => {
         title: 'Login',
         description: 'Email and password',
         columnId: toDo.id,
-        thread: { id: expect.any(String), title: 'Login' },
+        chat: { id: expect.any(String), title: 'Login' },
       });
     });
 
@@ -176,17 +176,17 @@ describe('Cards and threads (e2e)', () => {
         .expect((r) => expect(r.body).toMatchObject({ isComplete: false }));
     });
 
-    it('deletes a card, keeping its thread unlinked', async () => {
+    it('deletes a card, keeping its chat unlinked', async () => {
       const { ana, board, cardUrl } = await setUp();
 
       await ana.agent.delete(cardUrl).expect(204);
 
       await ana.agent.get(cardUrl).expect(404);
-      const threads = await ana.agent
-        .get(`/api/boards/${board.id}/threads`)
+      const chats = await ana.agent
+        .get(`/api/boards/${board.id}/chats`)
         .expect(200);
       expect(
-        threads.body.map((t: { title: string; cardId: string | null }) => [
+        chats.body.map((t: { title: string; cardId: string | null }) => [
           t.title,
           t.cardId,
         ]),
@@ -216,12 +216,12 @@ describe('Cards and threads (e2e)', () => {
     });
   });
 
-  describe('threads', () => {
-    it('lists a board’s threads, the general one first', async () => {
+  describe('chats', () => {
+    it('lists a board’s chats, the general one first', async () => {
       const { ana, board } = await setUp();
 
       const response = await ana.agent
-        .get(`/api/boards/${board.id}/threads`)
+        .get(`/api/boards/${board.id}/chats`)
         .expect(200);
 
       expect(
@@ -235,87 +235,87 @@ describe('Cards and threads (e2e)', () => {
       ]);
     });
 
-    it('creates a thread on its own, then links and unlinks a card', async () => {
+    it('creates a chat on its own, then links and unlinks a card', async () => {
       const { ana, board, toDo } = await setUp();
-      const thread = (
+      const chat = (
         await ana.agent
-          .post(`/api/boards/${board.id}/threads`)
+          .post(`/api/boards/${board.id}/chats`)
           .send({ title: 'Release plan' })
           .expect(201)
       ).body as { id: string; cardId: string | null };
-      expect(thread.cardId).toBeNull();
+      expect(chat.cardId).toBeNull();
       const card = (
         await ana.agent
           .post(`/api/columns/${toDo.id}/cards`)
           .send({ title: 'Release' })
-      ).body as { id: string; thread: { id: string } };
-      // A new card has its own thread; unlink it to make room.
-      const cardThread = (await ana.agent.get(`/api/cards/${card.id}`)).body
-        .thread as { id: string };
-      await ana.agent.delete(`/api/threads/${cardThread.id}/card`).expect(200);
+      ).body as { id: string; chat: { id: string } };
+      // A new card has its own chat; unlink it to make room.
+      const cardChat = (await ana.agent.get(`/api/cards/${card.id}`)).body
+        .chat as { id: string };
+      await ana.agent.delete(`/api/chats/${cardChat.id}/card`).expect(200);
 
       await ana.agent
-        .put(`/api/threads/${thread.id}/card`)
+        .put(`/api/chats/${chat.id}/card`)
         .send({ cardId: card.id })
         .expect(200)
         .expect((r) => expect(r.body).toMatchObject({ cardId: card.id }));
       await ana.agent
-        .delete(`/api/threads/${thread.id}/card`)
+        .delete(`/api/chats/${chat.id}/card`)
         .expect(200)
         .expect((r) => expect(r.body).toMatchObject({ cardId: null }));
     });
 
-    it('creates a card for a thread that has none', async () => {
+    it('creates a card for a chat that has none', async () => {
       const { ana, ben, board, toDo } = await setUp();
-      const thread = (
+      const chat = (
         await ana.agent
-          .post(`/api/boards/${board.id}/threads`)
+          .post(`/api/boards/${board.id}/chats`)
           .send({ title: 'Release plan' })
       ).body as { id: string };
 
       await ben.agent
         .post(`/api/columns/${toDo.id}/cards`)
-        .send({ title: 'Plan the release', threadId: thread.id })
+        .send({ title: 'Plan the release', chatId: chat.id })
         .expect(404);
       const card = (
         await ana.agent
           .post(`/api/columns/${toDo.id}/cards`)
-          .send({ title: 'Plan the release', threadId: thread.id })
+          .send({ title: 'Plan the release', chatId: chat.id })
           .expect(201)
       ).body as { id: string };
 
       await ana.agent.get(`/api/cards/${card.id}`).expect((r) =>
-        expect(r.body.thread).toEqual({
-          id: thread.id,
+        expect(r.body.chat).toEqual({
+          id: chat.id,
           title: 'Release plan',
         }),
       );
       await ana.agent
         .post(`/api/columns/${toDo.id}/cards`)
-        .send({ title: 'Again', threadId: thread.id })
+        .send({ title: 'Again', chatId: chat.id })
         .expect(409);
     });
 
-    it('refuses linking a card that already has a thread', async () => {
+    it('refuses linking a card that already has a chat', async () => {
       const { ana, board, card } = await setUp();
-      const thread = (
+      const chat = (
         await ana.agent
-          .post(`/api/boards/${board.id}/threads`)
+          .post(`/api/boards/${board.id}/chats`)
           .send({ title: 'Release plan' })
       ).body as { id: string };
 
       await ana.agent
-        .put(`/api/threads/${thread.id}/card`)
+        .put(`/api/chats/${chat.id}/card`)
         .send({ cardId: card.id })
         .expect(409);
     });
 
-    it('hides threads from people who are not members', async () => {
+    it('hides chats from people who are not members', async () => {
       const { ben, board } = await setUp();
 
-      await ben.agent.get(`/api/boards/${board.id}/threads`).expect(404);
+      await ben.agent.get(`/api/boards/${board.id}/chats`).expect(404);
       await ben.agent
-        .post(`/api/boards/${board.id}/threads`)
+        .post(`/api/boards/${board.id}/chats`)
         .send({ title: 'Mine' })
         .expect(404);
     });

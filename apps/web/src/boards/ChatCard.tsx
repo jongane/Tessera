@@ -1,36 +1,36 @@
-import type { BoardCard, BoardView, Thread } from '@tessera/shared'
+import type { BoardCard, BoardView, Chat } from '@tessera/shared'
 import { useState } from 'react'
 import { useCreateCard } from '../api/boards'
-import { useLinkThread, useUnlinkThread } from '../api/threads'
+import { useLinkChat, useUnlinkChat } from '../api/chats'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { LinkCardDialog } from './LinkCardDialog'
 
-// The thread's card, in the thread panel. A thread with no card is asked
-// whether it wants one (PROJECT.md): a new card, or a card that has no thread
-// yet. The general thread never has a card.
-export function ThreadCard({
+// The chat's card, in the chat panel. A chat with no card is asked
+// whether it wants one (PROJECT.md): a new card, or a card that has no chat
+// yet. The general chat never has a card.
+export function ChatCard({
   view,
-  thread,
+  chat,
   card,
   onOpenCard,
   onCardCreated,
 }: {
   view: BoardView
-  thread: Thread
+  chat: Chat
   card: BoardCard | undefined
   onOpenCard: (card: BoardCard) => void
   onCardCreated: (cardId: string) => void
 }) {
   const createCard = useCreateCard(view.id)
-  const link = useLinkThread(view.id, thread.id)
-  const unlink = useUnlinkThread(view.id, thread.id)
+  const link = useLinkChat(view.id, chat.id)
+  const unlink = useUnlinkChat(view.id, chat.id)
   const [linking, setLinking] = useState(false)
   // A failed link is shown in the picker, which stays open.
   const error = createCard.error ?? unlink.error
   const firstColumn = view.columns[0]
 
-  if (thread.kind === 'GENERAL') {
+  if (chat.kind === 'GENERAL') {
     return null
   }
 
@@ -60,7 +60,7 @@ export function ThreadCard({
           </Button>
         </p>
       ) : (
-        thread.cardId === null && (
+        chat.cardId === null && (
           <div className="flex flex-col gap-2 rounded-lg border border-line p-3">
             <p className="font-semibold">Create a card for this chat?</p>
             <div className="flex flex-wrap gap-2">
@@ -71,8 +71,8 @@ export function ThreadCard({
                     createCard.mutate(
                       {
                         columnId: firstColumn.id,
-                        title: thread.title,
-                        threadId: thread.id,
+                        title: chat.title,
+                        chatId: chat.id,
                       },
                       { onSuccess: (created) => onCardCreated(created.id) },
                     )

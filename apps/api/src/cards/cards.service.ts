@@ -20,10 +20,7 @@ import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
 import { lockCard } from './card-access.js';
 import { cardRef, dueRef, recordActivity } from '../activity/activity.js';
-import {
-  ALREADY_LINKED,
-  refuseGeneralThread,
-} from '../threads/thread-rules.js';
+import { ALREADY_LINKED, refuseGeneralChat } from '../chats/chat-rules.js';
 
 const MAX_TITLE_LENGTH = 200;
 
@@ -33,8 +30,8 @@ export interface NewCard {
 }
 
 export interface NewBoardCard extends NewCard {
-  // A thread on the same board, with no card, to take instead of a new one.
-  threadId?: string;
+  // A chat on the same board, with no card, to take instead of a new one.
+  chatId?: string;
 }
 
 export interface CardChanges {
@@ -49,10 +46,10 @@ export interface CardChanges {
 }
 
 // A card as the card screen shows it: with its full number (WEB-12.1,
-// using the project's current code) and its thread, if it has one.
+// using the project's current code) and its chat, if it has one.
 export type CardView = Card & {
   number: string;
-  thread: { id: string; title: string } | null;
+  chat: { id: string; title: string } | null;
 };
 
 export interface CompletionOptions {
@@ -85,14 +82,14 @@ export type SubtaskChoice =
 export class CardsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // A new card always gets its own thread, saved in the same step: a new one,
-  // or the existing thread named, which must be on the same board and not
+  // A new card always gets its own chat, saved in the same step: a new one,
+  // or the existing chat named, which must be on the same board and not
   // linked to a card. It goes to the bottom of the column and takes the
   // project's next number.
   async createCard(
     userId: string,
     columnId: string,
-    { threadId, ...card }: NewBoardCard,
+    { chatId, ...card }: NewBoardCard,
   ): Promise<Card> {
     const column = await this.findVisibleColumn(userId, columnId);
     const { projectId } = column.board;
@@ -107,13 +104,13 @@ export class CardsService {
           columnId,
           numberPath: await takeNextCardNumber(tx, projectId),
           position: await nextPosition(tx, columnId),
-          ...(threadId === undefined && {
-            thread: { create: { title: card.title } },
+          ...(chatId === undefined && {
+            chat: { create: { title: card.title } },
           }),
         },
       });
-      if (threadId !== undefined) {
-        await takeThread(tx, threadId, created);
+      if (chatId !== undefined) {
+        await takeChat(tx, chatId, created);
       }
       await recordActivity(tx, created, userId, 'CREATED', {
         numberPath: created.numberPath,
@@ -207,17 +204,17 @@ export class CardsService {
   }
 
   async toView(card: Card): Promise<CardView> {
-    const [project, thread] = await Promise.all([
+    const [project, chat] = await Promise.all([
       this.prisma.project.findUniqueOrThrow({
         where: { id: card.projectId },
         select: { code: true },
       }),
-      this.prisma.thread.findUnique({
+      this.prisma.chat.findUnique({
         where: { cardId: card.id },
         select: { id: true, title: true },
       }),
     ]);
-    return { ...card, number: `${project.code}-${card.numberPath}`, thread };
+    return { ...card, number: `${project.code}-${card.numberPath}`, chat };
   }
 
   // Finds a card by a number such as "WEB-12". The project's old codes, and
@@ -421,7 +418,7 @@ export class CardsService {
                 'decide what happens to its subtasks first',
             );
           }
-          await deleteKeepingThread(tx, subtask.id);
+          await deleteKeepingChat(tx, subtask.id);
         } else if (choice.action === 'standalone') {
           await moveSubtree(tx, userId, subtask, null);
         } else {
@@ -443,7 +440,7 @@ export class CardsService {
           await moveSubtree(tx, userId, subtask, newParent);
         }
       }
-      await deleteKeepingThread(tx, card.id);
+      await deleteKeepingChat(tx, card.id);
       if (card.parentId) {
         await recordActivity(
           tx,
@@ -575,37 +572,37 @@ function checkChoicesCoverSubtasks(
   }
 }
 
-// The card's thread is kept, unlinked, so its chat history is not lost.
-async function deleteKeepingThread(
+// The card's chat is kept, unlinked, so its history is not lost.
+async function deleteKeepingChat(
   tx: Prisma.TransactionClient,
   cardId: string,
 ): Promise<void> {
-  await tx.thread.updateMany({
+  await tx.chat.updateMany({
     where: { cardId },
     data: { cardId: null },
   });
   await tx.card.delete({ where: { id: cardId } });
 }
 
-// Links an existing thread to a card just made, refusing the board's general
-// thread and a thread already linked to a card. Only a thread with no card is
-// updated, so when two new cards ask for the same thread one of them is
+// Links an existing chat to a card just made, refusing the board's general
+// chat and a chat already linked to a card. Only a chat with no card is
+// updated, so when two new cards ask for the same chat one of them is
 // refused, and its transaction is undone.
-async function takeThread(
+async function takeChat(
   tx: Prisma.TransactionClient,
-  threadId: string,
+  chatId: string,
   card: Card,
 ): Promise<void> {
-  const thread = await tx.thread.findFirst({
-    where: { id: threadId, boardId: card.boardId },
+  const chat = await tx.chat.findFirst({
+    where: { id: chatId, boardId: card.boardId },
     select: { kind: true },
   });
-  if (!thread) {
-    throw new NotFoundException('Thread not found');
+  if (!chat) {
+    throw new NotFoundException('Chat not found');
   }
-  refuseGeneralThread(thread.kind);
-  const { count } = await tx.thread.updateMany({
-    where: { id: threadId, cardId: null },
+  refuseGeneralChat(chat.kind);
+  const { count } = await tx.chat.updateMany({
+    where: { id: chatId, cardId: null },
     data: { cardId: card.id },
   });
   if (count === 0) {

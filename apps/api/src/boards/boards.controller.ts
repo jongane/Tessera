@@ -41,7 +41,7 @@ export class BoardsController {
   }
 
   // A new board starts with To do, In progress and Done, and its general
-  // thread.
+  // chat.
   @Post('projects/:projectId/boards')
   create(
     @CurrentUser() user: SignedInUser,

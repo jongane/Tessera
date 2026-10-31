@@ -5,7 +5,7 @@ import { Button } from '../ui/Button'
 import { Dialog, DialogClose } from '../ui/Dialog'
 import { TextField } from '../ui/TextField'
 
-// Picks a card on the board for a thread. A card has at most one thread, so
+// Picks a card on the board for a chat. A card has at most one chat, so
 // only cards without one are offered. Found by number or title.
 export function LinkCardDialog({
   view,
@@ -23,7 +23,7 @@ export function LinkCardDialog({
   const [search, setSearch] = useState('')
   const free = view.columns
     .flatMap((column) => column.cards)
-    .filter((card) => card.threadId === null)
+    .filter((card) => card.chatId === null)
   const shown = free.filter((card) => matches(card, search))
 
   return (

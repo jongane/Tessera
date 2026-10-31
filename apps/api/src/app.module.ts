@@ -5,11 +5,11 @@ import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BoardsModule } from './boards/boards.module.js';
 import { CardsModule } from './cards/cards.module.js';
+import { ChatsModule } from './chats/chats.module.js';
 import { ChecklistsModule } from './checklists/checklists.module.js';
 import { LabelsModule } from './labels/labels.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
-import { ThreadsModule } from './threads/threads.module.js';
 import { TimeModule } from './time/time.module.js';
 import { webAppModules } from './web-app.module.js';
 
@@ -23,7 +23,7 @@ import { webAppModules } from './web-app.module.js';
     CardsModule,
     ChecklistsModule,
     LabelsModule,
-    ThreadsModule,
+    ChatsModule,
     TimeModule,
     ...webAppModules(),
   ],

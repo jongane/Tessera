@@ -13,7 +13,7 @@ import {
 // the database itself refuses data that breaks the rules in docs/data-model.md.
 // The services should never try, but if one has a bug the data stays correct.
 // Each refusal names the constraint, so a test cannot pass for the wrong reason.
-describe('Board, card and thread rules (database)', () => {
+describe('Board, card and chat rules (database)', () => {
   let prisma: PrismaService;
 
   beforeAll(async () => {
@@ -42,40 +42,40 @@ describe('Board, card and thread rules (database)', () => {
     return createBareCard(prisma, { boardId, columnId, title });
   }
 
-  it('allows only one general thread per board', async () => {
+  it('allows only one general chat per board', async () => {
     const { board } = await setUp();
-    await prisma.thread.create({
+    await prisma.chat.create({
       data: { boardId: board.id, kind: 'GENERAL', title: 'General' },
     });
 
     await expect(
-      prisma.thread.create({
+      prisma.chat.create({
         data: { boardId: board.id, kind: 'GENERAL', title: 'General again' },
       }),
-    ).rejects.toThrow('threads_one_general_per_board');
+    ).rejects.toThrow('chats_one_general_per_board');
   });
 
-  it('allows many topic threads on one board', async () => {
+  it('allows many topic chats on one board', async () => {
     const { board } = await setUp();
 
-    await prisma.thread.create({
+    await prisma.chat.create({
       data: { boardId: board.id, kind: 'TOPIC', title: 'Ideas' },
     });
-    await prisma.thread.create({
+    await prisma.chat.create({
       data: { boardId: board.id, kind: 'TOPIC', title: 'Release plan' },
     });
 
     await expect(
-      prisma.thread.count({ where: { boardId: board.id } }),
+      prisma.chat.count({ where: { boardId: board.id } }),
     ).resolves.toBe(2);
   });
 
-  it('refuses to link a general thread to a card', async () => {
+  it('refuses to link a general chat to a card', async () => {
     const { board, column } = await setUp();
     const card = await createCard(board.id, column.id);
 
     await expect(
-      prisma.thread.create({
+      prisma.chat.create({
         data: {
           boardId: board.id,
           kind: 'GENERAL',
@@ -83,21 +83,21 @@ describe('Board, card and thread rules (database)', () => {
           cardId: card.id,
         },
       }),
-    ).rejects.toThrow('threads_general_has_no_card');
+    ).rejects.toThrow('chats_general_has_no_card');
   });
 
-  it('allows at most one thread per card', async () => {
+  it('allows at most one chat per card', async () => {
     const { board, column } = await setUp();
     const card = await createCard(board.id, column.id);
-    await prisma.thread.create({
+    await prisma.chat.create({
       data: { boardId: board.id, title: 'Login page', cardId: card.id },
     });
 
     await expect(
-      prisma.thread.create({
+      prisma.chat.create({
         data: { boardId: board.id, title: 'Second chat', cardId: card.id },
       }),
-    ).rejects.toThrow('threads_card_id_key');
+    ).rejects.toThrow('chats_card_id_key');
   });
 
   it("refuses a card in another board's column", async () => {
@@ -109,16 +109,16 @@ describe('Board, card and thread rules (database)', () => {
     );
   });
 
-  it("refuses to link a thread to another board's card", async () => {
+  it("refuses to link a chat to another board's card", async () => {
     const { project, board } = await setUp();
     const other = await createBareBoard(prisma, project.id, 'Sprint 2');
     const otherCard = await createCard(other.board.id, other.column.id);
 
     await expect(
-      prisma.thread.create({
+      prisma.chat.create({
         data: { boardId: board.id, title: 'Chat', cardId: otherCard.id },
       }),
-    ).rejects.toThrow('threads_card_id_board_id_fkey');
+    ).rejects.toThrow('chats_card_id_board_id_fkey');
   });
 
   it('refuses to delete a column that still has cards', async () => {
@@ -130,26 +130,26 @@ describe('Board, card and thread rules (database)', () => {
     ).rejects.toThrow('cards_column_id_board_id_fkey');
   });
 
-  it('refuses to delete a card that still has a thread', async () => {
-    // CardsService.deleteCard unlinks the thread first, so the chat is kept.
+  it('refuses to delete a card that still has a chat', async () => {
+    // CardsService.deleteCard unlinks the chat first, so the chat is kept.
     const { board, column } = await setUp();
     const card = await createCard(board.id, column.id);
-    await prisma.thread.create({
+    await prisma.chat.create({
       data: { boardId: board.id, title: 'Login page', cardId: card.id },
     });
 
     await expect(
       prisma.card.delete({ where: { id: card.id } }),
-    ).rejects.toThrow('threads_card_id_board_id_fkey');
+    ).rejects.toThrow('chats_card_id_board_id_fkey');
   });
 
-  it('deletes columns, cards and threads with their board', async () => {
+  it('deletes columns, cards and chats with their board', async () => {
     const { board, column } = await setUp();
     const card = await createCard(board.id, column.id);
-    await prisma.thread.create({
+    await prisma.chat.create({
       data: { boardId: board.id, kind: 'GENERAL', title: 'General' },
     });
-    await prisma.thread.create({
+    await prisma.chat.create({
       data: { boardId: board.id, title: 'Login page', cardId: card.id },
     });
 
@@ -157,7 +157,7 @@ describe('Board, card and thread rules (database)', () => {
 
     await expect(prisma.column.count()).resolves.toBe(0);
     await expect(prisma.card.count()).resolves.toBe(0);
-    await expect(prisma.thread.count()).resolves.toBe(0);
+    await expect(prisma.chat.count()).resolves.toBe(0);
   });
 
   it('deletes boards with their project', async () => {

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   columnChangesSchema,
   newBoardSchema,
-  newThreadSchema,
-  threadLinkSchema,
+  newChatSchema,
+  chatLinkSchema,
 } from './index.js';
 
 const id = '3f2b8c1e-5d4a-4b6c-9e8f-1a2b3c4d5e6f';
@@ -25,19 +25,19 @@ describe('columnChangesSchema', () => {
   });
 });
 
-describe('newThreadSchema', () => {
+describe('newChatSchema', () => {
   it('trims the title and refuses an empty one', () => {
-    expect(newThreadSchema.parse({ title: ' Release plan ' })).toEqual({
+    expect(newChatSchema.parse({ title: ' Release plan ' })).toEqual({
       title: 'Release plan',
     });
-    expect(newThreadSchema.safeParse({ title: ' ' }).success).toBe(false);
+    expect(newChatSchema.safeParse({ title: ' ' }).success).toBe(false);
   });
 });
 
-describe('threadLinkSchema', () => {
+describe('chatLinkSchema', () => {
   it('needs a card id', () => {
-    expect(threadLinkSchema.safeParse({ cardId: id }).success).toBe(true);
-    expect(threadLinkSchema.safeParse({ cardId: 'WEB-12' }).success).toBe(
+    expect(chatLinkSchema.safeParse({ cardId: id }).success).toBe(true);
+    expect(chatLinkSchema.safeParse({ cardId: 'WEB-12' }).success).toBe(
       false,
     );
   });

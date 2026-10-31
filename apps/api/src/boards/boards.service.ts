@@ -15,7 +15,7 @@ export interface NewBoard {
 }
 
 // A card as the board shows it: its own fields plus its number, labels,
-// assignees (owner first), progress counts and the id of its thread.
+// assignees (owner first), progress counts and the id of its chat.
 export type BoardCard = Omit<Card, 'nextSubtaskNumber'> & {
   number: string;
   labels: { id: string; name: string; colour: LabelColour }[];
@@ -23,7 +23,7 @@ export type BoardCard = Omit<Card, 'nextSubtaskNumber'> & {
   checklistProgress: { done: number; total: number };
   // Direct subtasks only (docs/card-features.md, section 4).
   subtaskProgress: { complete: number; total: number };
-  threadId: string | null;
+  chatId: string | null;
 };
 
 // Everything the board screen shows: its columns in order, each with its
@@ -48,7 +48,7 @@ const boardCardDetails = {
   },
   checklists: { select: { items: { select: { isDone: true } } } },
   subtasks: { select: { isComplete: true } },
-  thread: { select: { id: true } },
+  chat: { select: { id: true } },
 } satisfies Prisma.CardInclude;
 
 // The columns every new board starts with, in order. People can change them later.
@@ -59,13 +59,13 @@ export const DEFAULT_COLUMN_NAMES = [
   DONE_COLUMN_NAME,
 ] as const;
 
-export const GENERAL_THREAD_TITLE = 'General';
+export const GENERAL_CHAT_TITLE = 'General';
 
 @Injectable()
 export class BoardsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // The board, its starting columns and its general thread are saved
+  // The board, its starting columns and its general chat are saved
   // together: if any part fails, none is saved.
   // Throws NotFoundException when the project does not exist or the user is
   // not a member, so callers cannot tell the two apart.
@@ -93,7 +93,7 @@ export class BoardsService {
             isDone: name === DONE_COLUMN_NAME,
           })),
         },
-        threads: { create: { kind: 'GENERAL', title: GENERAL_THREAD_TITLE } },
+        chats: { create: { kind: 'GENERAL', title: GENERAL_CHAT_TITLE } },
       },
     });
   }
@@ -171,7 +171,7 @@ function toBoardCard(card: CardWithDetails, projectCode: string): BoardCard {
     assignees,
     checklists,
     subtasks,
-    thread,
+    chat,
     nextSubtaskNumber: _nextSubtaskNumber,
     ...fields
   } = card;
@@ -192,6 +192,6 @@ function toBoardCard(card: CardWithDetails, projectCode: string): BoardCard {
       complete: subtasks.filter((subtask) => subtask.isComplete).length,
       total: subtasks.length,
     },
-    threadId: thread?.id ?? null,
+    chatId: chat?.id ?? null,
   };
 }

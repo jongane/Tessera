@@ -14,13 +14,13 @@ import {
 const id = '3f2b8c1e-5d4a-4b6c-9e8f-1a2b3c4d5e6f';
 
 describe('newCardSchema', () => {
-  it('accepts an existing thread for the card to take as its own', () => {
-    expect(newCardSchema.parse({ title: 'Login page', threadId: id })).toEqual({
+  it('accepts an existing chat for the card to take as its own', () => {
+    expect(newCardSchema.parse({ title: 'Login page', chatId: id })).toEqual({
       title: 'Login page',
-      threadId: id,
+      chatId: id,
     });
     expect(
-      newCardSchema.safeParse({ title: 'Login page', threadId: 'nope' })
+      newCardSchema.safeParse({ title: 'Login page', chatId: 'nope' })
         .success,
     ).toBe(false);
   });
@@ -85,9 +85,9 @@ describe('subtasks and parents', () => {
     ).toBe(true);
   });
 
-  it('refuses a thread for a new subtask', () => {
+  it('refuses a chat for a new subtask', () => {
     expect(
-      newSubtaskSchema.safeParse({ title: 'Form', columnId: id, threadId: id })
+      newSubtaskSchema.safeParse({ title: 'Form', columnId: id, chatId: id })
         .success,
     ).toBe(false);
   });
