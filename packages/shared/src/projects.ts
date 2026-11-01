@@ -27,8 +27,7 @@ export const RELATIONS = [
 export type Relation = (typeof RELATIONS)[number];
 export type RelationColours = Record<Relation, RelationColourName>;
 
-// What a new project starts with. Deeper subtasks are drawn in a paler
-// shade of their colour.
+// What a new project starts with (docs/card-features.md, section 7).
 export const DEFAULT_RELATION_COLOURS: RelationColours = {
   selected: 'DARK',
   parent: 'BLUE',
