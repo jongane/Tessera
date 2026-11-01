@@ -6,8 +6,6 @@ import {
   dueFromParts,
   dueParts,
   formatMinutes,
-  joinMinutes,
-  MAX_ESTIMATE_MINUTES,
   splitMinutes,
 } from '@tessera/shared'
 import {
@@ -19,6 +17,7 @@ import {
 import { useCardTotals } from '../api/cards'
 import { PRIORITY_NAMES } from '../boards/card-text'
 import { checkForm } from '../ui/form-errors'
+import { estimateFrom } from './estimate'
 
 // The card's small fields. Each saves as soon as it changes (docs/web-app.md,
 // section 5); `save` sends the change and shows it straight away.
@@ -308,32 +307,4 @@ export function EstimateField({
       )}
     </div>
   )
-}
-
-// The estimate in minutes, null for none, or what is wrong with it.
-export function estimateFrom(draft: {
-  hours: string
-  minutes: string
-}): number | null | string {
-  const hours = draft.hours.trim()
-  const minutes = draft.minutes.trim()
-  if (hours === '' && minutes === '') {
-    return null
-  }
-  const wholeNumber = /^\d+$/
-  if (
-    (hours !== '' && !wholeNumber.test(hours)) ||
-    (minutes !== '' && !wholeNumber.test(minutes))
-  ) {
-    return 'Use whole numbers'
-  }
-  const m = minutes === '' ? 0 : Number(minutes)
-  if (m > 59) {
-    return 'Minutes go up to 59'
-  }
-  const total = joinMinutes(hours === '' ? 0 : Number(hours), m)
-  if (total > MAX_ESTIMATE_MINUTES) {
-    return `Use at most ${MAX_ESTIMATE_MINUTES / 60} hours`
-  }
-  return total
 }

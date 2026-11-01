@@ -1,52 +1,24 @@
-import type { BoardView } from '@tessera/shared'
 import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
-import { ben, fakeBoard, type FakeBoardOptions } from '../test/fake-board'
+import {
+  board,
+  boardPath,
+  cardPanel,
+  login,
+  openCard,
+  tile,
+  typeInto,
+} from '../test/card-panel'
+import { ben, fakeBoard } from '../test/fake-board'
 import {
   boardCard,
-  boardColumn,
-  boardView,
   sprint,
   website,
 } from '../test/fixtures'
 import { currentPath, renderApp } from '../test/render'
 import { apiError, server } from '../test/server'
-
-const boardPath = `/WEB/boards/${sprint.id}`
-
-const login = boardCard('12', 'Login page', {
-  chatId: '55555555-5555-4555-8555-000000000012',
-})
-
-function board(card = login): BoardView {
-  return boardView([
-    boardColumn('To do', [card], { id: '88888888-8888-4888-8888-000000000001' }),
-    boardColumn('Done', [], {
-      id: '88888888-8888-4888-8888-000000000002',
-      isDone: true,
-    }),
-  ])
-}
-
-// Opens the board with the card panel already open on `card`.
-function openCard(
-  card = login,
-  options: FakeBoardOptions & { view?: BoardView } = {},
-) {
-  const api = fakeBoard(options.view ?? board(card), options)
-  const app = renderApp(`${boardPath}?card=${card.id}`)
-  return { ...app, api }
-}
-
-async function cardPanel(number = 'WEB-12') {
-  return screen.findByRole('complementary', { name: `Card ${number}` })
-}
-
-function tile(name: string) {
-  return screen.getByRole('button', { name })
-}
 
 describe('Opening the card panel', () => {
   it('opens the card panel, and only that, when a card is clicked', async () => {
@@ -73,11 +45,10 @@ describe('Opening the card panel', () => {
   it('closes with its close button, Escape, or Back', async () => {
     fakeBoard(board())
     const { user, router } = renderApp(boardPath)
-    const card = await screen.findByRole('button', {
-      name: 'WEB-12 Login page',
-    })
+    // Found again each time: opening the panel lays the board out afresh.
+    const card = () => screen.findByRole('button', { name: 'WEB-12 Login page' })
 
-    await user.click(card)
+    await user.click(await card())
     await user.click(
       within(await cardPanel()).getByRole('button', { name: 'Close card' }),
     )
@@ -86,7 +57,7 @@ describe('Opening the card panel', () => {
     )
     expect(currentPath(router)).toBe(boardPath)
 
-    await user.click(card)
+    await user.click(await card())
     within(await cardPanel())
       .getByRole('button', { name: 'Close card' })
       .focus()
@@ -95,7 +66,7 @@ describe('Opening the card panel', () => {
       null,
     )
 
-    await user.click(card)
+    await user.click(await card())
     await cardPanel()
     await router.navigate(-1)
     await waitFor(() =>
@@ -154,7 +125,7 @@ describe('Editing a card’s fields', () => {
     const title = within(await cardPanel()).getByLabelText('Title')
 
     await user.clear(title)
-    await user.type(title, 'Sign-in page{Enter}')
+    await typeInto(user, title, 'Sign-in page{Enter}')
 
     expect(
       await screen.findByRole('button', { name: 'WEB-12 Sign-in page' }),
@@ -170,7 +141,7 @@ describe('Editing a card’s fields', () => {
     const title = within(panel).getByLabelText('Title')
 
     await user.clear(title)
-    await user.type(title, 'Something else{Escape}')
+    await typeInto(user, title, 'Something else{Escape}')
     expect(title).toHaveValue('Login page')
     // Escape in the title box does not close the panel.
     expect(panel).toBeInTheDocument()
@@ -206,9 +177,9 @@ describe('Editing a card’s fields', () => {
     const panel = await cardPanel()
     expect(panel).toHaveTextContent('Times are in Europe/London')
 
-    await user.type(within(panel).getByLabelText('Due date'), '2026-07-02')
+    await typeInto(user, within(panel).getByLabelText('Due date'), '2026-07-02')
     await waitFor(() => expect(api.requests).toHaveLength(1))
-    await user.type(within(panel).getByLabelText('Due time'), '17:00')
+    await typeInto(user, within(panel).getByLabelText('Due time'), '17:00')
     await user.tab()
     await waitFor(() => expect(api.requests).toHaveLength(2))
     await user.click(
@@ -228,8 +199,8 @@ describe('Editing a card’s fields', () => {
     const { user, api } = openCard()
     const panel = await cardPanel()
 
-    await user.type(within(panel).getByLabelText('Hours'), '1')
-    await user.type(within(panel).getByLabelText('Minutes'), '30')
+    await typeInto(user, within(panel).getByLabelText('Hours'), '1')
+    await typeInto(user, within(panel).getByLabelText('Minutes'), '30')
     await user.tab()
     await waitFor(() => expect(api.requests).toHaveLength(1))
     await user.click(
@@ -291,7 +262,7 @@ describe('Assignees', () => {
     const panel = await cardPanel()
 
     await user.click(within(panel).getByRole('button', { name: 'Assign' }))
-    await user.type(screen.getByLabelText('Find a member'), 'be')
+    await typeInto(user, screen.getByLabelText('Find a member'), 'be')
     await user.click(screen.getByRole('button', { name: 'Ben' }))
 
     const list = within(panel).getByRole('list', { name: 'Assignees' })

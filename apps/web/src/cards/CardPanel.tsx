@@ -4,7 +4,7 @@ import type {
   CardChangesBody,
   Project,
 } from '@tessera/shared'
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, lazy, Suspense, useState } from 'react'
 import { useBlocker } from 'react-router'
 import { useMe } from '../api/auth'
 import { useChangeCard, useCompleteCard, useReopenCard } from '../api/cards'
@@ -15,6 +15,7 @@ import { findCard } from '../boards/move-card'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { Loading } from '../ui/Loading'
 import {
   DueField,
   EstimateField,
@@ -22,10 +23,15 @@ import {
   TitleField,
 } from './CardFields'
 import { DeleteCardDialog } from './DeleteCardDialog'
-import { DescriptionField } from './Description'
 import { AssigneesField, LabelsField } from './PeopleAndLabels'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
+
+// The rich-text editor is most of the panel's code, so it loads on its own
+// and the other fields can be used straight away.
+const DescriptionField = lazy(() =>
+  import('./Description').then((m) => ({ default: m.DescriptionField })),
+)
 
 export interface CardPanelProps {
   cardId: string
@@ -109,7 +115,6 @@ function CardDetails({
       <PanelHeader
         card={card}
         columnName={columnName}
-        projectCode={project.code}
         onClose={onClose}
       />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
@@ -132,11 +137,13 @@ function CardDetails({
         <DueField card={card} timeZone={project.timeZone} save={save} />
         <AssigneesField card={card} projectId={project.id} track={track} />
         <LabelsField card={card} projectId={project.id} track={track} />
-        <DescriptionField
-          description={card.description}
-          onEditingChange={setUnsavedDescription}
-          onSave={(description) => save({ description })}
-        />
+        <Suspense fallback={<Loading />}>
+          <DescriptionField
+            description={card.description}
+            onEditingChange={setUnsavedDescription}
+            onSave={(description) => save({ description })}
+          />
+        </Suspense>
         <DeleteButton
           card={card}
           projectId={project.id}
@@ -162,12 +169,10 @@ function CardDetails({
 function PanelHeader({
   card,
   columnName,
-  projectCode,
   onClose,
 }: {
   card: BoardCard
   columnName: string
-  projectCode: string
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -184,15 +189,12 @@ function PanelHeader({
     <div className="flex items-center gap-2 border-b border-line px-4 py-2">
       <h2 className="font-semibold text-muted">{card.number}</h2>
       <span className="truncate text-muted">{`in ${columnName}`}</span>
-      <span className="sr-only">{`Project ${projectCode}`}</span>
-      <Button
-        variant="link"
-        className="min-h-8 text-sm"
-        onClick={copyLink}
-        aria-live="polite"
-      >
-        {copied ? 'Link copied' : 'Copy link'}
+      <Button variant="link" className="min-h-8 text-sm" onClick={copyLink}>
+        Copy link
       </Button>
+      <span role="status" className="text-xs text-muted">
+        {copied ? 'Copied' : ''}
+      </span>
       <button
         type="button"
         aria-label="Close card"

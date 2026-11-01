@@ -107,21 +107,8 @@ describe('Chats on a board', () => {
     expect(currentPath(router)).toBe(boardPath)
   })
 
-  it('opens a card’s chat when the card is clicked', async () => {
-    const { user, router } = openBoard()
-
-    await user.click(
-      await screen.findByRole('button', { name: 'WEB-12 Login page' }),
-    )
-
-    const panel = await screen.findByRole('complementary', {
-      name: 'Chat: Login page',
-    })
-    expect(panel).toHaveTextContent('For card WEB-12 Login page')
-    expect(currentPath(router)).toBe(
-      `${boardPath}?card=${login.id}&chat=${loginChat.id}`,
-    )
-  })
+  // Clicking a card opens only its card panel, which has "Open chat"
+  // (cards/card-panel.test.tsx).
 
   it('docks the chat panel where it is put, and remembers it', async () => {
     const { user, unmount } = openBoard()
@@ -371,7 +358,7 @@ describe('Chats and cards', () => {
 
   it('unlinks a chat from its card, keeping both', async () => {
     let unlinked = false
-    const { user } = openBoard(undefined, view)
+    const { user, router } = openBoard(undefined, view)
     server.use(
       http.delete(`/api/chats/${loginChat.id}/card`, () => {
         unlinked = true
@@ -388,9 +375,8 @@ describe('Chats and cards', () => {
       }),
     )
 
-    await user.click(
-      await screen.findByRole('button', { name: 'WEB-12 Login page' }),
-    )
+    await screen.findByRole('button', { name: 'WEB-12 Login page' })
+    await router.navigate(`${boardPath}?chat=${loginChat.id}`)
     const panel = await screen.findByRole('complementary', {
       name: 'Chat: Login page',
     })
