@@ -3,6 +3,7 @@
 // at run time. Dates arrive as ISO 8601 text, e.g. "2026-10-30T09:00:00.000Z".
 
 import type { LabelColourName } from './labels.js';
+import type { RelationColours } from './projects.js';
 
 // The signed-in person (GET /api/auth/me, sign-in and sign-up).
 export interface Me {
@@ -23,6 +24,8 @@ export interface Project {
   description: string | null;
   code: string;
   timeZone: string;
+  // Set by project admins (docs/card-features.md, section 7).
+  relationColours: RelationColours;
   createdAt: string;
 }
 
@@ -84,6 +87,27 @@ export interface Card {
   position: number;
   createdById: string | null;
   createdAt: string;
+}
+
+// A card related to another one, wherever it is in the project.
+export interface RelatedCard {
+  id: string;
+  // With the project code, e.g. "WEB-12.1".
+  number: string;
+  title: string;
+  boardId: string;
+  boardName: string;
+  isComplete: boolean;
+}
+
+// GET /api/cards/:cardId/relatives (docs/card-features.md, section 7).
+export interface CardRelatives {
+  // The parent first, then its parent, up to the top.
+  parents: RelatedCard[];
+  // Every level below, in number order. `level` 1 is a direct subtask.
+  subtasks: (RelatedCard & { level: number })[];
+  // The other subtasks of the same parent, in number order.
+  siblings: RelatedCard[];
 }
 
 // A card as the board shows it (GET /api/boards/:boardId).

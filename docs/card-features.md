@@ -1,6 +1,6 @@
 # Card features v1
 
-Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6, 9 and 10, the checklists in section 2, and section 8 apart from attachments, are built in the API. The rest is not built yet.
+Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6, 9 and 10, the checklists in section 2, the colours and related-card list of section 7, and section 8 apart from attachments, are built in the API. The rest is not built yet.
 
 Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
 
@@ -78,8 +78,8 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
   - deeper subtasks: paler orange
   - sibling subtasks (same parent): grey
 - Each highlight also has a small text tag such as "Parent" or "Subtask", so colour is never the only signal.
-- The colours are a **project setting that only admins can change**, so everyone in the project sees the same colours.
-- Related cards on other boards are listed in the card's panel, with links to them.
+- The colours are a **project setting that only admins can change**, so everyone in the project sees the same colours. Admins pick each one from the 10 label colours (section 8), which read well in light and dark mode, or dark. Deeper subtasks are drawn in a paler shade of their colour. (Agreed 2026-11-01.)
+- Related cards on other boards are listed in the card's panel, with links to them: the parents up to the top, the subtasks at every level and the siblings, grouped, each with its board's name. (Agreed 2026-11-01.)
 
 ## 8. Other card fields
 

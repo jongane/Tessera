@@ -30,6 +30,22 @@ describe('projectChangesSchema', () => {
     ).toBe(true);
   });
 
+  it('accepts the relationship colours, one of the label colours or dark', () => {
+    expect(
+      projectChangesSchema.parse({
+        relationColours: { selected: 'DARK', parent: 'TEAL' },
+      }),
+    ).toEqual({ relationColours: { selected: 'DARK', parent: 'TEAL' } });
+    expect(
+      projectChangesSchema.safeParse({ relationColours: { parent: 'BEIGE' } })
+        .success,
+    ).toBe(false);
+    expect(
+      projectChangesSchema.safeParse({ relationColours: { cousin: 'RED' } })
+        .success,
+    ).toBe(false);
+  });
+
   it('refuses an unknown time zone, saying why', () => {
     const result = projectChangesSchema.safeParse({ timeZone: 'Mars/Base' });
     expect(result.error?.issues[0]?.message).toBe('Unknown time zone');
