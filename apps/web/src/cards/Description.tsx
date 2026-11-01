@@ -36,12 +36,20 @@ export function DescriptionField({
   onEditingChange,
 }: {
   description: string | null
-  onSave: (markdown: string) => void
+  // Resolves once saved. Until then the editor stays open, and if saving
+  // fails it keeps what was written.
+  onSave: (markdown: string) => Promise<unknown>
   // Tells the panel while there are unsaved changes.
   onEditingChange: (unsaved: boolean) => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const headingId = useId()
+
+  function finish() {
+    onEditingChange(false)
+    setEditing(false)
+  }
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-1.5">
@@ -62,13 +70,17 @@ export function DescriptionField({
       {editing ? (
         <DescriptionEditor
           description={description ?? ''}
+          saving={saving}
           onChange={onEditingChange}
           onDone={(markdown) => {
-            if (markdown !== null && markdown !== (description ?? '')) {
-              onSave(markdown)
+            if (markdown === null || markdown === (description ?? '')) {
+              finish()
+              return
             }
-            onEditingChange(false)
-            setEditing(false)
+            setSaving(true)
+            onSave(markdown)
+              .then(finish, () => {})
+              .finally(() => setSaving(false))
           }}
         />
       ) : description ? (
@@ -100,10 +112,12 @@ function ReadOnlyDescription({ markdown }: { markdown: string }) {
 
 function DescriptionEditor({
   description,
+  saving,
   onChange,
   onDone,
 }: {
   description: string
+  saving: boolean
   onChange: (unsaved: boolean) => void
   // The new text, or null to keep the old one.
   onDone: (markdown: string | null) => void
@@ -151,7 +165,9 @@ function DescriptionEditor({
         </div>
       ) : (
         <div className="flex gap-2">
-          <Button onClick={() => onDone(markdownOf(editor))}>Save</Button>
+          <Button disabled={saving} onClick={() => onDone(markdownOf(editor))}>
+            Save
+          </Button>
           <Button variant="secondary" onClick={cancel}>
             Cancel
           </Button>

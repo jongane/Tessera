@@ -127,7 +127,8 @@ export function DueField({
 
   function onDate(date: string) {
     if (date !== '' && date !== saved.date) {
-      save({ due: dueFromParts(date, saved.time, timeZone) })
+      save({ due: dueFromParts(date, time, timeZone) })
+      setTimeDraft(null)
     }
   }
 

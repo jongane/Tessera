@@ -112,8 +112,8 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
     setSearchParams(withParams({ card: card.id }))
   }
 
-  function openChatOnly(chat: Chat) {
-    setSearchParams({ chat: chat.id })
+  function showChat(chat: Chat) {
+    setSearchParams(withParams({ chat: chat.id }))
   }
 
   // The address with some of its parts changed, or removed when null.
@@ -157,6 +157,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
         boardId={boardId}
         chats={chats.data ?? []}
         openChatId={openChat?.id}
+        openCardId={selectedCardId}
         onNewChat={() => setCreatingChat(true)}
       />
       <div className="min-h-0 min-w-0 flex-1">
@@ -223,7 +224,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
           onOpenChange={setCreatingChat}
           onCreated={(chat) => {
             setCreatingChat(false)
-            openChatOnly(chat)
+            showChat(chat)
           }}
         />
       )}
@@ -236,12 +237,15 @@ function BoardSidebar({
   boardId,
   chats,
   openChatId,
+  openCardId,
   onNewChat,
 }: {
   project: Project
   boardId: string
   chats: Chat[]
   openChatId: string | undefined
+  // An open card stays open next to the chat.
+  openCardId: string | null
   onNewChat: () => void
 }) {
   const boards = useBoards(project.id)
@@ -293,7 +297,13 @@ function BoardSidebar({
         {listed.map((chat) => (
           <Link
             key={chat.id}
-            to={{ search: `?chat=${chat.id}` }}
+            to={{
+              search: `?${new URLSearchParams(
+                openCardId
+                  ? { card: openCardId, chat: chat.id }
+                  : { chat: chat.id },
+              )}`,
+            }}
             aria-current={chat.id === openChatId ? 'true' : undefined}
             className={linkClass}
           >

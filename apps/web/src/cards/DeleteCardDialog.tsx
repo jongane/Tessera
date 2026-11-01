@@ -51,7 +51,8 @@ export function DeleteCardDialog({
       confirmLabel="Delete card"
       onConfirm={onConfirm}
       onCancel={onCancel}
-      pending={remove.isPending || subtasks.pending}
+      // Without the subtasks there is nothing to choose for them.
+      pending={remove.isPending || subtasks.pending || subtasks.error !== null}
       error={deleteError(remove.error) ?? subtasks.error}
     >
       <div className="flex flex-col gap-3">

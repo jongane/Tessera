@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import {
   board,
@@ -36,6 +36,55 @@ describe('Opening the card panel', () => {
       screen.getByRole('separator', { name: 'Resize the card panel' }),
     ).toBeInTheDocument()
     await expectNoAccessibilityProblems(container)
+  })
+
+  it('opens with the Enter key too', async () => {
+    fakeBoard(board())
+    const { user } = renderApp(boardPath)
+
+    ;(await screen.findByRole('button', { name: 'WEB-12 Login page' })).focus()
+    await user.keyboard('{Enter}')
+
+    expect(await cardPanel()).toBeInTheDocument()
+  })
+
+  it('copies a link to the card', async () => {
+    const { user } = openCard()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    const panel = await cardPanel()
+
+    await user.click(within(panel).getByRole('button', { name: 'Copy link' }))
+
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/WEB-12`)
+    expect(await within(panel).findByRole('status')).toHaveTextContent('Copied')
+  })
+
+  it('keeps the card open when a chat is opened from the sidebar', async () => {
+    const { user, router } = openCard(login, {
+      chats: [
+        {
+          id: '55555555-5555-4555-8555-000000000002',
+          boardId: sprint.id,
+          cardId: null,
+          kind: 'TOPIC',
+          title: 'Release plan',
+          createdAt: '2026-10-30T09:00:00.000Z',
+        },
+      ],
+    })
+    await cardPanel()
+
+    await user.click(await screen.findByRole('link', { name: 'Release plan' }))
+
+    expect(
+      await screen.findByRole('complementary', { name: 'Chat: Release plan' }),
+    ).toBeInTheDocument()
+    expect(await cardPanel()).toBeInTheDocument()
+    expect(currentPath(router)).toContain(`card=${login.id}`)
   })
 
   it('closes with its close button, Escape, or Back', async () => {

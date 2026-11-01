@@ -167,6 +167,70 @@ describe('The description', () => {
   })
 })
 
+describe('The description, when things go wrong', () => {
+  it('keeps what was written when it cannot be saved', async () => {
+    const { user } = openCard()
+    server.use(
+      http.patch(`/api/cards/${login.id}`, () =>
+        HttpResponse.json(
+          { statusCode: 500, message: 'Broken' },
+          { status: 500 },
+        ),
+      ),
+    )
+    const panel = await cardPanel()
+
+    await user.click(
+      within(panel).getByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await typeInto(user, editor, 'Long text')
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+
+    expect(
+      await within(panel).findByText('Couldn’t save, try again'),
+    ).toBeInTheDocument()
+    expect(
+      within(panel).getByRole('textbox', { name: 'Description' }),
+    ).toHaveTextContent('Long text')
+  })
+
+  it('does not ask when only the chat panel opens', async () => {
+    const { user, router } = openCard(login, {
+      chats: [
+        {
+          id: login.chatId!,
+          boardId: login.boardId,
+          cardId: login.id,
+          kind: 'TOPIC',
+          title: 'Login page',
+          createdAt: '2026-10-30T09:00:00.000Z',
+        },
+      ],
+    })
+    const panel = await cardPanel()
+
+    await user.click(
+      within(panel).getByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await typeInto(user, editor, 'Draft')
+    await user.click(within(panel).getByRole('button', { name: 'Open chat' }))
+
+    expect(
+      await screen.findByRole('complementary', { name: 'Chat: Login page' }),
+    ).toBeInTheDocument()
+    expect(currentPath(router)).toContain(`chat=${login.chatId}`)
+    expect(
+      screen.queryByRole('dialog', { name: 'Discard your changes?' }),
+    ).toBe(null)
+  })
+})
+
 describe('Completing and reopening', () => {
   it('completes the card, then offers to move it to the done column', async () => {
     const { user, api } = openCard()
@@ -320,6 +384,39 @@ describe('Deleting a card', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'This card has 3h 20m logged. A project admin can delete the time entries first.',
     )
+  })
+
+  it('cannot delete a card with subtasks while they fail to load', async () => {
+    const parent = boardCard('12', 'Login page', {
+      subtaskProgress: { complete: 0, total: 1 },
+    })
+    server.use(
+      http.get(`/api/cards/${parent.id}/time-totals`, () =>
+        HttpResponse.json({
+          estimateMinutes: null,
+          originalEstimateMinutes: null,
+          timeSpentMinutes: 0,
+          ownTimeMinutes: 0,
+        }),
+      ),
+      http.get(`/api/cards/${parent.id}/subtasks`, () =>
+        HttpResponse.json(
+          { statusCode: 500, message: 'Broken' },
+          { status: 500 },
+        ),
+      ),
+    )
+    const { user } = openCard(parent)
+
+    await user.click(
+      within(await cardPanel()).getByRole('button', { name: 'Delete card' }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Delete WEB-12?' })
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Broken')
+    expect(
+      within(dialog).getByRole('button', { name: 'Delete card' }),
+    ).toBeDisabled()
   })
 
   it('asks what happens to each subtask, never deleting one with its own', async () => {

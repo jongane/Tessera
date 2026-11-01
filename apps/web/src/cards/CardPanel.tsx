@@ -141,7 +141,11 @@ function CardDetails({
           <DescriptionField
             description={card.description}
             onEditingChange={setUnsavedDescription}
-            onSave={(description) => save({ description })}
+            onSave={(description) => {
+              const saving = change.mutateAsync({ description })
+              track(saving)
+              return saving
+            }}
           />
         </Suspense>
         <DeleteButton
@@ -344,12 +348,15 @@ function DeleteButton({
   )
 }
 
-// Asks before leaving the card, or the page, with an unsaved description.
+// Asks before leaving the card with an unsaved description: closing it,
+// opening another card, or going to another page in the app. Opening or
+// closing the chat next to it does not ask.
 function DiscardOnLeave() {
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       currentLocation.pathname !== nextLocation.pathname ||
-      currentLocation.search !== nextLocation.search,
+      new URLSearchParams(currentLocation.search).get('card') !==
+        new URLSearchParams(nextLocation.search).get('card'),
   )
   if (blocker.state !== 'blocked') {
     return null
