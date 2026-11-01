@@ -26,6 +26,26 @@ export interface Project {
   createdAt: string;
 }
 
+export type ProjectRole = 'ADMIN' | 'MEMBER';
+
+// GET /api/projects/:projectId/members, admins first, then by name.
+export interface ProjectMember {
+  userId: string;
+  displayName: string;
+  email: string;
+  role: ProjectRole;
+  joinedAt: string;
+}
+
+// GET /api/projects/:projectId/labels, by name.
+export interface Label {
+  id: string;
+  projectId: string;
+  name: string;
+  colour: LabelColourName;
+  createdAt: string;
+}
+
 // GET /api/projects/suggest-code
 export interface SuggestedCode {
   code: string;

@@ -27,6 +27,9 @@ export function AppShell() {
   )
 }
 
+const MENU_ITEM =
+  'flex min-h-11 cursor-pointer items-center rounded-md px-3 outline-none data-highlighted:bg-accent-soft'
+
 function AccountMenu() {
   const { data: me } = useMe()
   const signOut = useSignOut()
@@ -57,13 +60,18 @@ function AccountMenu() {
             <p className="text-muted">{me.email}</p>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-line" />
+          {me.isServerAdmin && (
+            <DropdownMenu.Item asChild className={MENU_ITEM}>
+              <Link to="/admin">Server settings</Link>
+            </DropdownMenu.Item>
+          )}
           {signOut.error && (
             <p role="alert" className="max-w-56 px-3 py-2 text-danger">
               Couldn’t sign out. {signOut.error.message}
             </p>
           )}
           <DropdownMenu.Item
-            className="flex min-h-11 cursor-pointer items-center rounded-md px-3 outline-none data-highlighted:bg-accent-soft"
+            className={MENU_ITEM}
             onSelect={(event) => {
               // Keep the menu open until signing out has worked, so a
               // failure can be shown here.

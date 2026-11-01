@@ -125,6 +125,15 @@ describe('ProjectsService (database)', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('refuses ADMIN, the server settings address', async () => {
+      const ana = await createUser('ana');
+
+      await expect(
+        projects.createProject(ana.id, { name: 'Admin', code: 'admin' }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(prisma.project.count()).resolves.toBe(0);
+    });
+
     it('refuses a code another project has, or once had', async () => {
       const ana = await createUser('ana');
       const website = await projects.createProject(ana.id, {
@@ -149,6 +158,21 @@ describe('ProjectsService (database)', () => {
       await projects.createProject(ana.id, { name: 'Website', code: 'WEB' });
 
       await expect(projects.suggestCode('Website')).resolves.toBe('WEBA');
+    });
+
+    it('never suggests ADMIN', async () => {
+      const ana = await createUser('ana');
+      // ADMI and the codes tried before ADMIN (ADMIA to ADMIM) are taken.
+      for (const code of [
+        'ADMI',
+        ...'ABCDEFGHIJKLM'.split('').map((l) => `ADMI${l}`),
+      ]) {
+        await projects.createProject(ana.id, { name: code, code });
+      }
+
+      await expect(projects.suggestCode('A Day More In')).resolves.toBe(
+        'ADMIO',
+      );
     });
   });
 
@@ -183,6 +207,14 @@ describe('ProjectsService (database)', () => {
       await expect(
         projects.findProjectByCodeForUser('SITE', ana.id),
       ).resolves.toMatchObject({ id: project.id });
+    });
+
+    it('refuses ADMIN', async () => {
+      const { ana, project } = await setUp();
+
+      await expect(
+        projects.changeProjectCode(ana.id, project.id, 'ADMIN'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('lets a project switch back to one of its own old codes', async () => {

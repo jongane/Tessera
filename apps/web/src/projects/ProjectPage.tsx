@@ -53,11 +53,17 @@ export function ProjectPage() {
         <span className="rounded bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-strong">
           {data.code}
         </span>
-        {boards.data && boards.data.length > 0 && (
-          <Button className="ml-auto" onClick={() => setCreating(true)}>
-            New board
-          </Button>
-        )}
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Link
+            to={`/${data.code}/settings`}
+            className="inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-4 hover:bg-subtle"
+          >
+            Project settings
+          </Link>
+          {boards.data && boards.data.length > 0 && (
+            <Button onClick={() => setCreating(true)}>New board</Button>
+          )}
+        </div>
       </div>
       {data.description && <p className="text-muted">{data.description}</p>}
       {boards.isPending && <Loading />}

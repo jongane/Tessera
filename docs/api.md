@@ -75,7 +75,7 @@ Email invitations and "forgot password" need the server to send email, so they c
 | Method and path | Who | What it does |
 |---|---|---|
 | `GET /api/projects` | Signed in | The projects you are a member of, by name |
-| `POST /api/projects` | Signed in | Body `{ name, code, description? }`. Creates a project, with you as its admin. `code` is 2 to 6 letters (e.g. `WEB`) |
+| `POST /api/projects` | Signed in | Body `{ name, code, description? }`. Creates a project, with you as its admin. `code` is 2 to 6 letters (e.g. `WEB`). `ADMIN` is not allowed, because `/admin` is the server settings screen |
 | `GET /api/projects/suggest-code?name=...` | Signed in | `{ code }`: the first free code made from a project name, for the "new project" form |
 | `GET /api/projects/:projectId` | Members | One project |
 | `GET /api/projects/by-code/:code` | Members | A project by its code. Old codes work too |

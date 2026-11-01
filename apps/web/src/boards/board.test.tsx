@@ -117,6 +117,17 @@ describe('Board', () => {
     ).toHaveAttribute('href', `/WEB/boards/${backlog.id}`)
   })
 
+  it('links to the project settings from the sidebar', async () => {
+    openBoard(boardView([boardColumn('To do', [])]))
+
+    const sidebar = await screen.findByRole('complementary', {
+      name: 'Boards and chats',
+    })
+    expect(
+      within(sidebar).getByRole('link', { name: 'Project settings' }),
+    ).toHaveAttribute('href', '/WEB/settings')
+  })
+
   it('says when the board does not exist', async () => {
     server.use(
       signedInAs(ana),

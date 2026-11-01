@@ -1,4 +1,10 @@
-import type { Me, ServerSettings, SignIn, SignUp } from '@tessera/shared'
+import type {
+  Me,
+  ServerSettings,
+  ServerSettingsChanges,
+  SignIn,
+  SignUp,
+} from '@tessera/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, isApiError } from './client'
 
@@ -22,10 +28,23 @@ export function useMe() {
   })
 }
 
+const serverSettingsKey = ['server-settings'] as const
+
 export function useServerSettings() {
   return useQuery({
-    queryKey: ['server-settings'],
+    queryKey: serverSettingsKey,
     queryFn: () => api<ServerSettings>('/server/settings'),
+  })
+}
+
+// Server admins only.
+export function useChangeServerSettings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ServerSettingsChanges) =>
+      api<ServerSettings>('/server/settings', { method: 'PATCH', body }),
+    onSuccess: (settings) =>
+      queryClient.setQueryData(serverSettingsKey, settings),
   })
 }
 
