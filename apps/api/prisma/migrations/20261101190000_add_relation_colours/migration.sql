@@ -4,7 +4,9 @@ ALTER TABLE "projects" ADD COLUMN     "relation_colours" JSONB NOT NULL DEFAULT 
 -- The relationship colours must name each of the five relationships once,
 -- each with one of the 10 label colours or DARK
 -- (docs/card-features.md, section 7). The web app's list is in
--- packages/shared (RELATION_COLOURS); a test keeps the two the same.
+-- packages/shared (RELATION_COLOURS). A database test checks that every
+-- colour there is accepted here; a colour added to the labels needs a new
+-- migration that adds it here too.
 CREATE FUNCTION "relation_colours_are_valid"(colours JSONB) RETURNS BOOLEAN
 LANGUAGE SQL IMMUTABLE AS $$
   SELECT jsonb_typeof(colours) = 'object'
