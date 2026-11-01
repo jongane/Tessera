@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
+import type { RelationColours } from '@tessera/shared';
 import { Prisma, type Project } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -11,7 +12,6 @@ import {
   normaliseProjectCode,
   suggestProjectCode,
 } from './project-code.js';
-import type { RelationColours } from '@tessera/shared';
 import { localDate } from '../time/time-input.js';
 import { requireAdmin } from './project-access.js';
 
