@@ -24,6 +24,7 @@ import {
 } from './CardFields'
 import { DeleteCardDialog } from './DeleteCardDialog'
 import { AssigneesField, LabelsField } from './PeopleAndLabels'
+import { RelatedElsewhere } from './RelatedElsewhere'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
@@ -137,6 +138,7 @@ function CardDetails({
         <DueField card={card} timeZone={project.timeZone} save={save} />
         <AssigneesField card={card} projectId={project.id} track={track} />
         <LabelsField card={card} projectId={project.id} track={track} />
+        <RelatedElsewhere card={card} />
         <Suspense fallback={<Loading />}>
           <DescriptionField
             description={card.description}

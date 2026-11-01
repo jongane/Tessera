@@ -62,7 +62,7 @@ function section(name: string) {
 beforeEach(() => localStorage.clear())
 
 describe('Project settings', () => {
-  it('shows the four sections, with no accessibility problems', async () => {
+  it('shows the five sections, with no accessibility problems', async () => {
     settingsApi()
     const { container } = renderApp('/WEB/settings')
 
@@ -70,7 +70,13 @@ describe('Project settings', () => {
       await screen.findByRole('heading', { name: 'Project settings' }),
     ).toBeInTheDocument()
     await screen.findByText('ben@example.com')
-    for (const name of ['Members', 'Labels', 'Project code', 'Time zone']) {
+    for (const name of [
+      'Members',
+      'Labels',
+      'Project code',
+      'Time zone',
+      'Relationship colours',
+    ]) {
       expect(section(name)).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Website' })).toHaveAttribute(

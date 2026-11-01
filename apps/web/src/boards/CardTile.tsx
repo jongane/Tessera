@@ -25,6 +25,8 @@ export interface Highlight {
   // Null for the open card itself, and for cards not related to it.
   relation: CardRelation | null
   colour: RelationColourName | null
+  // Deeper subtasks in the same colour as direct ones are drawn paler.
+  pale: boolean
   faded: boolean
 }
 
@@ -103,8 +105,7 @@ function CardFace({
   const relation = highlight?.relation ?? null
   const colour = highlight?.colour ?? null
   const outline =
-    colour &&
-    RELATION_OUTLINES[colour][relation === 'deeperSubtask' ? 'pale' : 'strong']
+    colour && RELATION_OUTLINES[colour][highlight?.pale ? 'pale' : 'strong']
 
   // While the card is being moved, the keys belong to the move.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -118,7 +119,11 @@ function CardFace({
       {...dragListeners}
       onClick={interactive ? () => onSelect(card) : undefined}
       data-relation-colour={colour ?? undefined}
-      style={outline ? { borderColor: outline, boxShadow: `0 0 0 2px ${outline}` } : undefined}
+      style={
+        outline
+          ? { borderColor: outline, boxShadow: `0 0 0 2px ${outline}` }
+          : undefined
+      }
       className={`flex cursor-grab touch-none flex-col gap-1.5 rounded-lg border p-3 pr-11 text-left ${
         highlight?.faded
           ? 'border-line bg-subtle grayscale'

@@ -11,6 +11,7 @@ import { type CardMove, useBoardView, useMoveCard } from '../api/boards'
 import { isApiError } from '../api/client'
 import { useBoards, useProjectByCode } from '../api/projects'
 import { useChats } from '../api/chats'
+import { useCardRelatives } from '../api/cards'
 import { NotFoundPage } from '../app/NotFoundPage'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
@@ -18,6 +19,7 @@ import { Loading } from '../ui/Loading'
 import { BoardColumns } from './BoardColumns'
 import { BoardLayout } from './BoardLayout'
 import { CompleteAnywayDialog } from './CompleteAnywayDialog'
+import { highlights } from './highlight'
 import { forgetBoard, rememberBoard } from './last-board'
 import { findCard } from './move-card'
 import { NewChatDialog } from './NewChatDialog'
@@ -77,6 +79,11 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   const selectedCardId = searchParams.get('card')
   const openChatId = searchParams.get('chat')
   const chats = useChats(boardId)
+  const relatives = useCardRelatives(boardId, selectedCardId)
+  const highlightOf =
+    selectedCardId && relatives.data
+      ? highlights(selectedCardId, relatives.data, project.relationColours)
+      : undefined
   const openChat = chats.data?.find((chat) => chat.id === openChatId)
   const [creatingChat, setCreatingChat] = useState(false)
   const moveCard = useMoveCard(boardId)
@@ -144,6 +151,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
         view={view}
         timeZone={project.timeZone}
         selectedCardId={selectedCardId}
+        highlightOf={highlightOf}
         onSelect={onSelect}
         onMove={onMove}
       />

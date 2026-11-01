@@ -233,3 +233,35 @@ test('open a card and change it in the card panel', async ({ page }) => {
   await expect(panel).toBeHidden()
   await expect(card(page, 'Done', 'Sign-in page')).toBeHidden()
 })
+
+test('see an open card’s relatives on the board', async ({ page }) => {
+  await openNewBoard(page)
+  await addCard(page, 'To do', 'Login page')
+  await card(page, 'To do', 'Login page').click()
+  const parentId = new URL(page.url()).searchParams.get('card')!
+  const columnId = (
+    (await (await page.request.get(`/api/cards/${parentId}`)).json()) as {
+      columnId: string
+    }
+  ).columnId
+  // Subtasks get their own screens in the next pull request; the API
+  // makes this one.
+  await page.request.post(`/api/cards/${parentId}/subtasks`, {
+    data: { columnId, title: 'Form' },
+  })
+  await page.reload()
+
+  await page
+    .getByRole('region', { name: 'To do' })
+    .getByRole('button', { name: /-1\.1 Form$/ })
+    .click()
+
+  const parent = card(page, 'To do', 'Login page')
+  await expect(parent).toHaveAccessibleDescription(/Parent of the open card/)
+  await expect(
+    page.getByRole('region', { name: 'To do' }).getByText('Parent', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expectNoAccessibilityProblems(page)
+})

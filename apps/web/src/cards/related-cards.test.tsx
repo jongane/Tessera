@@ -58,10 +58,9 @@ const relatives: Record<string, CardRelatives> = {
 }
 
 function openBoard(cardId: string) {
-  fakeBoard(
-    boardView([boardColumn('To do', [login, form, checks, icons])]),
-    { relatives },
-  )
+  fakeBoard(boardView([boardColumn('To do', [login, form, checks, icons])]), {
+    relatives,
+  })
   return renderApp(`${boardPath}?card=${cardId}`)
 }
 
