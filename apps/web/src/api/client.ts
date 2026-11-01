@@ -68,10 +68,7 @@ async function errorBody(
   }
 }
 
-function errorMessage(
-  response: Response,
-  body: Partial<ApiErrorBody>,
-): string {
+function errorMessage(response: Response, body: Partial<ApiErrorBody>): string {
   return typeof body.message === 'string'
     ? body.message
     : `Something went wrong (${response.status}). Try again.`

@@ -61,15 +61,16 @@ describe('dueFromParts', () => {
 
 describe('dueParts', () => {
   it('gives the day of a due date without a time, read in UTC', () => {
-    expect(dueParts('2026-11-02T00:00:00.000Z', false, 'Asia/Tokyo')).toEqual(
-      { date: '2026-11-02', time: '' },
-    );
+    expect(dueParts('2026-11-02T00:00:00.000Z', false, 'Asia/Tokyo')).toEqual({
+      date: '2026-11-02',
+      time: '',
+    });
   });
 
   it('gives the day and time in the project’s time zone', () => {
-    expect(
-      dueParts('2026-07-02T16:00:00.000Z', true, 'Europe/London'),
-    ).toEqual({ date: '2026-07-02', time: '17:00' });
+    expect(dueParts('2026-07-02T16:00:00.000Z', true, 'Europe/London')).toEqual(
+      { date: '2026-07-02', time: '17:00' },
+    );
     // Late in the evening in New York is the next day in UTC.
     expect(
       dueParts('2026-11-03T03:30:00.000Z', true, 'America/New_York'),

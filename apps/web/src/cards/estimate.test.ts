@@ -16,9 +16,7 @@ describe('estimateFrom', () => {
     expect(estimateFrom({ hours: '1.5', minutes: '' })).toBe(
       'Use whole numbers',
     )
-    expect(estimateFrom({ hours: '-1', minutes: '' })).toBe(
-      'Use whole numbers',
-    )
+    expect(estimateFrom({ hours: '-1', minutes: '' })).toBe('Use whole numbers')
     expect(estimateFrom({ hours: '1', minutes: '60' })).toBe(
       'Minutes go up to 59',
     )

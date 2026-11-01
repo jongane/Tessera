@@ -47,7 +47,10 @@ export function AssigneesField({
     .map((member) => ({ id: member.userId, name: member.displayName }))
 
   return (
-    <section aria-labelledby={`${card.id}-assignees`} className="flex flex-col gap-1.5">
+    <section
+      aria-labelledby={`${card.id}-assignees`}
+      className="flex flex-col gap-1.5"
+    >
       <h3 id={`${card.id}-assignees`} className="font-semibold">
         Assignees
       </h3>
@@ -136,7 +139,10 @@ export function LabelsField({
     }))
 
   return (
-    <section aria-labelledby={`${card.id}-labels`} className="flex flex-col gap-1.5">
+    <section
+      aria-labelledby={`${card.id}-labels`}
+      className="flex flex-col gap-1.5"
+    >
       <h3 id={`${card.id}-labels`} className="font-semibold">
         Labels
       </h3>
@@ -205,7 +211,13 @@ export function LabelsField({
   )
 }
 
-function LabelChip({ name, colour }: { name: string; colour: LabelColourName }) {
+function LabelChip({
+  name,
+  colour,
+}: {
+  name: string
+  colour: LabelColourName
+}) {
   return (
     <span
       className={`rounded px-2 py-0.5 text-xs font-semibold ${LABEL_STYLES[colour]}`}

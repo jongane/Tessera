@@ -28,9 +28,7 @@ function fakeApi() {
     http.get(`/api/projects/${website.id}/members`, () =>
       HttpResponse.json([]),
     ),
-    http.get(`/api/projects/${website.id}/labels`, () =>
-      HttpResponse.json([]),
-    ),
+    http.get(`/api/projects/${website.id}/labels`, () => HttpResponse.json([])),
   )
 }
 

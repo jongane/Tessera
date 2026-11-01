@@ -64,7 +64,11 @@ export default function CardPanel(props: CardPanelProps) {
       ) : (
         <div className="flex flex-col gap-3 p-4">
           <p>This card has been deleted or moved to another board.</p>
-          <Button variant="secondary" className="self-start" onClick={props.onClose}>
+          <Button
+            variant="secondary"
+            className="self-start"
+            onClick={props.onClose}
+          >
             Close
           </Button>
         </div>
@@ -112,11 +116,7 @@ function CardDetails({
 
   return (
     <>
-      <PanelHeader
-        card={card}
-        columnName={columnName}
-        onClose={onClose}
-      />
+      <PanelHeader card={card} columnName={columnName} onClose={onClose} />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
         {saveFailed && <Alert>{SAVE_FAILED}</Alert>}
         <TitleField card={card} save={save} />
@@ -230,7 +230,10 @@ function CompleteControl({
   function completeCard(confirmOpenSubtasks: boolean) {
     const saving = complete.mutateAsync(confirmOpenSubtasks)
     track(saving)
-    saving.then((result) => setOffer(result.doneColumnId), () => {})
+    saving.then(
+      (result) => setOffer(result.doneColumnId),
+      () => {},
+    )
   }
 
   function onChange(checked: boolean) {
@@ -256,7 +259,10 @@ function CompleteControl({
         Complete
       </label>
       {doneColumn && (
-        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg bg-success-soft px-3 py-2 text-success">
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 rounded-lg bg-success-soft px-3 py-2 text-success"
+        >
           <span>{`Move it to ${doneColumn.name}?`}</span>
           <Button
             variant="secondary"

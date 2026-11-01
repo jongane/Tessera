@@ -11,13 +11,17 @@ describe('api', () => {
       ),
     )
 
-    await expect(api('/things', { method: 'POST', body: { a: 1 } })).resolves
-      .toEqual({ got: { a: 1 } })
+    await expect(
+      api('/things', { method: 'POST', body: { a: 1 } }),
+    ).resolves.toEqual({ got: { a: 1 } })
   })
 
   it('answers undefined when there is nothing to send back', async () => {
     server.use(
-      http.delete('/api/things/1', () => new HttpResponse(null, { status: 204 })),
+      http.delete(
+        '/api/things/1',
+        () => new HttpResponse(null, { status: 204 }),
+      ),
     )
 
     await expect(api('/things/1', { method: 'DELETE' })).resolves.toBe(
@@ -60,7 +64,8 @@ describe('api', () => {
 
     await expect(api('/things')).rejects.toMatchObject({
       status: 0,
-      message: 'Tessera could not be reached. Check your connection and try again.',
+      message:
+        'Tessera could not be reached. Check your connection and try again.',
     })
   })
 })

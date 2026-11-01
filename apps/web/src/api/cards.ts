@@ -99,7 +99,14 @@ export function useChangeCard(boardId: string, cardId: string) {
     (body: CardChangesBody) =>
       api<CardView>(`/cards/${cardId}`, { method: 'PATCH', body }),
     (body) => (card) => ({ ...card, ...cardFields(body) }),
-    ['title', 'description', 'priority', 'estimateMinutes', 'dueAt', 'dueHasTime'],
+    [
+      'title',
+      'description',
+      'priority',
+      'estimateMinutes',
+      'dueAt',
+      'dueHasTime',
+    ],
   )
 }
 

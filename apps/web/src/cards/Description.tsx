@@ -1,5 +1,10 @@
 import { Markdown } from '@tiptap/markdown'
-import { type Editor, EditorContent, useEditor, useEditorState } from '@tiptap/react'
+import {
+  type Editor,
+  EditorContent,
+  useEditor,
+  useEditorState,
+} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { type FormEvent, useEffect, useId, useState } from 'react'
 import { Button } from '../ui/Button'
@@ -81,7 +86,8 @@ function ReadOnlyDescription({ markdown }: { markdown: string }) {
     content: markdown,
     contentType: 'markdown',
     editable: false,
-    editorProps: { attributes: { class: proseClass } },
+    // Plain text to read, not a text box: Tiptap marks every editor as one.
+    editorProps: { attributes: { class: proseClass, role: 'none' } },
   })
   // Shows a newer description after a reload.
   useEffect(() => {
@@ -160,14 +166,54 @@ function markdownOf(editor: Editor): string {
 }
 
 const BUTTONS = [
-  { name: 'Bold', mark: 'bold', run: (e: Editor) => e.chain().focus().toggleBold().run(), look: 'B' },
-  { name: 'Italic', mark: 'italic', run: (e: Editor) => e.chain().focus().toggleItalic().run(), look: 'I' },
-  { name: 'Strikethrough', mark: 'strike', run: (e: Editor) => e.chain().focus().toggleStrike().run(), look: 'S' },
-  { name: 'Heading', mark: 'heading', run: (e: Editor) => e.chain().focus().toggleHeading({ level: 2 }).run(), look: 'H' },
-  { name: 'Bullet list', mark: 'bulletList', run: (e: Editor) => e.chain().focus().toggleBulletList().run(), look: '•' },
-  { name: 'Numbered list', mark: 'orderedList', run: (e: Editor) => e.chain().focus().toggleOrderedList().run(), look: '1.' },
-  { name: 'Quote', mark: 'blockquote', run: (e: Editor) => e.chain().focus().toggleBlockquote().run(), look: '❝' },
-  { name: 'Code', mark: 'code', run: (e: Editor) => e.chain().focus().toggleCode().run(), look: '</>' },
+  {
+    name: 'Bold',
+    mark: 'bold',
+    run: (e: Editor) => e.chain().focus().toggleBold().run(),
+    look: 'B',
+  },
+  {
+    name: 'Italic',
+    mark: 'italic',
+    run: (e: Editor) => e.chain().focus().toggleItalic().run(),
+    look: 'I',
+  },
+  {
+    name: 'Strikethrough',
+    mark: 'strike',
+    run: (e: Editor) => e.chain().focus().toggleStrike().run(),
+    look: 'S',
+  },
+  {
+    name: 'Heading',
+    mark: 'heading',
+    run: (e: Editor) => e.chain().focus().toggleHeading({ level: 2 }).run(),
+    look: 'H',
+  },
+  {
+    name: 'Bullet list',
+    mark: 'bulletList',
+    run: (e: Editor) => e.chain().focus().toggleBulletList().run(),
+    look: '•',
+  },
+  {
+    name: 'Numbered list',
+    mark: 'orderedList',
+    run: (e: Editor) => e.chain().focus().toggleOrderedList().run(),
+    look: '1.',
+  },
+  {
+    name: 'Quote',
+    mark: 'blockquote',
+    run: (e: Editor) => e.chain().focus().toggleBlockquote().run(),
+    look: '❝',
+  },
+  {
+    name: 'Code',
+    mark: 'code',
+    run: (e: Editor) => e.chain().focus().toggleCode().run(),
+    look: '</>',
+  },
 ] as const
 
 const toolButton =

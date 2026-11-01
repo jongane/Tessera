@@ -187,16 +187,13 @@ export function fakeBoard(
         return new HttpResponse(null, { status: 204 })
       },
     ),
-    http.post(
-      `/api/projects/${website.id}/labels`,
-      async ({ request }) => {
-        await record(request.clone())
-        const body = (await request.json()) as Pick<Label, 'name' | 'colour'>
-        const created = label(body.name, body.colour)
-        labels = [...labels, created]
-        return HttpResponse.json(created, { status: 201 })
-      },
-    ),
+    http.post(`/api/projects/${website.id}/labels`, async ({ request }) => {
+      await record(request.clone())
+      const body = (await request.json()) as Pick<Label, 'name' | 'colour'>
+      const created = label(body.name, body.colour)
+      labels = [...labels, created]
+      return HttpResponse.json(created, { status: 201 })
+    }),
     http.post('/api/cards/:cardId/complete', async ({ request, params }) => {
       await record(request.clone())
       const cardId = String(params.cardId)

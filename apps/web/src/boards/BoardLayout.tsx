@@ -115,11 +115,7 @@ function SidePanels({
   }
   if (dock === 'bottom') {
     return (
-      <Row
-        id="tessera.panels.bottom"
-        panelIds={['main', 'chat']}
-        vertical
-      >
+      <Row id="tessera.panels.bottom" panelIds={['main', 'chat']} vertical>
         <Panel key="main" id="main" minSize={200}>
           <Row id="tessera.cardPanel" panelIds={['board', 'card']}>
             {[boardPanel, cardEdge, cardPanel]}
@@ -133,7 +129,9 @@ function SidePanels({
   return (
     <Row
       id={`tessera.panels.${dock}`}
-      panelIds={dock === 'left' ? ['chat', 'board', 'card'] : ['board', 'card', 'chat']}
+      panelIds={
+        dock === 'left' ? ['chat', 'board', 'card'] : ['board', 'card', 'chat']
+      }
     >
       {dock === 'left'
         ? [chatPanel, chatEdge, boardPanel, cardEdge, cardPanel]

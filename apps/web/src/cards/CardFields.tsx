@@ -8,12 +8,7 @@ import {
   formatMinutes,
   splitMinutes,
 } from '@tessera/shared'
-import {
-  type FocusEvent,
-  type KeyboardEvent,
-  useId,
-  useState,
-} from 'react'
+import { type FocusEvent, type KeyboardEvent, useId, useState } from 'react'
 import { useCardTotals } from '../api/cards'
 import { PRIORITY_NAMES } from '../boards/card-text'
 import { checkForm } from '../ui/form-errors'
@@ -89,13 +84,7 @@ export function TitleField({ card, save }: { card: BoardCard; save: Save }) {
 
 const PRIORITIES: CardPriority[] = ['NONE', 'LOW', 'MEDIUM', 'HIGH', 'URGENT']
 
-export function PriorityField({
-  card,
-  save,
-}: {
-  card: BoardCard
-  save: Save
-}) {
+export function PriorityField({ card, save }: { card: BoardCard; save: Save }) {
   const id = useId()
   return (
     <div className="flex flex-col gap-1.5">
@@ -199,13 +188,7 @@ export function DueField({
 // Hours and minutes (docs/card-features.md, section 6). Saved when focus
 // leaves both boxes. A card with subtasks shows the sum of theirs, and its
 // own estimate greyed out as the "original estimate".
-export function EstimateField({
-  card,
-  save,
-}: {
-  card: BoardCard
-  save: Save
-}) {
+export function EstimateField({ card, save }: { card: BoardCard; save: Save }) {
   const id = useId()
   const hasSubtasks = card.subtaskProgress.total > 0
   const totals = useCardTotals(card.id, hasSubtasks)

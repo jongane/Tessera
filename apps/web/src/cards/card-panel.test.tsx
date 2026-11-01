@@ -12,11 +12,7 @@ import {
   typeInto,
 } from '../test/card-panel'
 import { ben, fakeBoard } from '../test/fake-board'
-import {
-  boardCard,
-  sprint,
-  website,
-} from '../test/fixtures'
+import { boardCard, sprint, website } from '../test/fixtures'
 import { currentPath, renderApp } from '../test/render'
 import { apiError, server } from '../test/server'
 
@@ -46,7 +42,8 @@ describe('Opening the card panel', () => {
     fakeBoard(board())
     const { user, router } = renderApp(boardPath)
     // Found again each time: opening the panel lays the board out afresh.
-    const card = () => screen.findByRole('button', { name: 'WEB-12 Login page' })
+    const card = () =>
+      screen.findByRole('button', { name: 'WEB-12 Login page' })
 
     await user.click(await card())
     await user.click(
@@ -70,9 +67,9 @@ describe('Opening the card panel', () => {
     await cardPanel()
     await router.navigate(-1)
     await waitFor(() =>
-      expect(
-        screen.queryByRole('complementary', { name: 'Card WEB-12' }),
-      ).toBe(null),
+      expect(screen.queryByRole('complementary', { name: 'Card WEB-12' })).toBe(
+        null,
+      ),
     )
   })
 
@@ -131,7 +128,10 @@ describe('Editing a card’s fields', () => {
       await screen.findByRole('button', { name: 'WEB-12 Sign-in page' }),
     ).toBeInTheDocument()
     expect(api.requests).toEqual([
-      { request: `PATCH /api/cards/${login.id}`, body: { title: 'Sign-in page' } },
+      {
+        request: `PATCH /api/cards/${login.id}`,
+        body: { title: 'Sign-in page' },
+      },
     ])
   })
 
@@ -279,7 +279,11 @@ describe('Assignees', () => {
   it('makes someone else the owner, and hands it on when the owner is unassigned', async () => {
     const card = boardCard('12', 'Login page', {
       assignees: [
-        { id: '11111111-1111-4111-8111-111111111111', displayName: 'Ana', isOwner: true },
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          displayName: 'Ana',
+          isOwner: true,
+        },
         { id: ben.id, displayName: 'Ben', isOwner: false },
       ],
     })
@@ -287,11 +291,13 @@ describe('Assignees', () => {
     const panel = await cardPanel()
     const list = within(panel).getByRole('list', { name: 'Assignees' })
 
-    await user.click(within(list).getByRole('button', { name: 'Make Ben the owner' }))
+    await user.click(
+      within(list).getByRole('button', { name: 'Make Ben the owner' }),
+    )
     await waitFor(() =>
-      expect(
-        within(list).getAllByRole('listitem')[0],
-      ).toHaveTextContent('BenOwner'),
+      expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent(
+        'BenOwner',
+      ),
     )
     await user.click(within(list).getByRole('button', { name: 'Unassign Ben' }))
 

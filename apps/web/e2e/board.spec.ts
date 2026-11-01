@@ -174,3 +174,62 @@ test('start a chat, make a card for it, then unlink and link it again', async ({
   await page.reload()
   await expect(panel).toContainText(/For card \w+-\d+ Release plan/)
 })
+
+test('open a card and change it in the card panel', async ({ page }) => {
+  await openNewBoard(page)
+  await addCard(page, 'To do', 'Login page')
+
+  await card(page, 'To do', 'Login page').click()
+  const panel = page.getByRole('complementary', { name: /^Card / })
+  await expect(panel.getByLabel('Title')).toHaveValue('Login page')
+  await expectNoAccessibilityProblems(page)
+
+  await panel.getByLabel('Title').fill('Sign-in page')
+  await panel.getByLabel('Title').press('Enter')
+  await panel.getByLabel('Priority').selectOption('High')
+  await panel.getByRole('button', { name: 'Assign' }).click()
+  await page.getByRole('button', { name: 'Ben', exact: true }).click()
+  await panel.getByRole('button', { name: 'Add label' }).click()
+  await page.getByLabel('Find a label').fill('Frontend')
+  await page.getByRole('button', { name: 'Create label “Frontend”' }).click()
+  await panel.getByText('Blue', { exact: true }).click()
+  await panel.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(panel.getByRole('list', { name: 'Labels' })).toHaveText(
+    /Frontend/,
+  )
+
+  await panel.getByRole('button', { name: 'Edit description' }).click()
+  await panel.getByRole('button', { name: 'Bold' }).click()
+  await panel
+    .getByRole('textbox', { name: 'Description' })
+    .pressSequentially('Check the form')
+  await panel.getByRole('button', { name: 'Save' }).click()
+  await expect(
+    panel.locator('strong', { hasText: 'Check the form' }),
+  ).toBeVisible()
+
+  // Not check(): the tick shows once the change is on its way, a moment
+  // after the click.
+  await panel.getByRole('checkbox', { name: 'Complete' }).click()
+  await expect(panel.getByRole('checkbox', { name: 'Complete' })).toBeChecked()
+  await panel.getByRole('button', { name: 'Move to Done' }).click()
+  await expect(card(page, 'Done', 'Sign-in page')).toBeVisible()
+  await expectNoAccessibilityProblems(page)
+
+  // Everything was saved.
+  await page.reload()
+  await expect(panel.getByLabel('Priority')).toHaveValue('HIGH')
+  await expect(panel.getByRole('list', { name: 'Assignees' })).toHaveText(
+    /Ben\s*Owner/,
+  )
+  await expect(
+    panel.locator('strong', { hasText: 'Check the form' }),
+  ).toBeVisible()
+  await expect(panel.getByRole('checkbox', { name: 'Complete' })).toBeChecked()
+
+  await panel.getByRole('button', { name: 'Delete card' }).click()
+  const dialog = page.getByRole('dialog', { name: /^Delete / })
+  await dialog.getByRole('button', { name: 'Delete card' }).click()
+  await expect(panel).toBeHidden()
+  await expect(card(page, 'Done', 'Sign-in page')).toBeHidden()
+})

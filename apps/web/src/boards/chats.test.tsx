@@ -55,9 +55,7 @@ function openBoard(
       HttpResponse.json([backlog, sprint]),
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
-    http.get(`/api/boards/${sprint.id}/chats`, () =>
-      HttpResponse.json(chats),
-    ),
+    http.get(`/api/boards/${sprint.id}/chats`, () => HttpResponse.json(chats)),
   )
   return renderApp(boardPath)
 }
@@ -116,9 +114,7 @@ describe('Chats on a board', () => {
 
     // From the keyboard: in jsdom every element sits at 0,0, so the
     // resizable edge would take every pointer press.
-    within(chatPanel())
-      .getByRole('button', { name: 'Dock the panel' })
-      .focus()
+    within(chatPanel()).getByRole('button', { name: 'Dock the panel' }).focus()
     await user.keyboard('{Enter}')
     await user.click(screen.getByRole('menuitemradio', { name: 'Left' }))
 
@@ -134,9 +130,7 @@ describe('Chats on a board', () => {
     await again.user.click(
       await screen.findByRole('link', { name: 'Release plan' }),
     )
-    within(chatPanel())
-      .getByRole('button', { name: 'Dock the panel' })
-      .focus()
+    within(chatPanel()).getByRole('button', { name: 'Dock the panel' }).focus()
     await again.user.keyboard('{Enter}')
     expect(screen.getByRole('menuitemradio', { name: 'Left' })).toHaveAttribute(
       'aria-checked',

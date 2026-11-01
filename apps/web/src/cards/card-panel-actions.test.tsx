@@ -95,7 +95,7 @@ describe('Labels on a card', () => {
 
 describe('The description', () => {
   it('shows the description formatted', async () => {
-    openCard(
+    const { container } = openCard(
       boardCard('12', 'Login page', {
         description: '## Steps\n\n- **Open** the page\n- Sign in',
       }),
@@ -106,6 +106,7 @@ describe('The description', () => {
       await within(panel).findByRole('heading', { name: 'Steps' }),
     ).toBeInTheDocument()
     expect(within(panel).getByText('Open').tagName).toBe('STRONG')
+    await expectNoAccessibilityProblems(container)
   })
 
   it('saves what is written, as Markdown', async () => {
@@ -172,7 +173,9 @@ describe('Completing and reopening', () => {
     const panel = await cardPanel()
 
     await user.click(within(panel).getByRole('checkbox', { name: 'Complete' }))
-    expect(within(panel).getByRole('checkbox', { name: 'Complete' })).toBeChecked()
+    expect(
+      within(panel).getByRole('checkbox', { name: 'Complete' }),
+    ).toBeChecked()
     await user.click(
       await within(panel).findByRole('button', { name: 'Move to Done' }),
     )
@@ -232,7 +235,9 @@ describe('Completing and reopening', () => {
 
     await waitFor(() => expect(api.requests).toHaveLength(1))
     expect(api.requests[0]!.request).toBe(`POST /api/cards/${done.id}/reopen`)
-    expect(within(panel).getByRole('checkbox', { name: 'Complete' })).not.toBeChecked()
+    expect(
+      within(panel).getByRole('checkbox', { name: 'Complete' }),
+    ).not.toBeChecked()
     expect(within(panel).queryByRole('button', { name: /^Move to/ })).toBe(null)
   })
 })
@@ -246,16 +251,18 @@ describe('Deleting a card', () => {
     await user.click(within(panel).getByRole('button', { name: 'Delete card' }))
     const dialog = screen.getByRole('dialog', { name: 'Delete WEB-12?' })
     expect(dialog).toHaveTextContent('Its chat is kept')
-    await user.click(within(dialog).getByRole('button', { name: 'Delete card' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Delete card' }),
+    )
 
     await waitFor(() => expect(currentPath(router)).toBe(boardPath))
     expect(api.requests).toEqual([
       { request: `DELETE /api/cards/${mine.id}`, body: undefined },
     ])
     await waitFor(() =>
-      expect(
-        screen.queryByRole('button', { name: 'WEB-12 Login page' }),
-      ).toBe(null),
+      expect(screen.queryByRole('button', { name: 'WEB-12 Login page' })).toBe(
+        null,
+      ),
     )
   })
 
@@ -306,7 +313,9 @@ describe('Deleting a card', () => {
       within(await cardPanel()).getByRole('button', { name: 'Delete card' }),
     )
     const dialog = screen.getByRole('dialog', { name: 'Delete WEB-12?' })
-    await user.click(within(dialog).getByRole('button', { name: 'Delete card' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Delete card' }),
+    )
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       'This card has 3h 20m logged. A project admin can delete the time entries first.',
@@ -335,7 +344,10 @@ describe('Deleting a card', () => {
         }),
       ),
       http.get(`/api/cards/${leaf.id}/subtasks`, () =>
-        HttpResponse.json({ subtasks: [], progress: { complete: 0, total: 0 } }),
+        HttpResponse.json({
+          subtasks: [],
+          progress: { complete: 0, total: 0 },
+        }),
       ),
       http.get(`/api/cards/${branch.id}/subtasks`, () =>
         HttpResponse.json({
@@ -359,7 +371,9 @@ describe('Deleting a card', () => {
     expect(within(checks).getByRole('radio', { name: 'Delete' })).toBeDisabled()
     expect(checks).toHaveTextContent('It has subtasks of its own')
     await user.click(within(form).getByRole('radio', { name: 'Delete' }))
-    await user.click(within(dialog).getByRole('button', { name: 'Delete card' }))
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Delete card' }),
+    )
 
     await waitFor(() => expect(api.requests).toHaveLength(1))
     expect(api.requests[0]!.body).toEqual({
@@ -411,4 +425,3 @@ describe('On a phone', () => {
     }
   })
 })
-

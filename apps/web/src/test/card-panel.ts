@@ -18,7 +18,9 @@ export const login = boardCard('12', 'Login page', {
 
 export function board(card = login): BoardView {
   return boardView([
-    boardColumn('To do', [card], { id: '88888888-8888-4888-8888-000000000001' }),
+    boardColumn('To do', [card], {
+      id: '88888888-8888-4888-8888-000000000001',
+    }),
     boardColumn('Done', [], {
       id: '88888888-8888-4888-8888-000000000002',
       isDone: true,
