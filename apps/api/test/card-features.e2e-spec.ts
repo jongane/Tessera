@@ -111,6 +111,33 @@ describe('Card features (e2e)', () => {
         .expect((r) => expect(r.body).toMatchObject({ id: sub.id }));
     });
 
+    it('lists a card’s relatives, for members only', async () => {
+      const { ana, ben, cardUrl, toDo, card } = await setUp();
+      const sub = (
+        await ana.agent
+          .post(`${cardUrl}/subtasks`)
+          .send({ columnId: toDo.id, title: 'Form' })
+          .expect(201)
+      ).body as { id: string };
+
+      const response = await ana.agent
+        .get(`/api/cards/${sub.id}/relatives`)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        parents: [
+          expect.objectContaining({
+            id: card.id,
+            number: 'WEB-1',
+            boardName: 'Sprint 1',
+          }),
+        ],
+        subtasks: [],
+        siblings: [],
+      });
+      await ben.agent.get(`/api/cards/${sub.id}/relatives`).expect(404);
+    });
+
     it('warns when a subtask is due after its parent', async () => {
       const { ana, cardUrl, toDo } = await setUp();
       const sub = (

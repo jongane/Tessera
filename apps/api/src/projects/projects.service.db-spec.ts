@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { DEFAULT_RELATION_COLOURS, RELATION_COLOURS } from '@tessera/shared';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProjectsService } from './projects.service.js';
@@ -300,6 +301,90 @@ describe('ProjectsService (database)', () => {
       await expect(
         projects.setTimeZone(cat.id, project.id, 'Europe/London'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('setRelationColours', () => {
+    async function setUp() {
+      const ana = await createUser('ana');
+      const ben = await createUser('ben');
+      const cat = await createUser('cat');
+      const project = await projects.createProject(ana.id, {
+        name: 'Website',
+        code: 'WEB',
+      });
+      await prisma.projectMember.create({
+        data: { projectId: project.id, userId: ben.id, role: 'MEMBER' },
+      });
+      return { ana, ben, cat, project };
+    }
+
+    it('starts new projects on the default colours', async () => {
+      const { project } = await setUp();
+
+      expect(project.relationColours).toEqual({
+        selected: 'DARK',
+        parent: 'BLUE',
+        subtask: 'ORANGE',
+        deeperSubtask: 'ORANGE',
+        sibling: 'GREY',
+      });
+    });
+
+    it('lets an admin change some colours, keeping the others', async () => {
+      const { ana, project } = await setUp();
+
+      const changed = await projects.setRelationColours(ana.id, project.id, {
+        parent: 'TEAL',
+        sibling: 'PINK',
+      });
+
+      expect(changed.relationColours).toEqual({
+        selected: 'DARK',
+        parent: 'TEAL',
+        subtask: 'ORANGE',
+        deeperSubtask: 'ORANGE',
+        sibling: 'PINK',
+      });
+    });
+
+    it('refuses a member who is not an admin, and a non-member', async () => {
+      const { ben, cat, project } = await setUp();
+
+      await expect(
+        projects.setRelationColours(ben.id, project.id, { parent: 'RED' }),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(
+        projects.setRelationColours(cat.id, project.id, { parent: 'RED' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('is checked by the database against the shared list of colours', async () => {
+      const { project } = await setUp();
+      for (const colour of RELATION_COLOURS) {
+        await prisma.project.update({
+          where: { id: project.id },
+          data: {
+            relationColours: { ...DEFAULT_RELATION_COLOURS, parent: colour },
+          },
+        });
+      }
+
+      await expect(
+        prisma.project.update({
+          where: { id: project.id },
+          data: {
+            relationColours: { ...DEFAULT_RELATION_COLOURS, parent: 'BEIGE' },
+          },
+        }),
+      ).rejects.toThrow();
+      // Every relationship must be there.
+      await expect(
+        prisma.project.update({
+          where: { id: project.id },
+          data: { relationColours: { parent: 'BLUE' } },
+        }),
+      ).rejects.toThrow();
     });
   });
 });

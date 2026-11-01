@@ -327,4 +327,96 @@ describe('SubtasksService (database)', () => {
       );
     });
   });
+
+  describe('relatives', () => {
+    // WEB-1 > WEB-1.1 > WEB-1.1.1, and WEB-1.2 on another board.
+    async function family() {
+      const setup = await setUp();
+      const { ana, project, one, toDo } = setup;
+      const backlog = await boards.createBoard(ana.id, project.id, {
+        name: 'Backlog',
+      });
+      const backlogColumn = await prisma.column.findFirstOrThrow({
+        where: { boardId: backlog.id, position: 0 },
+      });
+      const form = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+      const errors = await subtasks.createSubtask(
+        ana.id,
+        one.id,
+        backlogColumn.id,
+        { title: 'Errors' },
+      );
+      const checks = await subtasks.createSubtask(ana.id, form.id, toDo.id, {
+        title: 'Checks',
+      });
+      return { ...setup, backlog, form, errors, checks };
+    }
+
+    it('lists a card’s subtasks at every level, with their boards', async () => {
+      const { ana, one, form, errors, checks } = await family();
+
+      const relatives = await subtasks.relatives(ana.id, one.id);
+
+      expect(relatives.parents).toEqual([]);
+      expect(relatives.siblings).toEqual([]);
+      expect(
+        relatives.subtasks.map((c) => [c.number, c.level, c.boardName]),
+      ).toEqual([
+        ['WEB-1.1', 1, 'Sprint 1'],
+        ['WEB-1.1.1', 2, 'Sprint 1'],
+        ['WEB-1.2', 1, 'Backlog'],
+      ]);
+      expect(relatives.subtasks.map((c) => c.id)).toEqual([
+        form.id,
+        checks.id,
+        errors.id,
+      ]);
+    });
+
+    it('lists a subtask’s parents, nearest first, and its siblings', async () => {
+      const { ana, one, form, errors, checks } = await family();
+
+      const ofChecks = await subtasks.relatives(ana.id, checks.id);
+      const ofForm = await subtasks.relatives(ana.id, form.id);
+
+      expect(ofChecks.parents.map((c) => c.id)).toEqual([form.id, one.id]);
+      expect(ofChecks.siblings).toEqual([]);
+      expect(ofForm.siblings).toEqual([
+        {
+          id: errors.id,
+          number: 'WEB-1.2',
+          title: 'Errors',
+          boardId: errors.boardId,
+          boardName: 'Backlog',
+          isComplete: false,
+        },
+      ]);
+    });
+
+    it('orders numbers as numbers, so 1.10 comes after 1.2', async () => {
+      const { ana, one, toDo } = await setUp();
+      for (let i = 1; i <= 10; i++) {
+        await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+          title: `Part ${i}`,
+        });
+      }
+
+      const relatives = await subtasks.relatives(ana.id, one.id);
+
+      expect(relatives.subtasks.map((c) => c.number).slice(-2)).toEqual([
+        'WEB-1.9',
+        'WEB-1.10',
+      ]);
+    });
+
+    it('treats a card the user cannot see as not found', async () => {
+      const { ben, one } = await setUp();
+
+      await expect(subtasks.relatives(ben.id, one.id)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
 });

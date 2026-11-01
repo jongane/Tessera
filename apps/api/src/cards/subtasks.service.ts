@@ -8,7 +8,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import type { NewCard } from './cards.service.js';
 import { nextPosition, takeNextSubtaskNumber } from './card-numbering.js';
-import { MAX_DEPTH, moveSubtree } from './card-tree.js';
+import type { CardRelatives, RelatedCard } from '@tessera/shared';
+import { loadSubtree, MAX_DEPTH, moveSubtree } from './card-tree.js';
 import { isDueAfter } from './card-fields.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
 
@@ -75,6 +76,61 @@ export class SubtasksService {
     return subtasks.sort(
       (a, b) => lastNumber(a.numberPath) - lastNumber(b.numberPath),
     );
+  }
+
+  // The card's parents, subtasks at every level and siblings, on any board
+  // of the project, for outlining them when the card is selected
+  // (docs/card-features.md, section 7).
+  async relatives(userId: string, cardId: string): Promise<CardRelatives> {
+    const card = await this.findVisibleCard(userId, cardId);
+    const project = await this.prisma.project.findUniqueOrThrow({
+      where: { id: card.projectId },
+      select: { code: true },
+    });
+    const withBoard = { board: { select: { name: true } } } as const;
+    const related = (c: Card & { board: { name: string } }): RelatedCard => ({
+      id: c.id,
+      number: `${project.code}-${c.numberPath}`,
+      title: c.title,
+      boardId: c.boardId,
+      boardName: c.board.name,
+      isComplete: c.isComplete,
+    });
+
+    // At most 5 levels, so a few small reads.
+    const parents: RelatedCard[] = [];
+    let parentId = card.parentId;
+    while (parentId) {
+      const parent = await this.prisma.card.findUniqueOrThrow({
+        where: { id: parentId },
+        include: withBoard,
+      });
+      parents.push(related(parent));
+      parentId = parent.parentId;
+    }
+
+    const below = (await loadSubtree(this.prisma, card.id)).filter(
+      (member) => member.id !== card.id,
+    );
+    const [subtasks, siblings] = await Promise.all([
+      this.prisma.card.findMany({
+        where: { id: { in: below.map((member) => member.id) } },
+        include: withBoard,
+      }),
+      card.parentId
+        ? this.prisma.card.findMany({
+            where: { parentId: card.parentId, id: { not: card.id } },
+            include: withBoard,
+          })
+        : [],
+    ]);
+    return {
+      parents,
+      subtasks: subtasks
+        .sort(byNumber)
+        .map((c) => ({ ...related(c), level: c.depth - card.depth })),
+      siblings: siblings.sort(byNumber).map(related),
+    };
   }
 
   // "3 of 5 complete": counts direct subtasks only.
@@ -191,4 +247,17 @@ export async function insertSubtask(
 
 function lastNumber(numberPath: string): number {
   return Number(numberPath.slice(numberPath.lastIndexOf('.') + 1));
+}
+
+// Number order, part by part, so 1.2 comes before 1.10 and 1.1.1 comes
+// right after 1.1.
+function byNumber(a: Card, b: Card): number {
+  const left = a.numberPath.split('.').map(Number);
+  const right = b.numberPath.split('.').map(Number);
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    if (left[i] !== right[i]) {
+      return left[i]! - right[i]!;
+    }
+  }
+  return left.length - right.length;
 }

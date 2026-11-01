@@ -110,6 +110,35 @@ describe('Projects and boards (e2e)', () => {
         .expect(400);
     });
 
+    it('lets only an admin change the relationship colours', async () => {
+      const { ana, ben, project } = await setUp();
+      await ana.agent
+        .post(`/api/projects/${project.id}/members`)
+        .send({ email: 'ben@example.com' })
+        .expect(201);
+      await ben.agent
+        .patch(`/api/projects/${project.id}`)
+        .send({ relationColours: { parent: 'RED' } })
+        .expect(403);
+
+      const response = await ana.agent
+        .patch(`/api/projects/${project.id}`)
+        .send({ relationColours: { parent: 'TEAL' } })
+        .expect(200);
+
+      expect(response.body.relationColours).toEqual({
+        selected: 'DARK',
+        parent: 'TEAL',
+        subtask: 'ORANGE',
+        deeperSubtask: 'ORANGE',
+        sibling: 'GREY',
+      });
+      await ana.agent
+        .patch(`/api/projects/${project.id}`)
+        .send({ relationColours: { parent: 'BEIGE' } })
+        .expect(400);
+    });
+
     it('hides projects from people who are not members', async () => {
       const { ben, project } = await setUp();
 
