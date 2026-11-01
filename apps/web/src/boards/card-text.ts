@@ -1,4 +1,10 @@
-import type { BoardCard, CardPriority, LabelColourName } from '@tessera/shared'
+import type {
+  BoardCard,
+  CardPriority,
+  LabelColourName,
+  Relation,
+  RelationColourName,
+} from '@tessera/shared'
 
 export const PRIORITY_NAMES: Record<Exclude<CardPriority, 'NONE'>, string> = {
   LOW: 'Low',
@@ -33,6 +39,55 @@ export const LABEL_COLOUR_NAMES: Record<LabelColourName, string> = {
   INDIGO: 'Indigo',
   PURPLE: 'Purple',
   PINK: 'Pink',
+}
+
+// How a card is related to the open card (docs/card-features.md,
+// section 7). The open card itself is "selected".
+export type CardRelation = Exclude<Relation, 'selected'>
+
+export const RELATION_NAMES: Record<CardRelation, string> = {
+  parent: 'Parent',
+  subtask: 'Subtask',
+  deeperSubtask: 'Deeper subtask',
+  sibling: 'Sibling',
+}
+
+export const RELATION_LABELS: Record<Relation, string> = {
+  selected: 'Selected card',
+  ...RELATION_NAMES,
+}
+
+// The outline drawn round a related card, in each relationship colour, and
+// a paler shade of it for deeper subtasks.
+export const RELATION_OUTLINES: Record<
+  RelationColourName,
+  { strong: string; pale: string }
+> = {
+  GREY: { strong: '#6b6d73', pale: '#b4b5ba' },
+  RED: { strong: '#c42b2b', pale: '#ec9a9a' },
+  ORANGE: { strong: '#d4630f', pale: '#f3b787' },
+  YELLOW: { strong: '#b58900', pale: '#e3cc73' },
+  GREEN: { strong: '#2f8a4c', pale: '#93cfa5' },
+  TEAL: { strong: '#138a80', pale: '#8ad2cb' },
+  BLUE: { strong: '#2851c8', pale: '#9fb3ec' },
+  INDIGO: { strong: '#4b3fc4', pale: '#aaa3ea' },
+  PURPLE: { strong: '#8a3fd1', pale: '#cba3ef' },
+  PINK: { strong: '#c42a72', pale: '#eea0c3' },
+  DARK: { strong: '#1c1d1f', pale: '#8b8c90' },
+}
+
+export const RELATION_COLOUR_NAMES: Record<RelationColourName, string> = {
+  GREY: 'Grey',
+  RED: 'Red',
+  ORANGE: 'Orange',
+  YELLOW: 'Yellow',
+  GREEN: 'Green',
+  TEAL: 'Teal',
+  BLUE: 'Blue',
+  INDIGO: 'Indigo',
+  PURPLE: 'Purple',
+  PINK: 'Pink',
+  DARK: 'Dark',
 }
 
 // "Due 31 Oct", or "Due 31 Oct, 17:00" when a time is set. A date without a
@@ -77,10 +132,15 @@ export function initial(name: string): string {
 // Everything shown on a card besides its number and title, as one sentence
 // for screen readers. The pieces on screen are separate boxes, which would
 // otherwise be read out run together.
-export function detailsText(card: BoardCard, timeZone: string): string {
+export function detailsText(
+  card: BoardCard,
+  timeZone: string,
+  relation?: CardRelation,
+): string {
   const { checklistProgress: checklist, subtaskProgress: subtasks } = card
   const due = dueText(card, timeZone)
   return [
+    relation && `${RELATION_NAMES[relation]} of the open card`,
     card.priority !== 'NONE' && `${PRIORITY_NAMES[card.priority]} priority`,
     card.labels.length > 0 &&
       `Labels: ${card.labels.map((label) => label.name).join(', ')}`,

@@ -533,3 +533,42 @@ describe('Project settings: time zone', () => {
     expect(within(zone).queryByRole('combobox')).not.toBeInTheDocument()
   })
 })
+
+describe('Project settings: relationship colours', () => {
+  it('lets an admin change the colour for a relationship', async () => {
+    let changed: unknown
+    settingsApi()
+    server.use(
+      http.patch(`/api/projects/${website.id}`, async ({ request }) => {
+        changed = await request.json()
+        return HttpResponse.json({
+          ...website,
+          relationColours: { ...website.relationColours, parent: 'TEAL' },
+        })
+      }),
+    )
+    const { user, container } = renderApp('/WEB/settings')
+
+    const colours = await screen.findByRole('region', {
+      name: 'Relationship colours',
+    })
+    await user.selectOptions(within(colours).getByLabelText('Parent'), 'Teal')
+
+    await waitFor(() =>
+      expect(changed).toEqual({ relationColours: { parent: 'TEAL' } }),
+    )
+    expect(within(colours).getByLabelText('Selected card')).toHaveValue('DARK')
+    await expectNoAccessibilityProblems(container)
+  })
+
+  it('shows a plain member the colours without a way to change them', async () => {
+    settingsApi({ me: ben })
+    renderApp('/WEB/settings')
+
+    const colours = await screen.findByRole('region', {
+      name: 'Relationship colours',
+    })
+    expect(within(colours).queryByRole('combobox')).toBe(null)
+    expect(colours).toHaveTextContent('ParentBlue')
+  })
+})

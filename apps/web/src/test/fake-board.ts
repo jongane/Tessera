@@ -2,6 +2,7 @@ import type {
   BoardCard,
   BoardView,
   CardChangesBody,
+  CardRelatives,
   Chat,
   Label,
   Me,
@@ -47,6 +48,8 @@ export interface FakeBoardOptions {
   labels?: Label[]
   project?: Project
   chats?: Chat[]
+  // By card id; a card not listed has no relatives.
+  relatives?: Record<string, CardRelatives>
 }
 
 // A fake API for one board that remembers changes to its cards, so the
@@ -60,6 +63,7 @@ export function fakeBoard(
     labels = [],
     project = website,
     chats = [],
+    relatives = {},
   }: FakeBoardOptions = {},
 ) {
   let view = structuredClone(start)
@@ -104,6 +108,15 @@ export function fakeBoard(
     ),
     http.get(`/api/projects/${website.id}/labels`, () =>
       HttpResponse.json(labels),
+    ),
+    http.get('/api/cards/:cardId/relatives', ({ params }) =>
+      HttpResponse.json(
+        relatives[String(params.cardId)] ?? {
+          parents: [],
+          subtasks: [],
+          siblings: [],
+        },
+      ),
     ),
     http.patch('/api/cards/:cardId', async ({ request, params }) => {
       await record(request.clone())

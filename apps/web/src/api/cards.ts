@@ -2,6 +2,7 @@ import type {
   BoardCard,
   BoardView,
   CardChangesBody,
+  CardRelatives,
   CardTotals,
   CardView,
   CompleteCardResult,
@@ -17,7 +18,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from './client'
-import { boardKey } from './query-keys'
+import { BOARD_RELOAD_MS, boardKey } from './query-keys'
 
 // Changes to one card, made from the card panel. Each shows on screen
 // straight away, on the board's copy of the card, which the panel reads
@@ -336,4 +337,15 @@ export function useSubtasksForDelete(cardId: string, enabled: boolean) {
       hasSubtasks: (own[index]?.data?.progress.total ?? 0) > 0,
     })),
   }
+}
+
+// The open card's parents, subtasks and siblings, on any board. Kept under
+// the board's key, so it reloads with the board.
+export function useCardRelatives(boardId: string, cardId: string | null) {
+  return useQuery({
+    queryKey: [...boardKey(boardId), 'relatives', cardId],
+    queryFn: () => api<CardRelatives>(`/cards/${cardId}/relatives`),
+    enabled: cardId !== null,
+    refetchInterval: BOARD_RELOAD_MS,
+  })
 }
