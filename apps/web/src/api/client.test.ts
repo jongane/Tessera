@@ -34,6 +34,27 @@ describe('api', () => {
     expect(error).toMatchObject({ status: 403, message: 'Admins only' })
   })
 
+  it('keeps the rest of the refusal, such as how much time is logged', async () => {
+    server.use(
+      http.delete('/api/cards/1', () =>
+        HttpResponse.json(
+          { statusCode: 409, message: 'Has time', loggedMinutes: 200 },
+          { status: 409 },
+        ),
+      ),
+    )
+
+    const error = await api('/cards/1', { method: 'DELETE' }).catch(
+      (e: unknown) => e,
+    )
+
+    expect(error).toMatchObject({
+      status: 409,
+      message: 'Has time',
+      details: { loggedMinutes: 200 },
+    })
+  })
+
   it('explains when the API cannot be reached', async () => {
     server.use(http.get('/api/things', () => HttpResponse.error()))
 
