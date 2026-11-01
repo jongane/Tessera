@@ -27,6 +27,22 @@ export function loadSubtree(
     SELECT id, number_path AS "numberPath", depth FROM subtree`;
 }
 
+// The ids of every card above `cardId`: its parent, that card's parent,
+// and so on to the top.
+export async function loadAncestorIds(
+  tx: Prisma.TransactionClient,
+  cardId: string,
+): Promise<string[]> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    WITH RECURSIVE ancestors AS (
+      SELECT parent_id AS id FROM cards WHERE id = ${cardId}::uuid
+      UNION ALL
+      SELECT c.parent_id FROM cards c JOIN ancestors a ON c.id = a.id
+    )
+    SELECT id FROM ancestors WHERE id IS NOT NULL`;
+  return rows.map((row) => row.id);
+}
+
 // Moves `card`, with everything below it, under `newParent` (or to the top
 // level when null). The moved cards get fresh numbers and their old numbers
 // are kept, so references in chat still lead to them. Refuses a move under
