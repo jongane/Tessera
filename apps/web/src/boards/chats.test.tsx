@@ -55,9 +55,7 @@ function openBoard(
       HttpResponse.json([backlog, sprint]),
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
-    http.get(`/api/boards/${sprint.id}/chats`, () =>
-      HttpResponse.json(chats),
-    ),
+    http.get(`/api/boards/${sprint.id}/chats`, () => HttpResponse.json(chats)),
   )
   return renderApp(boardPath)
 }
@@ -107,21 +105,8 @@ describe('Chats on a board', () => {
     expect(currentPath(router)).toBe(boardPath)
   })
 
-  it('opens a card’s chat when the card is clicked', async () => {
-    const { user, router } = openBoard()
-
-    await user.click(
-      await screen.findByRole('button', { name: 'WEB-12 Login page' }),
-    )
-
-    const panel = await screen.findByRole('complementary', {
-      name: 'Chat: Login page',
-    })
-    expect(panel).toHaveTextContent('For card WEB-12 Login page')
-    expect(currentPath(router)).toBe(
-      `${boardPath}?card=${login.id}&chat=${loginChat.id}`,
-    )
-  })
+  // Clicking a card opens only its card panel, which has "Open chat"
+  // (cards/card-panel.test.tsx).
 
   it('docks the chat panel where it is put, and remembers it', async () => {
     const { user, unmount } = openBoard()
@@ -129,9 +114,7 @@ describe('Chats on a board', () => {
 
     // From the keyboard: in jsdom every element sits at 0,0, so the
     // resizable edge would take every pointer press.
-    within(chatPanel())
-      .getByRole('button', { name: 'Dock the panel' })
-      .focus()
+    within(chatPanel()).getByRole('button', { name: 'Dock the panel' }).focus()
     await user.keyboard('{Enter}')
     await user.click(screen.getByRole('menuitemradio', { name: 'Left' }))
 
@@ -147,9 +130,7 @@ describe('Chats on a board', () => {
     await again.user.click(
       await screen.findByRole('link', { name: 'Release plan' }),
     )
-    within(chatPanel())
-      .getByRole('button', { name: 'Dock the panel' })
-      .focus()
+    within(chatPanel()).getByRole('button', { name: 'Dock the panel' }).focus()
     await again.user.keyboard('{Enter}')
     expect(screen.getByRole('menuitemradio', { name: 'Left' })).toHaveAttribute(
       'aria-checked',
@@ -371,7 +352,7 @@ describe('Chats and cards', () => {
 
   it('unlinks a chat from its card, keeping both', async () => {
     let unlinked = false
-    const { user } = openBoard(undefined, view)
+    const { user, router } = openBoard(undefined, view)
     server.use(
       http.delete(`/api/chats/${loginChat.id}/card`, () => {
         unlinked = true
@@ -388,9 +369,8 @@ describe('Chats and cards', () => {
       }),
     )
 
-    await user.click(
-      await screen.findByRole('button', { name: 'WEB-12 Login page' }),
-    )
+    await screen.findByRole('button', { name: 'WEB-12 Login page' })
+    await router.navigate(`${boardPath}?chat=${loginChat.id}`)
     const panel = await screen.findByRole('complementary', {
       name: 'Chat: Login page',
     })

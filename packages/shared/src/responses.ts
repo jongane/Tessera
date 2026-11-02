@@ -89,6 +89,40 @@ export interface Card {
   createdAt: string;
 }
 
+// GET /api/cards/:cardId and PATCH /api/cards/:cardId.
+export interface CardView extends Card {
+  // With the project code, e.g. "WEB-12.1".
+  number: string;
+  chat: { id: string; title: string } | null;
+}
+
+// POST /api/cards/:cardId/complete
+export interface CompleteCardResult {
+  card: Card;
+  // The board's done column to offer moving the card to, or null when the
+  // card is already in one or the board has none.
+  doneColumnId: string | null;
+}
+
+// GET /api/cards/:cardId/subtasks
+export interface SubtaskList {
+  // Direct subtasks, in number order.
+  subtasks: Card[];
+  progress: { complete: number; total: number };
+}
+
+// GET /api/cards/:cardId/time-totals
+export interface CardTotals {
+  // The card's own estimate or, for a card with subtasks, the sum of
+  // theirs at every level. Null when nothing has an estimate.
+  estimateMinutes: number | null;
+  // A card with subtasks keeps its own estimate, shown greyed out. Null for
+  // a card without subtasks.
+  originalEstimateMinutes: number | null;
+  timeSpentMinutes: number;
+  ownTimeMinutes: number;
+}
+
 // A card related to another one, wherever it is in the project.
 export interface RelatedCard {
   id: string;

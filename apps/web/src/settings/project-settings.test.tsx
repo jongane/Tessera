@@ -62,7 +62,7 @@ function section(name: string) {
 beforeEach(() => localStorage.clear())
 
 describe('Project settings', () => {
-  it('shows the four sections, with no accessibility problems', async () => {
+  it('shows the five sections, with no accessibility problems', async () => {
     settingsApi()
     const { container } = renderApp('/WEB/settings')
 
@@ -70,7 +70,13 @@ describe('Project settings', () => {
       await screen.findByRole('heading', { name: 'Project settings' }),
     ).toBeInTheDocument()
     await screen.findByText('ben@example.com')
-    for (const name of ['Members', 'Labels', 'Project code', 'Time zone']) {
+    for (const name of [
+      'Members',
+      'Labels',
+      'Project code',
+      'Time zone',
+      'Relationship colours',
+    ]) {
       expect(section(name)).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Website' })).toHaveAttribute(
@@ -531,5 +537,44 @@ describe('Project settings: time zone', () => {
     await screen.findByText('ben@example.com')
     expect(within(zone).getByText('UTC')).toBeInTheDocument()
     expect(within(zone).queryByRole('combobox')).not.toBeInTheDocument()
+  })
+})
+
+describe('Project settings: relationship colours', () => {
+  it('lets an admin change the colour for a relationship', async () => {
+    let changed: unknown
+    settingsApi()
+    server.use(
+      http.patch(`/api/projects/${website.id}`, async ({ request }) => {
+        changed = await request.json()
+        return HttpResponse.json({
+          ...website,
+          relationColours: { ...website.relationColours, parent: 'TEAL' },
+        })
+      }),
+    )
+    const { user, container } = renderApp('/WEB/settings')
+
+    const colours = await screen.findByRole('region', {
+      name: 'Relationship colours',
+    })
+    await user.selectOptions(within(colours).getByLabelText('Parent'), 'Teal')
+
+    await waitFor(() =>
+      expect(changed).toEqual({ relationColours: { parent: 'TEAL' } }),
+    )
+    expect(within(colours).getByLabelText('Selected card')).toHaveValue('DARK')
+    await expectNoAccessibilityProblems(container)
+  })
+
+  it('shows a plain member the colours without a way to change them', async () => {
+    settingsApi({ me: ben })
+    renderApp('/WEB/settings')
+
+    const colours = await screen.findByRole('region', {
+      name: 'Relationship colours',
+    })
+    expect(within(colours).queryByRole('combobox')).toBe(null)
+    expect(colours).toHaveTextContent('Parent: Blue')
   })
 })

@@ -38,7 +38,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - The parent card shows a **list of its subtasks**, and each subtask shows its parent.
 - **Progress** on a parent ("3 of 5 complete") counts its **direct subtasks only**.
 - A parent is **never completed automatically**. Completing a parent while some subtasks are open asks: "3 subtasks are still open. Complete anyway?"
-- **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent.
+- **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent. (The card panel offers "move to another parent" once it shows subtasks; agreed 2026-11-01.)
   - A direct subtask that has subtasks of its own **cannot be chosen for deletion** until the user has decided what happens to its subtasks. This stops one click deleting a whole branch. (Agreed 2026-10-27.)
 
 ## 5. Completing cards
@@ -85,7 +85,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 
 - **Priority:** None, Low, Medium, High or Urgent.
 - **Due date:** a date, with an optional time. If a subtask is due after its parent, both cards show a warning. The date is not blocked. The warning is worked out when a card is read, not stored. Two times are compared exactly. When either card has no time, only the days are compared, and a due time's day is the day it falls on in the **project's time zone**. (Agreed 2026-10-28.)
-- Each project has a **time zone**, set by an admin. New projects start on UTC. (Agreed 2026-10-28.)
+- Each project has a **time zone**, set by an admin. New projects start on UTC. (Agreed 2026-10-28.) Due times are typed and shown in the project's time zone, not each person's own (agreed 2026-11-01).
 - **Labels** are shared across the whole project and each has a name and a colour. Any member can create a label. Only admins can rename, recolour or delete one. Names are up to 50 characters. Colours come from a **fixed set of 10** that read well in light and dark mode (grey, red, orange, yellow, green, teal, blue, indigo, purple, pink), and two labels in a project cannot have the same name in any letter case. (Agreed 2026-10-28.)
 - **Attachments:** a file can be attached to the card itself or to a message in its chat. The card lists files from both. The default limit is 100 MB per file, and admins of a self-hosted server can change it. Attachments come in a later pull request, once file storage (MinIO) is set up. (Agreed 2026-10-28.)
 

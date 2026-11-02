@@ -10,8 +10,8 @@ Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to
 - The project list, with "New project".
 - The board view: columns, cards, adding a card, dragging cards, and the board's chats in the sidebar.
 - New chats, the "Create a card for this chat?" prompt, and linking or unlinking a chat and a card.
-- The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, and the Activity tab.
-- Project settings: members (add by email, change role, remove, leave), labels, project code and time zone. Every member can open it; for people who are not project admins it is read-only, except that they can add a label and leave the project (agreed 2026-10-31). Removing someone, leaving, deleting a label and changing the code ask "Are you sure?" first; role and time zone changes save straight away (agreed 2026-10-31). Renaming a project and changing its description come later, with a small API change.
+- The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, the Activity tab, and the open card's related cards (outlined on the board, and listed in the panel when they are on other boards; [card-features.md](card-features.md) section 7).
+- Project settings: members (add by email, change role, remove, leave), labels, project code, time zone and the relationship colours ([card-features.md](card-features.md) section 7; admins only, saved straight away). Every member can open it; for people who are not project admins it is read-only, except that they can add a label and leave the project (agreed 2026-10-31). Removing someone, leaving, deleting a label and changing the code ask "Are you sure?" first; role and time zone changes save straight away (agreed 2026-10-31). Renaming a project and changing its description come later, with a small API change.
 - A server admin screen with the sign-up switch, and nothing else for now (no list of accounts; agreed 2026-10-31). Server admins reach it from the account menu.
 
 Not in this release: chat messages (the API has none yet, so the chat panel shows a chat's title and its card, with "Messages are coming soon"), live updates, file attachments and AI features.
@@ -39,6 +39,7 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
 - The **card panel** and the **chat panel** are two separate panels, so you can read a card's chat while editing the card.
 - When chat arrives, a message's **thread** (its replies) opens in its own sub-window, not inline in the chat (agreed 2026-10-31).
 - People can dock the chat panel on the right, left or bottom, and drag its edge to resize it. A floating window and a separate browser window may come later, so the panel code must not assume where it sits.
+- Clicking a card opens only its **card panel**, on the right of the board, with an edge that can be dragged to resize it. The panel has an "Open chat" button for the card's chat (agreed 2026-11-01). The address then ends in `?card=<id>`, so Back closes the panel.
 - The card panel is one self-contained component. The board screen only decides where it is placed, so it can move into a dialog or onto its own page later with a small change.
 - Panel positions are remembered in the browser for now. They must move to the person's account later (this needs a small API addition).
 - Desktop and tablet come first. On a phone the screen stays usable: panels stack, and the card and chat panels become tabs.
@@ -53,7 +54,9 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
 ## 5. Editing
 
 - The description is edited with a formatting toolbar (Tiptap) and stored as Markdown, as [card-features.md](card-features.md) says. It has Save and Cancel buttons.
-- Small fields (title, priority, due date, estimate) save as soon as they change.
+- Small fields (title, priority, due date, estimate) save as soon as they change. Due times are typed in the project's time zone, which is shown next to the box (agreed 2026-11-01).
+- Leaving a card with unsaved changes to its description asks "Discard your changes?" first.
+- Everyone can see the "Delete card" button. For people who may not delete the card (only its creator or a project admin may), it is turned off and says why (agreed 2026-11-01).
 - Quick actions such as dragging a card or ticking a checklist item show on screen straight away. If saving fails, the change is undone and a short message says "Couldn't save, try again".
 
 ## 6. Keeping screens up to date
@@ -90,5 +93,5 @@ One pull request at a time, each with its plan approved first:
 4. Board view: columns, cards, dragging, chats in the sidebar, new chats and the "Create a card?" prompt, the chat panel and its docking.
    Then, as its own pull request: rename "thread" to "chat" in the API, database and code (agreed 2026-10-31; done). Messages, threads (replies) and typed links get their own design round with chat.
 5. Project settings and the server admin screen.
-6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting.
+6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting, and seeing related cards ([card-features.md](card-features.md) section 7; agreed 2026-11-01).
 7. Card panel extras: subtasks, checklists, time and the timer, Activity tab.

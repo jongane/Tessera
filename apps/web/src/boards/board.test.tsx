@@ -392,10 +392,18 @@ describe('Board', () => {
     ).toHaveTextContent('1 subtask is still open.')
   })
 
-  it('highlights a card, and opens its chat, when it is clicked', async () => {
+  it('highlights a card, and opens only its card panel, when it is clicked', async () => {
     const card = boardCard('12', 'Login page')
     const { user, router } = openBoard(
       boardView([boardColumn('To do', [card])]),
+    )
+    server.use(
+      http.get(`/api/projects/${website.id}/members`, () =>
+        HttpResponse.json([]),
+      ),
+      http.get(`/api/projects/${website.id}/labels`, () =>
+        HttpResponse.json([]),
+      ),
     )
 
     const button = await screen.findByRole('button', {
@@ -403,9 +411,12 @@ describe('Board', () => {
     })
     await user.click(button)
 
-    expect(button).toHaveAttribute('aria-current', 'true')
-    expect(currentPath(router)).toBe(
-      `${boardPath}?card=${card.id}&chat=${card.chatId}`,
-    )
+    expect(
+      await screen.findByRole('complementary', { name: 'Card WEB-12' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'WEB-12 Login page' }),
+    ).toHaveAttribute('aria-current', 'true')
+    expect(currentPath(router)).toBe(`${boardPath}?card=${card.id}`)
   })
 })

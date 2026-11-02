@@ -1,21 +1,41 @@
-import type { BoardCard, BoardColumn } from '@tessera/shared'
+import type {
+  BoardCard,
+  BoardColumn,
+  RelationColourName,
+} from '@tessera/shared'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { type KeyboardEvent, useId } from 'react'
 import {
+  type CardRelation,
   detailsText,
   dueText,
   initial,
   LABEL_STYLES,
   PRIORITY_NAMES,
+  RELATION_NAMES,
+  RELATION_OUTLINES,
 } from './card-text'
 import { MoveToMenu } from './MoveToMenu'
+
+// While a card is open, it and its relatives are outlined in the project's
+// colours, each relative with a tag, and other cards are faded
+// (docs/card-features.md, section 7).
+export interface Highlight {
+  // Null for the open card itself, and for cards not related to it.
+  relation: CardRelation | null
+  colour: RelationColourName | null
+  // Deeper subtasks in the same colour as direct ones are drawn paler.
+  pale: boolean
+  faded: boolean
+}
 
 interface CardTileProps {
   card: BoardCard
   columns: BoardColumn[]
   timeZone: string
   selected: boolean
+  highlight?: Highlight
   onSelect: (card: BoardCard) => void
   onMoveTo: (card: BoardCard, column: BoardColumn) => void
 }
@@ -65,6 +85,7 @@ function CardFace({
   card,
   timeZone,
   selected,
+  highlight,
   onSelect,
   dragAttributes,
   dragListeners,
@@ -81,6 +102,10 @@ function CardFace({
   const detailsId = useId()
   const due = dueText(card, timeZone)
   const { checklistProgress: checklist, subtaskProgress: subtasks } = card
+  const relation = highlight?.relation ?? null
+  const colour = highlight?.colour ?? null
+  const outline =
+    colour && RELATION_OUTLINES[colour][highlight?.pale ? 'pale' : 'strong']
 
   // While the card is being moved, the keys belong to the move.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -93,12 +118,32 @@ function CardFace({
     <div
       {...dragListeners}
       onClick={interactive ? () => onSelect(card) : undefined}
-      className={`flex cursor-grab touch-none flex-col gap-1.5 rounded-lg border bg-surface p-3 pr-11 text-left shadow-xs ${
-        selected
-          ? 'border-accent ring-2 ring-accent'
-          : 'border-line hover:border-line-strong'
+      data-relation-colour={colour ?? undefined}
+      style={
+        outline
+          ? { borderColor: outline, boxShadow: `0 0 0 2px ${outline}` }
+          : undefined
+      }
+      className={`flex cursor-grab touch-none flex-col gap-1.5 rounded-lg border p-3 pr-11 text-left ${
+        highlight?.faded
+          ? 'border-line bg-subtle grayscale'
+          : 'bg-surface shadow-xs'
+      } ${
+        outline
+          ? ''
+          : selected
+            ? 'border-accent ring-2 ring-accent'
+            : 'border-line hover:border-line-strong'
       }`}
     >
+      {relation && (
+        <span
+          aria-hidden="true"
+          className="self-start rounded bg-subtle px-1.5 py-0.5 text-xs font-semibold text-muted"
+        >
+          {RELATION_NAMES[relation]}
+        </span>
+      )}
       <div
         {...(interactive && {
           ...dragAttributes,
@@ -118,7 +163,7 @@ function CardFace({
         <span className="font-semibold">{card.title}</span>
       </div>
       <span id={detailsId} className="sr-only">
-        {detailsText(card, timeZone)}
+        {detailsText(card, timeZone, relation ?? undefined)}
       </span>
       <div aria-hidden="true" className="flex flex-col gap-1.5">
         {card.priority !== 'NONE' && (
