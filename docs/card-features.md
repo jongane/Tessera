@@ -75,8 +75,9 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
   - selected card: dark outline
   - parent and higher levels: blue
   - direct subtasks: orange
-  - deeper subtasks: paler orange
+  - deeper subtasks: orange, the same as direct subtasks, so they are drawn paler
   - sibling subtasks (same parent): grey
+- Deeper subtasks keep their own colour. They are drawn in a paler shade only when their colour is the same as the direct subtasks' colour, so the two levels still look different; in any other colour they are drawn at full strength. (Agreed 2026-11-02.)
 - Each highlight also has a small text tag such as "Parent" or "Subtask", so colour is never the only signal.
 - The colours are a **project setting that only admins can change**, so everyone in the project sees the same colours. Admins pick each one from the 10 label colours (section 8), which read well in light and dark mode, or dark. (Agreed 2026-11-01.)
 - Related cards on other boards are listed in the card's panel, with links to them: the parents up to the top, the subtasks at every level and the siblings, grouped, each with its board's name. (Agreed 2026-11-01.)
