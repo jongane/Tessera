@@ -10,6 +10,12 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 }
 
+// jsdom does not lay out text, so ranges have no size. The rich-text editor
+// measures them to keep the cursor in view.
+Range.prototype.getClientRects ??= () =>
+  Object.assign([], { item: () => null }) as unknown as DOMRectList
+Range.prototype.getBoundingClientRect ??= () => new DOMRect()
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   cleanup()

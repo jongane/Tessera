@@ -25,6 +25,10 @@ function fakeApi() {
     ),
     http.get(`/api/boards/${sprint.id}`, () => HttpResponse.json(view)),
     http.get(`/api/boards/${sprint.id}/chats`, () => HttpResponse.json([])),
+    http.get(`/api/projects/${website.id}/members`, () =>
+      HttpResponse.json([]),
+    ),
+    http.get(`/api/projects/${website.id}/labels`, () => HttpResponse.json([])),
   )
 }
 
@@ -153,7 +157,7 @@ describe('A damaged or missing memory of the last board', () => {
 })
 
 describe('Card addresses', () => {
-  it('opens a card’s board with the card highlighted', async () => {
+  it('opens a card’s board with the card highlighted and its panel open', async () => {
     fakeApi()
     server.use(
       http.get('/api/cards/by-number/WEB-12', () =>
@@ -166,6 +170,9 @@ describe('Card addresses', () => {
       name: 'WEB-12 Login page',
     })
     expect(card).toHaveAttribute('aria-current', 'true')
+    expect(
+      await screen.findByRole('complementary', { name: 'Card WEB-12' }),
+    ).toBeInTheDocument()
     expect(currentPath(router)).toBe(
       `/WEB/boards/${sprint.id}?card=${login.id}`,
     )

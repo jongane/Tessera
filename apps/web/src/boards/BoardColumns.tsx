@@ -23,7 +23,7 @@ import {
 } from '@dnd-kit/sortable'
 import { useMemo, useState } from 'react'
 import { AddCardForm } from './AddCardForm'
-import { CardTile, DraggedCard } from './CardTile'
+import { CardTile, DraggedCard, type Highlight } from './CardTile'
 import { cardsInLayout, plannedMove } from './move-card'
 
 // Card ids in each column, from the top, while a card is being dragged.
@@ -33,6 +33,8 @@ interface BoardColumnsProps {
   view: BoardView
   timeZone: string
   selectedCardId: string | null
+  // How each card is shown while a card is open.
+  highlightOf?: (cardId: string) => Highlight | undefined
   onSelect: (card: BoardCard) => void
   onMove: (card: BoardCard, column: BoardColumn, position: number) => void
 }
@@ -44,6 +46,7 @@ export function BoardColumns({
   view,
   timeZone,
   selectedCardId,
+  highlightOf,
   onSelect,
   onMove,
 }: BoardColumnsProps) {
@@ -203,6 +206,7 @@ export function BoardColumns({
             columns={view.columns}
             timeZone={timeZone}
             selectedCardId={selectedCardId}
+            highlightOf={highlightOf}
             onSelect={onSelect}
             onMoveTo={(card, to) => onMove(card, to, to.cards.length)}
           />
@@ -229,6 +233,7 @@ function ColumnView({
   columns,
   timeZone,
   selectedCardId,
+  highlightOf,
   onSelect,
   onMoveTo,
 }: {
@@ -238,6 +243,7 @@ function ColumnView({
   columns: BoardColumn[]
   timeZone: string
   selectedCardId: string | null
+  highlightOf?: (cardId: string) => Highlight | undefined
   onSelect: (card: BoardCard) => void
   onMoveTo: (card: BoardCard, column: BoardColumn) => void
 }) {
@@ -285,6 +291,7 @@ function ColumnView({
               columns={columns}
               timeZone={timeZone}
               selected={card.id === selectedCardId}
+              highlight={highlightOf?.(card.id)}
               onSelect={onSelect}
               onMoveTo={onMoveTo}
             />

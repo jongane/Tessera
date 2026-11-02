@@ -10,11 +10,13 @@ import { Loading } from '../ui/Loading'
 import { LabelsSection } from './LabelsSection'
 import { MembersSection } from './MembersSection'
 import { ProjectCodeSection } from './ProjectCodeSection'
+import { RelationColoursSection } from './RelationColoursSection'
 import { TimeZoneSection } from './TimeZoneSection'
 
 // /WEB/settings (docs/web-app.md, sections 1 and 2). Every member can open
-// it. Only project admins can change members, the code and the time zone,
-// and rename, recolour or delete labels; anyone can add a label or leave.
+// it. Only project admins can change members, the code, the time zone and
+// the relationship colours, and rename, recolour or delete labels; anyone
+// can add a label or leave.
 export function ProjectSettingsPage() {
   const { code = '' } = useParams()
   const me = useMe()
@@ -59,6 +61,7 @@ export function ProjectSettingsPage() {
       <LabelsSection projectId={data.id} isAdmin={isAdmin} />
       <ProjectCodeSection project={data} isAdmin={isAdmin} />
       <TimeZoneSection project={data} isAdmin={isAdmin} />
+      <RelationColoursSection project={data} isAdmin={isAdmin} />
     </div>
   )
 }

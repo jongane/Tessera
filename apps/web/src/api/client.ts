@@ -2,13 +2,20 @@ import type { ApiErrorBody } from '@tessera/shared'
 
 // A refusal from the API (4xx or 5xx), or no answer at all (status 0).
 // `message` can be shown to people as it is.
+// `details` holds the rest of the API's answer, such as `loggedMinutes`.
 export class ApiError extends Error {
   readonly status: number
+  readonly details: Record<string, unknown>
 
-  constructor(status: number, message: string) {
+  constructor(
+    status: number,
+    message: string,
+    details: Record<string, unknown> = {},
+  ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.details = details
   }
 }
 
@@ -38,7 +45,8 @@ export async function api<T>(
     throw new ApiError(0, UNREACHABLE)
   }
   if (!response.ok) {
-    throw new ApiError(response.status, await errorMessage(response))
+    const body = await errorBody(response)
+    throw new ApiError(response.status, errorMessage(response, body), body)
   }
   if (response.status === 204) {
     return undefined as T
@@ -46,16 +54,24 @@ export async function api<T>(
   return (await response.json()) as T
 }
 
-async function errorMessage(response: Response): Promise<string> {
+async function errorBody(
+  response: Response,
+): Promise<Partial<ApiErrorBody> & Record<string, unknown>> {
   try {
-    const body = (await response.json()) as Partial<ApiErrorBody>
-    if (typeof body.message === 'string') {
-      return body.message
-    }
+    const body: unknown = await response.json()
+    return typeof body === 'object' && body !== null
+      ? (body as Record<string, unknown>)
+      : {}
   } catch {
-    // Not JSON: fall through to a general message.
+    // Not JSON: a general message is shown.
+    return {}
   }
-  return `Something went wrong (${response.status}). Try again.`
+}
+
+function errorMessage(response: Response, body: Partial<ApiErrorBody>): string {
+  return typeof body.message === 'string'
+    ? body.message
+    : `Something went wrong (${response.status}). Try again.`
 }
 
 export function isApiError(error: unknown, status: number): boolean {

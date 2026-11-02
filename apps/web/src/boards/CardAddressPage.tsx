@@ -5,7 +5,7 @@ import { NotFoundPage } from '../app/NotFoundPage'
 import { Alert } from '../ui/Alert'
 import { Loading } from '../ui/Loading'
 
-// /WEB-12 opens the card's board with the card highlighted
+// /WEB-12 opens the card's board with the card highlighted and its panel open
 // (docs/web-app.md, section 2).
 export function CardAddressPage() {
   const { code: reference = '' } = useParams()
