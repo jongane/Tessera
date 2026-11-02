@@ -5,12 +5,17 @@ import { useCardRelatives } from '../api/cards'
 
 // The card's relatives on other boards, with links to them. Those on this
 // board are outlined on the board instead (docs/card-features.md,
-// section 7). Nothing is shown when there are none.
+// section 7). Nothing is shown when there are none. If they cannot be
+// loaded, it says so, since the board's outlines are missing too.
 export function RelatedElsewhere({ card }: { card: BoardCard }) {
   const relatives = useCardRelatives(card.boardId, card.id)
   const headingId = useId()
   if (!relatives.data) {
-    return null
+    return relatives.isError ? (
+      <p className="text-sm text-muted">
+        Couldn’t load the related cards. They will be tried again shortly.
+      </p>
+    ) : null
   }
   const elsewhere = (cards: RelatedCard[]) =>
     cards.filter((related) => related.boardId !== card.boardId)

@@ -49,8 +49,8 @@ export function RelationColoursSection({
             ) : (
               <span>
                 <span className="font-semibold">
-                  {RELATION_LABELS[relation]}
-                </span>
+                  {RELATION_LABELS[relation]}:
+                </span>{' '}
                 <span className="text-muted">
                   {RELATION_COLOUR_NAMES[project.relationColours[relation]]}
                 </span>

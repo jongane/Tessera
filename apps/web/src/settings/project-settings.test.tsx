@@ -575,6 +575,6 @@ describe('Project settings: relationship colours', () => {
       name: 'Relationship colours',
     })
     expect(within(colours).queryByRole('combobox')).toBe(null)
-    expect(colours).toHaveTextContent('ParentBlue')
+    expect(colours).toHaveTextContent('Parent: Blue')
   })
 })

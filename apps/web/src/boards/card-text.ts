@@ -77,16 +77,7 @@ export const RELATION_OUTLINES: Record<
 }
 
 export const RELATION_COLOUR_NAMES: Record<RelationColourName, string> = {
-  GREY: 'Grey',
-  RED: 'Red',
-  ORANGE: 'Orange',
-  YELLOW: 'Yellow',
-  GREEN: 'Green',
-  TEAL: 'Teal',
-  BLUE: 'Blue',
-  INDIGO: 'Indigo',
-  PURPLE: 'Purple',
-  PINK: 'Pink',
+  ...LABEL_COLOUR_NAMES,
   DARK: 'Dark',
 }
 

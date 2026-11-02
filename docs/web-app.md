@@ -10,7 +10,7 @@ Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to
 - The project list, with "New project".
 - The board view: columns, cards, adding a card, dragging cards, and the board's chats in the sidebar.
 - New chats, the "Create a card for this chat?" prompt, and linking or unlinking a chat and a card.
-- The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, and the Activity tab.
+- The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, the Activity tab, and the open card's related cards (outlined on the board, and listed in the panel when they are on other boards; [card-features.md](card-features.md) section 7).
 - Project settings: members (add by email, change role, remove, leave), labels, project code, time zone and the relationship colours ([card-features.md](card-features.md) section 7; admins only, saved straight away). Every member can open it; for people who are not project admins it is read-only, except that they can add a label and leave the project (agreed 2026-10-31). Removing someone, leaving, deleting a label and changing the code ask "Are you sure?" first; role and time zone changes save straight away (agreed 2026-10-31). Renaming a project and changing its description come later, with a small API change.
 - A server admin screen with the sign-up switch, and nothing else for now (no list of accounts; agreed 2026-10-31). Server admins reach it from the account menu.
 

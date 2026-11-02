@@ -1,5 +1,6 @@
 import type { CardRelatives, RelatedCard } from '@tessera/shared'
 import { screen, waitFor, within } from '@testing-library/react'
+import { http } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import { boardPath, cardPanel } from '../test/card-panel'
@@ -13,6 +14,7 @@ import {
   website,
 } from '../test/fixtures'
 import { renderApp } from '../test/render'
+import { apiError, server } from '../test/server'
 
 // WEB-12 > WEB-12.1 > WEB-12.1.1 on this board, WEB-12.2 on the Backlog,
 // and WEB-14, which is not related.
@@ -131,6 +133,22 @@ describe('Seeing related cards', () => {
         name: 'Related cards on other boards',
       }),
     ).toBe(null)
+  })
+
+  it('says when the related cards could not be loaded', async () => {
+    openBoard(form.id)
+    server.use(
+      http.get(`/api/cards/${form.id}/relatives`, () =>
+        apiError(500, 'Broken'),
+      ),
+    )
+    const panel = await cardPanel('WEB-12.1')
+
+    expect(
+      await within(panel).findByText(
+        'Couldn’t load the related cards. They will be tried again shortly.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('outlines relatives in the project’s colours', async () => {
