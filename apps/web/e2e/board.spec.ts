@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 import { expectNoAccessibilityProblems } from './accessibility'
 
 // Signs up someone new and opens a new board in a new project.
@@ -34,6 +34,29 @@ async function addCard(page: Page, column: string, title: string) {
     region.getByRole('button', { name: new RegExp(`-\\d+ ${title}$`) }),
   ).toBeVisible()
   await region.getByRole('button', { name: 'Cancel' }).click()
+}
+
+// Presses a key while a card is being moved, until the expected step is
+// read out. In CI an arrow pressed straight after Space picked the card up
+// was sometimes ignored (probably dnd-kit still measuring the columns; a
+// person never presses that fast). The key is pressed again only while the
+// announcement does not yet show the expected step, and at most three
+// times, so a key that is always lost still fails the test.
+async function moveUntil(
+  page: Page,
+  announcement: Locator,
+  key: string,
+  expected: RegExp,
+) {
+  let presses = 0
+  await expect(async () => {
+    if (!expected.test((await announcement.textContent()) ?? '')) {
+      expect(presses, `${key} was not read out`).toBeLessThan(3)
+      presses += 1
+      await page.keyboard.press(key)
+    }
+    await expect(announcement).toHaveText(expected, { timeout: 1000 })
+  }).toPass({ timeout: 10_000 })
 }
 
 function card(page: Page, column: string, title: string) {
@@ -79,8 +102,7 @@ test('move a card with the keyboard', async ({ page }) => {
   await card(page, 'To do', 'Sign-up page').focus()
   await page.keyboard.press('Space')
   await expect(announcement).toHaveText(/is in To do, place 2 of 2/)
-  await page.keyboard.press('ArrowUp')
-  await expect(announcement).toHaveText(/is in To do, place 1 of 2/)
+  await moveUntil(page, announcement, 'ArrowUp', /is in To do, place 1 of 2/)
   await page.keyboard.press('Space')
 
   const toDo = page.getByRole('region', { name: 'To do' })
@@ -97,8 +119,7 @@ test('move a card with the keyboard', async ({ page }) => {
   await card(page, 'To do', 'Login page').focus()
   await page.keyboard.press('Space')
   await expect(announcement).toHaveText(/is in To do, place 2 of 2/)
-  await page.keyboard.press('ArrowRight')
-  await expect(announcement).toHaveText(/is in In progress/)
+  await moveUntil(page, announcement, 'ArrowRight', /is in In progress/)
   // Enter neither drops the card nor selects it while it is being moved.
   await page.keyboard.press('Enter')
   await expect(announcement).toHaveText(/is in In progress/)

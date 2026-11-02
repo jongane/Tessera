@@ -3,12 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { CardRelatives, RelatedCard } from '@tessera/shared';
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import type { NewCard } from './cards.service.js';
 import { nextPosition, takeNextSubtaskNumber } from './card-numbering.js';
-import type { CardRelatives, RelatedCard } from '@tessera/shared';
 import {
   loadAncestorIds,
   loadSubtree,
