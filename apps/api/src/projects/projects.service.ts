@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
+import type { RelationColours } from '@tessera/shared';
 import { Prisma, type Project } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
@@ -75,6 +76,36 @@ export class ProjectsService {
     return this.prisma.project.update({
       where: { id: projectId },
       data: { timeZone },
+    });
+  }
+
+  // Only admins can set the colours that outline a selected card's
+  // relatives, so everyone in the project sees the same ones
+  // (docs/card-features.md, section 7). Relationships left out keep their
+  // colour. The database checks the result.
+  async setRelationColours(
+    userId: string,
+    projectId: string,
+    changes: Partial<RelationColours>,
+  ): Promise<Project> {
+    await requireAdmin(
+      this.prisma,
+      userId,
+      projectId,
+      'change its relationship colours',
+    );
+    return this.prisma.$transaction(async (tx) => {
+      // Locked, so two admins changing different colours keep both.
+      const [current] = await tx.$queryRaw<
+        { relationColours: RelationColours }[]
+      >`SELECT relation_colours AS "relationColours" FROM projects
+        WHERE id = ${projectId}::uuid FOR UPDATE`;
+      return tx.project.update({
+        where: { id: projectId },
+        data: {
+          relationColours: { ...current!.relationColours, ...changes },
+        },
+      });
     });
   }
 

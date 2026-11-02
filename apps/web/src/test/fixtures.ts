@@ -1,9 +1,10 @@
-import type {
-  Board,
-  BoardCard,
-  BoardColumn,
-  BoardView,
-  Project,
+import {
+  type Board,
+  type BoardCard,
+  type BoardColumn,
+  type BoardView,
+  DEFAULT_RELATION_COLOURS,
+  type Project,
 } from '@tessera/shared'
 
 // Example data the fake API answers with, shared by the component tests.
@@ -14,6 +15,7 @@ export const website: Project = {
   description: 'The public site',
   code: 'WEB',
   timeZone: 'UTC',
+  relationColours: DEFAULT_RELATION_COLOURS,
   createdAt: '2026-10-30T09:00:00.000Z',
 }
 

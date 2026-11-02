@@ -79,7 +79,7 @@ Email invitations and "forgot password" need the server to send email, so they c
 | `GET /api/projects/suggest-code?name=...` | Signed in | `{ code }`: the first free code made from a project name, for the "new project" form |
 | `GET /api/projects/:projectId` | Members | One project |
 | `GET /api/projects/by-code/:code` | Members | A project by its code. Old codes work too |
-| `PATCH /api/projects/:projectId` | Project admins | Body `{ code?, timeZone? }`. Changes the code (old card numbers keep working) or the time zone (e.g. `Europe/London`) |
+| `PATCH /api/projects/:projectId` | Project admins | Body `{ code?, timeZone?, relationColours? }`. Changes the code (old card numbers keep working), the time zone (e.g. `Europe/London`), or some of the relationship colours: `relationColours` has any of `selected`, `parent`, `subtask`, `deeperSubtask` and `sibling`, each one of the 10 label colours or `DARK`. Projects answer with all five in `relationColours` |
 
 ### Boards and columns
 
@@ -121,6 +121,7 @@ Completing a card, or moving it into a done column, while some of its direct sub
 | `GET /api/cards/:cardId/subtasks` | Members | `{ subtasks, progress }`: the direct subtasks in number order, and `{ complete, total }` |
 | `POST /api/cards/:cardId/subtasks` | Members | Body `{ columnId, title, description? }`. A subtask in any column of the project, numbered under the card (`WEB-12.1`). At most 5 levels deep (409) |
 | `PUT /api/cards/:cardId/parent` | Members | Body `{ parentId }`, or null for the top level. Moves the card with its own subtasks. They get new numbers, and the old ones keep working |
+| `GET /api/cards/:cardId/relatives` | Members | `{ parents, subtasks, siblings }`, on any board of the project, for outlining a selected card's relatives. Parents go nearest first; subtasks are every level below, in number order, each with `level` (1 is a direct subtask); siblings share the card's parent. Each has `id`, `number`, `title`, `boardId`, `boardName` and `isComplete` |
 | `GET /api/cards/:cardId/due-warnings` | Members | `{ dueAfterParent, subtasksDueAfter }`, for the "due after its parent" warnings |
 
 ### Assignees

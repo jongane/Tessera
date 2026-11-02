@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import type { CardRelatives } from '@tessera/shared';
 import type { Card } from '../generated/prisma/client.js';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
 import { IdParam } from '../common/id-param.js';
@@ -52,6 +53,16 @@ export class SubtasksController {
     @Body(new ZodPipe(parentChangeSchema)) body: ParentChange,
   ): Promise<Card> {
     return this.subtasks.moveToParent(user.id, cardId, body.parentId);
+  }
+
+  // Parents (nearest first), subtasks at every level and siblings, on any
+  // board of the project.
+  @Get('relatives')
+  relatives(
+    @CurrentUser() user: SignedInUser,
+    @Param('cardId', IdParam) cardId: string,
+  ): Promise<CardRelatives> {
+    return this.subtasks.relatives(user.id, cardId);
   }
 
   // Due later than its parent, or subtasks due later than it. Shown as a

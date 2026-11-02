@@ -35,26 +35,30 @@ model User {
 }
 
 model Project {
-  id             String          @id @default(uuid()) @db.Uuid
-  name           String
-  description    String?
+  id              String          @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?
   // Short capitals that start card numbers, e.g. WEB in WEB-12.
   // Must be 2 to 6 capital letters (check constraint in the migration).
-  code           String          @unique @db.VarChar(6)
+  code            String          @unique @db.VarChar(6)
   // The number the next top-level card gets. Only ever goes up, so numbers
   // are never reused, even after a card is deleted.
-  nextCardNumber Int             @default(1) @map("next_card_number")
+  nextCardNumber  Int             @default(1) @map("next_card_number")
   // The project's IANA time zone, e.g. "Europe/London". Set by an admin and
   // used to find the day of a due time. Checked by ProjectsService.
-  timeZone       String          @default("UTC") @map("time_zone")
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  members        ProjectMember[]
-  boards         Board[]
-  codes          ProjectCode[]
-  cards          Card[]
-  timeEntries    TimeEntry[]
-  runningTimers  RunningTimer[]
-  labels         Label[]
+  timeZone        String          @default("UTC") @map("time_zone")
+  // The colours that outline a selected card's relatives, by relationship
+  // (docs/card-features.md, section 7), set by an admin. Keys and colours
+  // are checked by the database (relation_colours_are_valid).
+  relationColours Json            @default("{\"selected\": \"DARK\", \"parent\": \"BLUE\", \"subtask\": \"ORANGE\", \"deeperSubtask\": \"ORANGE\", \"sibling\": \"GREY\"}") @map("relation_colours")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  members         ProjectMember[]
+  boards          Board[]
+  codes           ProjectCode[]
+  cards           Card[]
+  timeEntries     TimeEntry[]
+  runningTimers   RunningTimer[]
+  labels          Label[]
 
   @@map("projects")
 }

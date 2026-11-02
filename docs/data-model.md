@@ -110,7 +110,7 @@ Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`
 
 | Table | New fields | Why |
 |---|---|---|
-| Project | ✓ code (2 to 6 capitals, unique), ✓ next_card_number, ✓ time_zone (set by admins; used for due-date days), highlight_colours | Card numbers like `WEB-12`; relationship colours are a project setting only admins change |
+| Project | ✓ code (2 to 6 capitals, unique), ✓ next_card_number, ✓ time_zone (set by admins; used for due-date days), ✓ relation_colours (one colour for each relationship; checked by the database) | Card numbers like `WEB-12`; relationship colours are a project setting only admins change |
 | Column | ✓ is_done | Moving a card into a done column ticks it complete |
 | Card | ✓ project_id, ✓ parent_id (nullable), ✓ number_path (e.g. `12.1.2`), ✓ next_subtask_number, ✓ depth, ✓ is_complete, ✓ completed_at, ✓ priority, ✓ due_at, ✓ due_has_time, ✓ estimate_minutes, ✓ created_by_id (replaces the single assignee_id) | Subtasks, card numbers, completion, priority, due dates, estimates, delete permission |
 

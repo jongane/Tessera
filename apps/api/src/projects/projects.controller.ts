@@ -79,6 +79,13 @@ export class ProjectsController {
     if (body.code !== undefined) {
       await this.projects.changeProjectCode(user.id, projectId, body.code);
     }
+    if (body.relationColours !== undefined) {
+      await this.projects.setRelationColours(
+        user.id,
+        projectId,
+        body.relationColours,
+      );
+    }
     return found(await this.projects.findProjectForUser(projectId, user.id));
   }
 }

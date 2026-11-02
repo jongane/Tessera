@@ -1,4 +1,8 @@
-import type { Board, Project } from '@tessera/shared'
+import {
+  type Board,
+  DEFAULT_RELATION_COLOURS,
+  type Project,
+} from '@tessera/shared'
 import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
@@ -12,6 +16,7 @@ const website: Project = {
   description: 'The public site',
   code: 'WEB',
   timeZone: 'UTC',
+  relationColours: DEFAULT_RELATION_COLOURS,
   createdAt: '2026-10-30T09:00:00.000Z',
 }
 
