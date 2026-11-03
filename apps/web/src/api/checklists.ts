@@ -27,11 +27,17 @@ export function checklistsKey(boardId: string, cardId: string) {
   return [...boardKey(boardId), 'checklists', cardId] as const
 }
 
+// The regular reload is skipped while a change is still being saved, so it
+// cannot put back what the change has already shown.
 export function useChecklists(boardId: string, cardId: string) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: checklistsKey(boardId, cardId),
     queryFn: () => api<Lists>(`/cards/${cardId}/checklists`),
-    refetchInterval: BOARD_RELOAD_MS,
+    refetchInterval: () =>
+      queryClient.isMutating({ mutationKey: mutationKey(cardId) }) > 0
+        ? false
+        : BOARD_RELOAD_MS,
   })
 }
 
