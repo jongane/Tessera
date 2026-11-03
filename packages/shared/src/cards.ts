@@ -84,3 +84,14 @@ export type CompletionBody = z.infer<typeof completionSchema>;
 export type MoveCardBody = z.infer<typeof moveCardSchema>;
 export type DeleteCardBody = z.infer<typeof deleteCardSchema>;
 export type OwnerChange = z.infer<typeof ownerChangeSchema>;
+
+// GET /api/projects/:projectId/cards?q=...: finding a card by its number
+// or title, for example to pick a new parent.
+export const cardSearchQuerySchema = z.strictObject({
+  // A card number (WEB-12, or just 12), or words from its title.
+  q: z.string().trim().min(1).max(100),
+  // 1 to 50 cards; 20 when left out.
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+export type CardSearchQuery = z.infer<typeof cardSearchQuerySchema>;

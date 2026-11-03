@@ -138,6 +138,40 @@ describe('Card features (e2e)', () => {
       await ben.agent.get(`/api/cards/${sub.id}/relatives`).expect(404);
     });
 
+    it('finds cards by number or title, for members only', async () => {
+      const { ana, ben, project, cardUrl, toDo } = await setUp();
+      await ana.agent
+        .post(`${cardUrl}/subtasks`)
+        .send({ columnId: toDo.id, title: 'Login form' })
+        .expect(201);
+      const searchUrl = `/api/projects/${project.id}/cards`;
+
+      const byNumber = await ana.agent
+        .get(searchUrl)
+        .query({ q: 'web-1' })
+        .expect(200);
+      const byTitle = await ana.agent
+        .get(searchUrl)
+        .query({ q: 'FORM', limit: 5 })
+        .expect(200);
+
+      expect(
+        byNumber.body.cards.map((c: { number: string }) => c.number),
+      ).toEqual(['WEB-1', 'WEB-1.1']);
+      expect(byTitle.body).toEqual({
+        cards: [
+          expect.objectContaining({
+            number: 'WEB-1.1',
+            title: 'Login form',
+            boardName: 'Sprint 1',
+            depth: 1,
+          }),
+        ],
+      });
+      await ana.agent.get(searchUrl).query({ q: ' ' }).expect(400);
+      await ben.agent.get(searchUrl).query({ q: 'login' }).expect(404);
+    });
+
     it('warns when a subtask is due after its parent', async () => {
       const { ana, cardUrl, toDo } = await setUp();
       const sub = (

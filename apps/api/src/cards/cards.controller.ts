@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import type { Card } from '../generated/prisma/client.js';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
@@ -17,6 +18,9 @@ import { ZodPipe } from '../common/zod-pipe.js';
 import {
   type CardChangesBody,
   cardChangesSchema,
+  type CardSearchQuery,
+  cardSearchQuerySchema,
+  type CardSearchResults,
   type CompletionBody,
   completionSchema,
   type DeleteCardBody,
@@ -31,10 +35,14 @@ import {
   CardsService,
   type CompleteCardResult,
 } from './cards.service.js';
+import { CardSearchService } from './card-search.service.js';
 
 @Controller()
 export class CardsController {
-  constructor(private readonly cards: CardsService) {}
+  constructor(
+    private readonly cards: CardsService,
+    private readonly cardSearch: CardSearchService,
+  ) {}
 
   // Goes to the bottom of the column, with the project's next number and
   // its own chat: a new one, or with chatId an existing chat (see
@@ -46,6 +54,17 @@ export class CardsController {
     @Body(new ZodPipe(newCardSchema)) body: NewCardBody,
   ): Promise<Card> {
     return this.cards.createCard(user.id, columnId, body);
+  }
+
+  // Cards on any board of the project whose number (WEB-12, 12, or an old
+  // number) or title matches `q`, for example to pick a new parent.
+  @Get('projects/:projectId/cards')
+  search(
+    @CurrentUser() user: SignedInUser,
+    @Param('projectId', IdParam) projectId: string,
+    @Query(new ZodPipe(cardSearchQuerySchema)) query: CardSearchQuery,
+  ): Promise<CardSearchResults> {
+    return this.cardSearch.search(user.id, projectId, query);
   }
 
   // A number such as WEB-12 or WEB-12.1. Old numbers and codes work too.
