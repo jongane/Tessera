@@ -47,7 +47,7 @@ A named list of tick-box items on a card, separate from its description.
 _Avoid_: To-do list
 
 **Time entry**:
-An amount of time a person logged on a card for one day, typed in or saved from the timer.
+An amount of time a person logged on a card for one day, typed in or saved from the timer. The day is the day in the project's time zone.
 _Avoid_: Timesheet line, log
 
 ## Conversation

@@ -60,12 +60,14 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - **Editing entries:** a person can edit or delete their own entries for 24 hours. After that only admins can. Every change is recorded in the card's history.
 - Everyone in the project can see all time entries.
 - One entry is **1 minute to 24 hours**, and time cannot be logged for a future day. (Agreed 2026-10-28.)
-- A timer that runs past midnight saves its time on the **day it started**. (Agreed 2026-10-28.)
+- A timer that runs past midnight saves its time on the **day it started**, in the project's time zone. (Agreed 2026-10-28; project's time zone agreed 2026-11-03.)
+- If an admin changes the project's time zone while a timer is running, the timer's time is still saved on the day it started. (Agreed 2026-11-03.)
 - A card with logged time **cannot be deleted**, so hours never quietly disappear from reports. The refusal says how much time is logged. An admin can delete the entries first. (Agreed 2026-10-28.)
 - Time entries added, edited and deleted are recorded in the card's history (section 9). (Agreed 2026-10-28.)
 - A timer stopped within 30 seconds saves nothing. Otherwise timer time is rounded to the nearest minute. (Agreed 2026-10-28.)
 - A timer left running for more than 24 hours saves 24 hours and the entry is **flagged for review**. The flag clears when the person or an admin edits or confirms the entry. (Agreed 2026-10-28.)
-- "A future day" means a day that has not started anywhere in the world yet, because the server does not know the person's time zone when time is typed in. (Agreed 2026-10-28.)
+- "A future day" means a day that has not started yet in the **project's time zone**, even if it has already started somewhere else in the world. The refusal names the zone, for example "Time can't be logged for a day that hasn't started yet in the project's time zone (Europe/London)". (Agreed 2026-11-03.)
+- An edit to an entry that leaves the date out, or sends back the entry's date unchanged, does not check the date again, so an older entry can still be edited. (Agreed 2026-11-03.)
 - Deleting a card that has a running timer stops the timer without saving it. This can only happen when the card has no logged time. (Agreed 2026-10-28.)
 - A person who has logged time cannot be deleted, so their hours are kept. (Agreed 2026-10-28.)
 
@@ -87,6 +89,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - **Priority:** None, Low, Medium, High or Urgent.
 - **Due date:** a date, with an optional time. If a subtask is due after its parent, both cards show a warning. The date is not blocked. The warning is worked out when a card is read, not stored. Two times are compared exactly. When either card has no time, only the days are compared, and a due time's day is the day it falls on in the **project's time zone**. (Agreed 2026-10-28.)
 - Each project has a **time zone**, set by an admin. New projects start on UTC. (Agreed 2026-10-28.) Due times are typed and shown in the project's time zone, not each person's own (agreed 2026-11-01).
+- The days of **time entries** also use the project's time zone, whether the time is typed in or comes from the timer (section 6). Every other time on screen, such as when a message was sent or a change was made, stays in each person's own time zone. Entries logged before 2026-11-03 keep the dates they were given. (Agreed 2026-11-03.)
 - **Labels** are shared across the whole project and each has a name and a colour. Any member can create a label. Only admins can rename, recolour or delete one. Names are up to 50 characters. Colours come from a **fixed set of 10** that read well in light and dark mode (grey, red, orange, yellow, green, teal, blue, indigo, purple, pink), and two labels in a project cannot have the same name in any letter case. (Agreed 2026-10-28.)
 - **Attachments:** a file can be attached to the card itself or to a message in its chat. The card lists files from both. The default limit is 100 MB per file, and admins of a self-hosted server can change it. Attachments come in a later pull request, once file storage (MinIO) is set up. (Agreed 2026-10-28.)
 

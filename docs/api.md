@@ -152,11 +152,11 @@ Each of these answers with the card's assignees afterwards, owner first.
 | Method and path | Who | What it does |
 |---|---|---|
 | `GET /api/cards/:cardId/time-entries` | Members | Everyone's time on the card, latest day first, each with `user` |
-| `POST /api/cards/:cardId/time-entries` | Members | Body `{ minutes, workDate, note? }`. 1 minute to 24 hours, on a day that has started somewhere in the world |
-| `PATCH /api/time-entries/:entryId` | The person who logged it (for 24 hours), or a project admin | Body `{ minutes?, workDate?, note? }` (`note: null` removes it). Also clears the "needs review" flag |
+| `POST /api/cards/:cardId/time-entries` | Members | Body `{ minutes, workDate, note? }`. 1 minute to 24 hours, on a day that has started in the project's time zone (400 otherwise, naming the zone) |
+| `PATCH /api/time-entries/:entryId` | The person who logged it (for 24 hours), or a project admin | Body `{ minutes?, workDate?, note? }` (`note: null` removes it). A new `workDate` must be a day that has started in the project's time zone; one left out or sent back unchanged is not checked again. Also clears the "needs review" flag |
 | `DELETE /api/time-entries/:entryId` | Same as above | Deletes the entry |
 | `GET /api/cards/:cardId/time-totals` | Members | Estimate and time spent, rolled up from the card's subtasks |
-| `POST /api/cards/:cardId/timer` | Members | Body `{ timeZone?, stopRunning? }`. Starts your timer on the card. If yours is running on another card, you get 409 with `runningCardId`; send `stopRunning: true` to stop that one (its time is saved) and start this one |
+| `POST /api/cards/:cardId/timer` | Members | Body `{ stopRunning? }`. Starts your timer on the card, dated the day it starts in the project's time zone. Sending `timeZone` gets 400. If yours is running on another card, you get 409 with `runningCardId`; send `stopRunning: true` to stop that one (its time is saved) and start this one |
 | `GET /api/timer` | Signed in | `{ timer }`: your running timer, or null |
 | `DELETE /api/timer` | Signed in | Stops your timer. `{ entry }` is the time saved, or null if it ran under half a minute. 404 if none is running |
 
