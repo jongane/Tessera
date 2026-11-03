@@ -8,6 +8,10 @@ import type {
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { formatCardNumber } from '../cards/card-number.js';
+import {
+  directSubtaskCompletion,
+  subtaskProgressOf,
+} from '../cards/subtask-progress.js';
 import { boardsVisibleTo } from './board-access.js';
 
 export interface NewBoard {
@@ -47,7 +51,7 @@ const boardCardDetails = {
     orderBy: [{ isOwner: 'desc' }, { assignedAt: 'asc' }],
   },
   checklists: { select: { items: { select: { isDone: true } } } },
-  subtasks: { select: { isComplete: true } },
+  ...directSubtaskCompletion,
   chat: { select: { id: true } },
 } satisfies Prisma.CardInclude;
 
@@ -188,10 +192,7 @@ function toBoardCard(card: CardWithDetails, projectCode: string): BoardCard {
       done: items.filter((item) => item.isDone).length,
       total: items.length,
     },
-    subtaskProgress: {
-      complete: subtasks.filter((subtask) => subtask.isComplete).length,
-      total: subtasks.length,
-    },
+    subtaskProgress: subtaskProgressOf(subtasks),
     chatId: chat?.id ?? null,
   };
 }
