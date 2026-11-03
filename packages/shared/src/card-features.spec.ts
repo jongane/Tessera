@@ -94,6 +94,17 @@ describe('time', () => {
   it('accepts starting a timer with nothing else', () => {
     expect(startTimerSchema.safeParse({}).success).toBe(true);
   });
+
+  // Criterion 5: the timer is dated by the project's time zone, so the
+  // browser no longer sends one.
+  it('refuses a time zone when starting a timer', () => {
+    expect(
+      startTimerSchema.safeParse({ timeZone: 'Europe/London' }).success,
+    ).toBe(false);
+    expect(startTimerSchema.safeParse({ stopRunning: true }).success).toBe(
+      true,
+    );
+  });
 });
 
 describe('activityQuerySchema', () => {

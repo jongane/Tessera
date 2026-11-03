@@ -5,9 +5,6 @@ import { MAX_ENTRY_MINUTES, MAX_ESTIMATE_MINUTES } from '@tessera/shared';
 // (docs/card-features.md, section 6). Each one refuses bad input with a
 // BadRequestException that says what is allowed.
 
-// The latest any time zone runs ahead of UTC (Kiribati, UTC+14).
-const LATEST_ZONE_OFFSET_MS = 14 * 60 * 60 * 1000;
-
 export function requireEntryMinutes(minutes: number): number {
   if (
     !Number.isInteger(minutes) ||
@@ -50,14 +47,18 @@ export function requireDay(text: string): Date {
   return date;
 }
 
-// A day for logged time. The server does not know the person's time zone
-// here, so a day is refused only once it has not yet started anywhere in
-// the world.
-export function requireWorkDate(text: string, now: Date): Date {
+// A day for logged time. A day that has not started yet in the project's
+// time zone is refused, even if it has started elsewhere in the world.
+export function requireWorkDate(
+  text: string,
+  now: Date,
+  timeZone: string,
+): Date {
   const date = requireDay(text);
-  const latestToday = new Date(now.getTime() + LATEST_ZONE_OFFSET_MS);
-  if (dateText(date) > dateText(latestToday)) {
-    throw new BadRequestException('Time cannot be logged for a future day');
+  if (date > localDate(now, timeZone)) {
+    throw new BadRequestException(
+      `Time can't be logged for a day that hasn't started yet in the project's time zone (${timeZone})`,
+    );
   }
   return date;
 }

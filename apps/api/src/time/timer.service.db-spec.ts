@@ -1,16 +1,14 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BoardsService } from '../boards/boards.service.js';
 import { CardsService } from '../cards/cards.service.js';
+import { ProjectsService } from '../projects/projects.service.js';
 import { TimerService } from './timer.service.js';
 import { resetDatabase } from '../../test/support/reset-database.js';
 import { cardScenario } from '../../test/support/card-scenario.js';
+import { createProject } from '../../test/support/factories.js';
 
 // docs/card-features.md, section 6: the start/stop timer.
 describe('TimerService (database)', () => {
@@ -18,16 +16,18 @@ describe('TimerService (database)', () => {
   let boards: BoardsService;
   let cards: CardsService;
   let timers: TimerService;
+  let projects: ProjectsService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [PrismaModule],
-      providers: [BoardsService, CardsService, TimerService],
+      providers: [BoardsService, CardsService, TimerService, ProjectsService],
     }).compile();
     prisma = moduleRef.get(PrismaService);
     boards = moduleRef.get(BoardsService);
     cards = moduleRef.get(CardsService);
     timers = moduleRef.get(TimerService);
+    projects = moduleRef.get(ProjectsService);
   });
 
   beforeEach(async () => {
@@ -52,23 +52,56 @@ describe('TimerService (database)', () => {
     return new Date(Date.now() - minutes * 60 * 1000);
   }
 
+  // Pacific/Kiritimati (UTC+14) is always 25 hours ahead of
+  // Pacific/Pago_Pago (UTC-11), so the two are never on the same day.
+  const AHEAD = 'Pacific/Kiritimati';
+  const BEHIND = 'Pacific/Pago_Pago';
+
+  function todayIn(timeZone: string) {
+    const text = new Intl.DateTimeFormat('en-CA', { timeZone }).format(
+      new Date(),
+    );
+    return new Date(`${text}T00:00:00Z`);
+  }
+
+  // A second project for Ana, with the time zone `timeZone` and one card.
+  async function cardInProjectAt(adminId: string, timeZone: string) {
+    const project = await createProject(prisma, adminId, 'Shop', 'SHOP');
+    await projects.setTimeZone(adminId, project.id, timeZone);
+    const board = await boards.createBoard(adminId, project.id, {
+      name: 'Sprint 1',
+    });
+    const column = await prisma.column.findFirstOrThrow({
+      where: { boardId: board.id },
+      orderBy: { position: 'asc' },
+    });
+    return cards.createCard(adminId, column.id, { title: 'Basket' });
+  }
+
   describe('startTimer', () => {
-    it('starts a timer dated today in the person’s time zone', async () => {
-      const { ana, one } = await setUp();
+    // Criterion 4
+    it("starts a timer dated today in the card's project time zone", async () => {
+      const { ana, project, one } = await setUp();
+      await projects.setTimeZone(ana.id, project.id, AHEAD);
+      const behindCard = await cardInProjectAt(ana.id, BEHIND);
 
-      const { timer, savedEntry } = await timers.startTimer(ana.id, one.id, {
-        timeZone: 'Australia/Sydney',
-      });
+      const { timer, savedEntry } = await timers.startTimer(ana.id, one.id);
 
-      const sydneyToday = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Australia/Sydney',
-      }).format(new Date());
       expect(timer).toMatchObject({
         userId: ana.id,
         cardId: one.id,
-        workDate: new Date(`${sydneyToday}T00:00:00Z`),
+        workDate: todayIn(AHEAD),
       });
       expect(savedEntry).toBeNull();
+
+      const next = await timers.startTimer(ana.id, behindCard.id, {
+        stopRunning: true,
+      });
+
+      expect(next.timer).toMatchObject({
+        cardId: behindCard.id,
+        workDate: todayIn(BEHIND),
+      });
     });
 
     it('keeps the running timer when started again on the same card', async () => {
@@ -109,14 +142,6 @@ describe('TimerService (database)', () => {
       expect(savedEntry).toMatchObject({ cardId: one.id, minutes: 40 });
     });
 
-    it('refuses an unknown time zone', async () => {
-      const { ana, one } = await setUp();
-
-      await expect(
-        timers.startTimer(ana.id, one.id, { timeZone: 'Mars/Olympus' }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
     it('refuses someone who is not a member of the project', async () => {
       const { ben, one } = await setUp();
 
@@ -146,6 +171,7 @@ describe('TimerService (database)', () => {
       await expect(timers.runningTimer(ana.id)).resolves.toBeNull();
     });
 
+    // Criterion 4: stopping after midnight keeps the start day.
     it('dates the entry on the day the timer started, past midnight', async () => {
       const { ana, one } = await setUp();
       await timers.startTimer(ana.id, one.id);
@@ -157,6 +183,20 @@ describe('TimerService (database)', () => {
       const entry = await timers.stopTimer(ana.id);
 
       expect(entry!.workDate).toEqual(new Date('2026-10-20T00:00:00Z'));
+    });
+
+    // Criterion 6
+    it("keeps the day the timer started when the project's time zone changes", async () => {
+      const { ana, project, one } = await setUp();
+      await projects.setTimeZone(ana.id, project.id, BEHIND);
+      const { timer } = await timers.startTimer(ana.id, one.id);
+      await startedAt(ana.id, minutesAgo(5));
+
+      await projects.setTimeZone(ana.id, project.id, AHEAD);
+      const entry = await timers.stopTimer(ana.id);
+
+      expect(timer.workDate).toEqual(todayIn(BEHIND));
+      expect(entry!.workDate).toEqual(todayIn(BEHIND));
     });
 
     it('saves at most 24 hours, flagged for review', async () => {

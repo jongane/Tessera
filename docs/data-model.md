@@ -110,7 +110,7 @@ Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`
 
 | Table | New fields | Why |
 |---|---|---|
-| Project | ✓ code (2 to 6 capitals, unique), ✓ next_card_number, ✓ time_zone (set by admins; used for due-date days), ✓ relation_colours (one colour for each relationship; checked by the database) | Card numbers like `WEB-12`; relationship colours are a project setting only admins change |
+| Project | ✓ code (2 to 6 capitals, unique), ✓ next_card_number, ✓ time_zone (set by admins; used for the days of due dates and time entries), ✓ relation_colours (one colour for each relationship; checked by the database) | Card numbers like `WEB-12`; relationship colours are a project setting only admins change |
 | Column | ✓ is_done | Moving a card into a done column ticks it complete |
 | Card | ✓ project_id, ✓ parent_id (nullable), ✓ number_path (e.g. `12.1.2`), ✓ next_subtask_number, ✓ depth, ✓ is_complete, ✓ completed_at, ✓ priority, ✓ due_at, ✓ due_has_time, ✓ estimate_minutes, ✓ created_by_id (replaces the single assignee_id) | Subtasks, card numbers, completion, priority, due dates, estimates, delete permission |
 
@@ -123,8 +123,8 @@ Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`
 | ✓ ChecklistItem | One tick-box item in a checklist | id, checklist_id, text, is_done, position |
 | ✓ Label | A project-wide label | id, project_id, name, colour (one of a fixed set of 10) |
 | ✓ CardLabel | Which labels a card has | card_id, label_id, project_id |
-| ✓ TimeEntry | Time someone spent on a card | id, project_id, card_id, user_id, work_date, minutes, note, started_at, ended_at, needs_review |
-| ✓ RunningTimer | A timer that is running now | user_id (primary key, so one per person), project_id, card_id, started_at, work_date (the day it started, in the person's time zone) |
+| ✓ TimeEntry | Time someone spent on a card | id, project_id, card_id, user_id, work_date (the day, in the project's time zone; entries logged before 2026-11-03 keep theirs), minutes, note, started_at, ended_at, needs_review |
+| ✓ RunningTimer | A timer that is running now | user_id (primary key, so one per person), project_id, card_id, started_at, work_date (the day it started, in the project's time zone; kept if the zone changes while it runs) |
 | ✓ CardActivity | The card's history (Activity tab) | id, card_id, project_id, actor_id, kind, details (names copied in when written), created_at, sequence (the order lines were written) |
 | ✓ CardNumberAlias | Old card numbers that still lead to the card | project_id, number_path, card_id |
 | ✓ ProjectCode | Every code a project has had, current and old, so old codes still work. The code is the primary key, so no two projects ever share one | code, project_id |

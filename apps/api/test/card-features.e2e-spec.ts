@@ -326,10 +326,7 @@ describe('Card features (e2e)', () => {
           .send({ title: 'Sign-up' })
       ).body as { id: string };
 
-      await ana.agent
-        .post(`${cardUrl}/timer`)
-        .send({ timeZone: 'Europe/London' })
-        .expect(201);
+      await ana.agent.post(`${cardUrl}/timer`).send({}).expect(201);
       await ana.agent
         .get('/api/timer')
         .expect(200)
@@ -353,6 +350,115 @@ describe('Card features (e2e)', () => {
       await ana.agent.delete('/api/timer').expect(200);
       await ana.agent.get('/api/timer').expect(200, { timer: null });
       await ana.agent.delete('/api/timer').expect(404);
+    });
+  });
+
+  // Criteria 2, 3, 4, 5 and 9: time is dated by the project's time zone.
+  // Pacific/Kiritimati (UTC+14) is always 25 hours ahead of
+  // Pacific/Pago_Pago (UTC-11), so its today has never started yet in
+  // Pago Pago, whenever the test runs.
+  describe("time in the project's time zone", () => {
+    const AHEAD = 'Pacific/Kiritimati';
+    const BEHIND = 'Pacific/Pago_Pago';
+
+    function todayIn(timeZone: string) {
+      return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+    }
+
+    function futureDayMessage(timeZone: string) {
+      return `Time can't be logged for a day that hasn't started yet in the project's time zone (${timeZone})`;
+    }
+
+    async function setUpIn(timeZone: string) {
+      const setup = await setUp();
+      await setup.ana.agent
+        .patch(`/api/projects/${setup.project.id}`)
+        .send({ timeZone })
+        .expect(200);
+      return setup;
+    }
+
+    // Criteria 2 and 9
+    it("refuses a day not yet started in the card's project time zone", async () => {
+      const { cara, cardUrl } = await setUpIn(BEHIND);
+
+      const refused = await cara.agent
+        .post(`${cardUrl}/time-entries`)
+        .send({ minutes: 30, workDate: todayIn(AHEAD) })
+        .expect(400);
+      expect(refused.body.message).toBe(futureDayMessage(BEHIND));
+      await cara.agent
+        .post(`${cardUrl}/time-entries`)
+        .send({ minutes: 30, workDate: todayIn(BEHIND) })
+        .expect(201)
+        .expect((r) =>
+          expect(r.body.workDate).toBe(`${todayIn(BEHIND)}T00:00:00.000Z`),
+        );
+    });
+
+    // Criterion 2
+    it("accepts today in the card's project time zone", async () => {
+      const { cara, cardUrl } = await setUpIn(AHEAD);
+
+      await cara.agent
+        .post(`${cardUrl}/time-entries`)
+        .send({ minutes: 30, workDate: todayIn(AHEAD) })
+        .expect(201);
+    });
+
+    // Criteria 3 and 9
+    it("refuses changing an entry to a day not yet started in the project's time zone", async () => {
+      const { ana, cara, cardUrl } = await setUpIn(BEHIND);
+      const entry = (
+        await cara.agent
+          .post(`${cardUrl}/time-entries`)
+          .send({ minutes: 30, workDate: '2026-10-01' })
+          .expect(201)
+      ).body as { id: string };
+
+      for (const who of [cara, ana]) {
+        const refused = await who.agent
+          .patch(`/api/time-entries/${entry.id}`)
+          .send({ workDate: todayIn(AHEAD) })
+          .expect(400);
+        expect(refused.body.message).toBe(futureDayMessage(BEHIND));
+      }
+
+      // Sending back the entry's current date unchanged is not checked,
+      // even when that day has not started yet in the project's zone (an
+      // entry logged under the old rule).
+      await prisma.timeEntry.update({
+        where: { id: entry.id },
+        data: { workDate: new Date(`${todayIn(AHEAD)}T00:00:00Z`) },
+      });
+      await cara.agent
+        .patch(`/api/time-entries/${entry.id}`)
+        .send({ workDate: todayIn(AHEAD), note: 'Same day' })
+        .expect(200)
+        .expect((r) =>
+          expect(r.body).toMatchObject({
+            note: 'Same day',
+            workDate: `${todayIn(AHEAD)}T00:00:00.000Z`,
+          }),
+        );
+    });
+
+    // Criteria 4 and 5
+    it("dates a timer by the project's time zone and refuses one sent by the browser", async () => {
+      const { ana, cardUrl } = await setUpIn(AHEAD);
+
+      await ana.agent
+        .post(`${cardUrl}/timer`)
+        .send({ timeZone: BEHIND })
+        .expect(400);
+      await ana.agent.get('/api/timer').expect(200, { timer: null });
+      const started = await ana.agent
+        .post(`${cardUrl}/timer`)
+        .send({})
+        .expect(201);
+      expect(started.body.timer.workDate).toBe(
+        `${todayIn(AHEAD)}T00:00:00.000Z`,
+      );
     });
   });
 

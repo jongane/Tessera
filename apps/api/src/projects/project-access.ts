@@ -31,3 +31,17 @@ export async function requireAdmin(
   }
   return membership;
 }
+
+// The project's IANA time zone, e.g. "Europe/London", used to find the day
+// of logged time and due times. Call it only with a project id taken from a
+// record found after the membership check, never from the request.
+export async function projectTimeZone(
+  db: Prisma.TransactionClient,
+  projectId: string,
+): Promise<string> {
+  const project = await db.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { timeZone: true },
+  });
+  return project.timeZone;
+}

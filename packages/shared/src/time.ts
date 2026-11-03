@@ -4,7 +4,7 @@ export const MAX_ENTRY_MINUTES = 24 * 60;
 export const MAX_ESTIMATE_MINUTES = 10_000 * 60;
 
 const minutesField = z.number().int().min(1).max(MAX_ENTRY_MINUTES);
-// A day not yet started anywhere in the world is refused by the API.
+// A day not yet started in the project's time zone is refused by the API.
 const workDateField = z.iso.date();
 const noteField = z.string().trim().max(1000);
 
@@ -21,10 +21,8 @@ export const timeEntryChangesSchema = z.strictObject({
   note: noteField.nullable().optional(),
 });
 
+// The timer is dated by the project's time zone, so no zone is sent.
 export const startTimerSchema = z.strictObject({
-  // The person's time zone, e.g. "Europe/London", so the entry is dated
-  // the day the timer starts there. Defaults to UTC.
-  timeZone: z.string().max(100).optional(),
   // Go ahead even though a timer is running on another card.
   stopRunning: z.boolean().optional(),
 });

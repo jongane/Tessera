@@ -10,13 +10,11 @@ import {
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { findVisibleCard } from '../cards/card-access.js';
+import { projectTimeZone } from '../projects/project-access.js';
 import { localDate, timerMinutes } from './time-input.js';
 import { recordTimeLogged } from './time-entries.service.js';
 
 export interface StartTimerOptions {
-  // The person's IANA time zone, e.g. "Europe/London". The entry is dated
-  // the day the timer starts there. Defaults to UTC.
-  timeZone?: string;
   // Go ahead even though a timer is running on another card: that timer
   // stops and its time is saved first.
   stopRunning?: boolean;
@@ -42,7 +40,12 @@ export class TimerService {
     options: StartTimerOptions = {},
   ): Promise<StartTimerResult> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
-    const workDate = localDate(new Date(), options.timeZone ?? 'UTC');
+    // Dated the day the timer starts in the project's time zone. Changing
+    // the zone later does not change it.
+    const workDate = localDate(
+      new Date(),
+      await projectTimeZone(this.prisma, card.projectId),
+    );
 
     try {
       return await this.prisma.$transaction(async (tx) => {
