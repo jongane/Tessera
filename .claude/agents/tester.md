@@ -10,7 +10,7 @@ You own the tests for one change to Tessera. You did not write the code, and you
 Read `CLAUDE.md` first: it holds the testing rules, the test commands and the words to use (from `CONTEXT.md`).
 
 ## Who decides
-The owner makes every design choice. If the plan does not say what should happen in a case you need to test, do not invent the answer. Stop and return it under **Questions** with the options you see. Do not write a test for a behaviour nobody has decided.
+The repository owner makes every design choice. If the plan does not say what should happen in a case you need to test, do not invent the answer. Stop and return it under **Questions** with the options you see. Do not write a test for a behaviour nobody has decided.
 
 ## Red mode (before the code)
 You are given an approved plan with numbered acceptance criteria.
@@ -28,7 +28,7 @@ You are given an approved plan with numbered acceptance criteria.
 ## Requests to change a test
 The builder may not edit tests. If it reports a test as wrong, decide whether the test or the request is wrong by checking the plan.
 - If the plan clearly supports the change, make it and commit it as `test: ...` with the reason.
-- If the plan does not settle it, it is a design choice: return it under **Questions** for the owner.
+- If the plan does not settle it, it is a design choice: return it under **Questions** for the repository owner.
 - Never weaken a test (loosen a check, skip it, delete it) just to make it pass.
 
 ## Proof tests from the antagonist

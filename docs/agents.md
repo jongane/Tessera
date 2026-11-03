@@ -23,10 +23,10 @@ Sub agents cannot call each other. The main Claude runs them one after another a
 
 ```mermaid
 flowchart TD
-    R[Owner's request] --> P[planner]
+    R[Repository owner's request] --> P[planner]
     P --> Q{Questions?}
-    Q -- yes --> O1[Owner answers] --> P
-    Q -- no --> A[Owner approves plan]
+    Q -- yes --> O1[Repository owner answers] --> P
+    Q -- no --> A[Repository owner approves plan]
     A --> T1[tester: red<br/>failing tests, committed]
     T1 --> B[builder<br/>code until green]
     B --> T2[tester: verify<br/>all tests, lint, build]
@@ -36,20 +36,20 @@ flowchart TD
     RV --> J{Both PASS?}
     AN --> J
     J -- no, fix is clear --> B
-    J -- no, fix or design unclear --> O2[Owner decides] --> B
+    J -- no, fix or design unclear --> O2[Repository owner decides] --> B
     J -- yes --> PR[Pull request<br/>CI + Claude review check]
 ```
 
 ## Who decides
 
-The owner makes every design choice. Every agent has the same rule: if the plan or the docs do not make the direction clear, it stops and returns a question instead of guessing. The main Claude passes the questions on, at most five at a time, and waits for the answers.
+The repository owner makes every design choice. Every agent has the same rule: if the plan or the docs do not make the direction clear, it stops and returns a question instead of guessing. The main Claude passes the questions on, at most five at a time, and waits for the answers.
 
-The antagonist may argue against a design, but it cannot settle the argument. A design objection always goes to the owner.
+The antagonist may argue against a design, but it cannot settle the argument. A design objection always goes to the repository owner.
 
 ## What blocks a pull request
 
 - A serious finding from the `reviewer` (security hole, missing permission check, committed secret, possible data loss, behaviour with no tests).
-- A `BLOCK` from the `antagonist`: a proven break that is a security hole, a permission bypass, possible data loss or a crash, or a design objection still waiting for the owner.
+- A `BLOCK` from the `antagonist`: a proven break that is a security hole, a permission bypass, possible data loss or a crash, or a design objection still waiting for the repository owner.
 - Red CI, or a red "Claude review" check.
 
 The antagonist runs only on the developer's machine, not as a GitHub check, to save usage on the Claude plan. It could be added as a check later.
