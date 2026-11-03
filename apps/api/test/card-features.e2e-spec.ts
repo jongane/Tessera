@@ -111,6 +111,77 @@ describe('Card features (e2e)', () => {
         .expect((r) => expect(r.body).toMatchObject({ id: sub.id }));
     });
 
+    // Criteria 1, 3 and 5
+    it('lists each subtask with its number, column, board and own progress', async () => {
+      const { ana, ben, project, cardUrl, toDo } = await setUp();
+      const design = (
+        await ana.agent
+          .post(`/api/projects/${project.id}/boards`)
+          .send({ name: 'Design' })
+          .expect(201)
+      ).body as { id: string };
+      const designInProgress = (
+        (await ana.agent.get(`/api/boards/${design.id}`).expect(200)).body
+          .columns as { id: string }[]
+      )[1]!;
+      const form = (
+        await ana.agent
+          .post(`${cardUrl}/subtasks`)
+          .send({ columnId: toDo.id, title: 'Form' })
+          .expect(201)
+      ).body as { id: string };
+      const mockUp = (
+        await ana.agent
+          .post(`${cardUrl}/subtasks`)
+          .send({ columnId: designInProgress.id, title: 'Mock-up' })
+          .expect(201)
+      ).body as { id: string };
+      const fields = (
+        await ana.agent
+          .post(`/api/cards/${form.id}/subtasks`)
+          .send({ columnId: toDo.id, title: 'Fields' })
+          .expect(201)
+      ).body as { id: string };
+      await ana.agent
+        .post(`/api/cards/${fields.id}/complete`)
+        .send({})
+        .expect(200);
+      await ana.agent
+        .patch(`/api/projects/${project.id}`)
+        .send({ code: 'SITE' })
+        .expect(200);
+
+      const list = await ana.agent.get(`${cardUrl}/subtasks`).expect(200);
+
+      expect(list.body).toEqual({
+        subtasks: [
+          expect.objectContaining({
+            id: form.id,
+            title: 'Form',
+            numberPath: '1.1',
+            columnId: toDo.id,
+            number: 'SITE-1.1',
+            columnName: 'To do',
+            boardName: 'Sprint 1',
+            subtaskProgress: { complete: 1, total: 1 },
+          }),
+          expect.objectContaining({
+            id: mockUp.id,
+            title: 'Mock-up',
+            numberPath: '1.2',
+            boardId: design.id,
+            number: 'SITE-1.2',
+            columnName: 'In progress',
+            boardName: 'Design',
+            subtaskProgress: { complete: 0, total: 0 },
+          }),
+        ],
+        // The card's own direct subtasks only.
+        progress: { complete: 0, total: 2 },
+      });
+      await ben.agent.get(`${cardUrl}/subtasks`).expect(404);
+    });
+
     it('lists a card’s relatives, for members only', async () => {
       const { ana, ben, cardUrl, toDo, card } = await setUp();
       const sub = (

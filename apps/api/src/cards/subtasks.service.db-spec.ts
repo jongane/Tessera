@@ -315,6 +315,115 @@ describe('SubtasksService (database)', () => {
       });
     });
 
+    // Criterion 1
+    it("numbers each listed subtask with the project's current code", async () => {
+      const { ana, project, one, toDo } = await setUp();
+      await subtasks.createSubtask(ana.id, one.id, toDo.id, { title: 'Form' });
+      await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Errors',
+      });
+      // The code changes after the subtasks were made.
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { code: 'SITE', codes: { create: { code: 'SITE' } } },
+      });
+
+      const list = await subtasks.listSubtasks(ana.id, one.id);
+
+      expect(list).toEqual([
+        expect.objectContaining({ numberPath: '1.1', number: 'SITE-1.1' }),
+        expect.objectContaining({ numberPath: '1.2', number: 'SITE-1.2' }),
+      ]);
+    });
+
+    // Criteria 2 and 3
+    it("names each listed subtask's own column and board, also on another board", async () => {
+      const { ana, project, one, toDo } = await setUp();
+      const design = await boards.createBoard(ana.id, project.id, {
+        name: 'Design',
+      });
+      const designInProgress = await prisma.column.findFirstOrThrow({
+        where: { boardId: design.id, position: 1 },
+      });
+      await subtasks.createSubtask(ana.id, one.id, toDo.id, { title: 'Form' });
+      await subtasks.createSubtask(ana.id, one.id, designInProgress.id, {
+        title: 'Mock-up',
+      });
+
+      const list = await subtasks.listSubtasks(ana.id, one.id);
+
+      expect(list).toEqual([
+        expect.objectContaining({
+          title: 'Form',
+          columnName: 'To do',
+          boardName: 'Sprint 1',
+        }),
+        expect.objectContaining({
+          title: 'Mock-up',
+          boardId: design.id,
+          columnName: 'In progress',
+          boardName: 'Design',
+        }),
+      ]);
+    });
+
+    // Criterion 4
+    it("counts only each listed subtask's own direct subtasks", async () => {
+      const { ana, one, toDo } = await setUp();
+      // WEB-1 > WEB-1.1 > WEB-1.1.1 (complete) and WEB-1.1.2 > WEB-1.1.2.1
+      // (complete); WEB-1 > WEB-1.2 has none.
+      const form = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+      await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Errors',
+      });
+      const fields = await subtasks.createSubtask(ana.id, form.id, toDo.id, {
+        title: 'Fields',
+      });
+      const buttons = await subtasks.createSubtask(ana.id, form.id, toDo.id, {
+        title: 'Buttons',
+      });
+      const icons = await subtasks.createSubtask(ana.id, buttons.id, toDo.id, {
+        title: 'Icons',
+      });
+      await cards.completeCard(ana.id, fields.id);
+      await cards.completeCard(ana.id, icons.id);
+
+      const list = await subtasks.listSubtasks(ana.id, one.id);
+
+      expect(list).toEqual([
+        expect.objectContaining({
+          numberPath: '1.1',
+          subtaskProgress: { complete: 1, total: 2 },
+        }),
+        expect.objectContaining({
+          numberPath: '1.2',
+          subtaskProgress: { complete: 0, total: 0 },
+        }),
+      ]);
+    });
+
+    // Criterion 5
+    it('keeps every card field on each listed subtask and adds only the new ones', async () => {
+      const { ana, one, toDo } = await setUp();
+      const form = await subtasks.createSubtask(ana.id, one.id, toDo.id, {
+        title: 'Form',
+      });
+
+      const list = await subtasks.listSubtasks(ana.id, one.id);
+
+      expect(list).toEqual([
+        {
+          ...form,
+          number: 'WEB-1.1',
+          columnName: 'To do',
+          boardName: 'Sprint 1',
+          subtaskProgress: { complete: 0, total: 0 },
+        },
+      ]);
+    });
+
     it('shows nothing to someone who is not a member', async () => {
       const { ana, ben, one, toDo } = await setUp();
       await subtasks.createSubtask(ana.id, one.id, toDo.id, { title: 'Form' });
