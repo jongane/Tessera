@@ -12,7 +12,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from './client'
-import { boardKey } from './query-keys'
+import { BOARD_RELOAD_MS, boardKey } from './query-keys'
 
 // A card's checklists, in the card panel (docs/card-features.md, section 2).
 // Ticks, edits, moves and deletes show straight away; if saving fails, only
@@ -31,6 +31,7 @@ export function useChecklists(boardId: string, cardId: string) {
   return useQuery({
     queryKey: checklistsKey(boardId, cardId),
     queryFn: () => api<Lists>(`/cards/${cardId}/checklists`),
+    refetchInterval: BOARD_RELOAD_MS,
   })
 }
 

@@ -352,6 +352,9 @@ function AddItem({
     add.reset()
   }
 
+  // Reaching 100 items closes the box; it stays closed if an item is deleted.
+  if (full && open) setOpen(false)
+
   if (!open || full) {
     return (
       <div className="flex flex-col gap-1">
@@ -394,7 +397,11 @@ function AddItem({
     <form
       noValidate
       onSubmit={submit}
-      onKeyDown={(event) => event.key === 'Escape' && close()}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        close()
+      }}
       className="flex flex-col gap-2"
     >
       {add.error && <Alert>{add.error.message}</Alert>}

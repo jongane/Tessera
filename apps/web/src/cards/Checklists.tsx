@@ -137,7 +137,11 @@ function AddChecklist({
     <form
       noValidate
       onSubmit={submit}
-      onKeyDown={(event) => event.key === 'Escape' && close()}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        close()
+      }}
       className="flex flex-col gap-2"
     >
       {add.error && <Alert>{add.error.message}</Alert>}
