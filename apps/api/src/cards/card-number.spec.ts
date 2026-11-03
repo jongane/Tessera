@@ -1,4 +1,8 @@
-import { formatCardNumber, parseCardReference } from './card-number.js';
+import {
+  formatCardNumber,
+  isNumberPath,
+  parseCardReference,
+} from './card-number.js';
 
 describe('formatCardNumber', () => {
   it('joins the project code and the number', () => {
@@ -22,4 +26,17 @@ describe('parseCardReference', () => {
       expect(parseCardReference(reference)).toBeNull();
     },
   );
+});
+
+describe('isNumberPath', () => {
+  it('accepts a number path on its own', () => {
+    expect(isNumberPath('12')).toBe(true);
+    expect(isNumberPath(' 12.1.3 ')).toBe(true);
+  });
+
+  it('refuses anything else', () => {
+    for (const text of ['0', '12.', '1.02', 'WEB-12', '12a', '']) {
+      expect(isNumberPath(text)).toBe(false);
+    }
+  });
 });

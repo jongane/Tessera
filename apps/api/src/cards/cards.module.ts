@@ -4,11 +4,17 @@ import { SubtasksController } from './subtasks.controller.js';
 import { CardsController } from './cards.controller.js';
 import { AssigneesService } from './assignees.service.js';
 import { CardsService } from './cards.service.js';
+import { CardSearchService } from './card-search.service.js';
 import { SubtasksService } from './subtasks.service.js';
 
 @Module({
   controllers: [SubtasksController, AssigneesController, CardsController],
-  providers: [CardsService, SubtasksService, AssigneesService],
+  providers: [
+    CardsService,
+    SubtasksService,
+    AssigneesService,
+    CardSearchService,
+  ],
   exports: [CardsService, SubtasksService, AssigneesService],
 })
 export class CardsModule {}

@@ -16,6 +16,7 @@ import {
   moveSubtree,
 } from './card-tree.js';
 import { isDueAfter } from './card-fields.js';
+import { byNumber } from './card-number.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
 
 export interface DueDateWarnings {
@@ -253,20 +254,4 @@ export async function insertSubtask(
     });
   }
   return subtask;
-}
-
-// Number order, part by part, so 1.2 comes before 1.10 and 1.1.1 comes
-// right after 1.1.
-function byNumber(
-  a: Pick<Card, 'numberPath'>,
-  b: Pick<Card, 'numberPath'>,
-): number {
-  const left = a.numberPath.split('.').map(Number);
-  const right = b.numberPath.split('.').map(Number);
-  for (let i = 0; i < Math.min(left.length, right.length); i++) {
-    if (left[i] !== right[i]) {
-      return left[i]! - right[i]!;
-    }
-  }
-  return left.length - right.length;
 }

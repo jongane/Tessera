@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cardChangesSchema,
+  cardSearchQuerySchema,
   completionSchema,
   deleteCardSchema,
   MAX_ESTIMATE_MINUTES,
@@ -20,8 +21,7 @@ describe('newCardSchema', () => {
       chatId: id,
     });
     expect(
-      newCardSchema.safeParse({ title: 'Login page', chatId: 'nope' })
-        .success,
+      newCardSchema.safeParse({ title: 'Login page', chatId: 'nope' }).success,
     ).toBe(false);
   });
 
@@ -145,5 +145,34 @@ describe('ownerChangeSchema', () => {
   it('needs a user id', () => {
     expect(ownerChangeSchema.safeParse({ userId: id }).success).toBe(true);
     expect(ownerChangeSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('cardSearchQuerySchema', () => {
+  it('accepts a search, trimming it, with an optional limit', () => {
+    expect(cardSearchQuerySchema.parse({ q: ' login ' })).toEqual({
+      q: 'login',
+    });
+    expect(cardSearchQuerySchema.parse({ q: 'WEB-12', limit: '5' })).toEqual({
+      q: 'WEB-12',
+      limit: 5,
+    });
+  });
+
+  it('refuses an empty or over-long search', () => {
+    expect(cardSearchQuerySchema.safeParse({ q: '  ' }).success).toBe(false);
+    expect(
+      cardSearchQuerySchema.safeParse({ q: 'x'.repeat(101) }).success,
+    ).toBe(false);
+    expect(cardSearchQuerySchema.safeParse({}).success).toBe(false);
+  });
+
+  it('refuses a limit outside 1 to 50', () => {
+    expect(
+      cardSearchQuerySchema.safeParse({ q: 'a', limit: '0' }).success,
+    ).toBe(false);
+    expect(
+      cardSearchQuerySchema.safeParse({ q: 'a', limit: '51' }).success,
+    ).toBe(false);
   });
 });

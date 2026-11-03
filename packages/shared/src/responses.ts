@@ -144,6 +144,18 @@ export interface CardRelatives {
   siblings: RelatedCard[];
 }
 
+// GET /api/projects/:projectId/cards?q=... Cards whose number matches come
+// first (the card, then its subtasks), then cards whose title matches, each
+// group in number order. When more titles match than fit, the newest cards
+// are the ones given.
+export interface CardSearchResults {
+  cards: (RelatedCard & {
+    // 0 for a top-level card, 1 for its subtasks, and so on (at most 4), so
+    // a picker can tell which parents are already too deep.
+    depth: number;
+  })[];
+}
+
 // A card as the board shows it (GET /api/boards/:boardId).
 export interface BoardCard extends Card {
   // With the project code, e.g. "WEB-12.1".
