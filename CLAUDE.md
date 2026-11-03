@@ -30,7 +30,7 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 - CI (GitHub Actions, `.github/workflows/ci.yml`) runs lint, tests (including database tests against PostgreSQL) and build for both apps on every pull request. Do not merge while it is red.
 - Build every change with the sub agents in the order under "Sub agents" below.
 - Before opening a pull request, and before pushing new commits to an open one, run the `reviewer` and `antagonist` agents on the branch's changes (docs-only changes need only the `reviewer`, see below). Fix every serious finding and every break the antagonist marks as blocking. List any other findings or proven breaks you leave in the pull request description, with the reason.
-- The "Claude review" check (`.github/workflows/claude-review.yml`) runs the same review on every push to a pull request. It fails when it finds something serious. Do not merge while it is red.
+- The "Claude review" check (`.github/workflows/claude-review.yml`) runs the same review as the `reviewer` agent on every push to a pull request. It does not run the `antagonist`, which runs only on the developer's machine. It fails when it finds something serious. Do not merge while it is red.
 
 ## Who decides
 - The owner makes every design choice: what a user sees, names, rules, data shapes, libraries and trade-offs.

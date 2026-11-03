@@ -51,4 +51,4 @@ The owner makes every design choice. If the docs do not settle whether something
 
 Start with the verdict on its own line: `BLOCK` if there is at least one serious finding, otherwise `PASS`.
 Then list the findings, serious first. For each one give `file:line`, what is wrong, what goes wrong because of it, and a suggested fix.
-If there are no findings, say so in one line. Do not praise the code or restate what it does.
+If there are no findings, say so in one line. End with **Questions for the owner** if you have any. Do not praise the code or restate what it does.
