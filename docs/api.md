@@ -174,6 +174,8 @@ Each of these answers with the card's assignees afterwards, owner first.
 | `DELETE /api/checklist-items/:itemId` | Members | Deletes the item |
 | `POST /api/checklist-items/:itemId/subtask` | Members | Replaces the item with an unassigned subtask of the card, titled with its text |
 
+Names and item text have the spaces around them dropped. An empty or spaces-only one, a name over 100 characters or an item over 500 gets 400. These are the shared rules in `packages/shared`, so the web app's forms give the same answer.
+
 ### Activity
 
 | Method and path | Who | What it does |
