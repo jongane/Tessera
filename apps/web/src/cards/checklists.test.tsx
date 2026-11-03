@@ -116,7 +116,7 @@ describe('Seeing a card’s checklists', () => {
 
 describe('Adding checklists', () => {
   // Criteria 15 and 44.
-  it('asks for a name, refuses one over 100 characters, and adds the checklist', async () => {
+  it('asks for a name, refuses one over 100 characters or blank, and adds the checklist', async () => {
     const { user, api, container } = openCard()
     const panel = await cardPanel()
 
@@ -132,6 +132,12 @@ describe('Adding checklists', () => {
     ).toBeInTheDocument()
     expect(api.requests).toEqual([])
     await expectNoAccessibilityProblems(container)
+
+    // Jon, 2026-11-03: spaces only is refused by the shared rule.
+    await user.clear(name)
+    await typeInto(user, name, '   {Enter}')
+    expect(await within(panel).findByText("Can't be blank")).toBeInTheDocument()
+    expect(api.requests).toEqual([])
 
     await user.clear(name)
     await typeInto(user, name, 'Release{Enter}')
@@ -222,7 +228,7 @@ describe('Adding items', () => {
   })
 
   // Criterion 16.
-  it('sends nothing for a blank item, and refuses one over 500 characters', async () => {
+  it('refuses a blank item and one over 500 characters, and sends nothing', async () => {
     const testing = checklist('Testing', ['Chrome'])
     const { user, api } = openCard(login, {
       checklists: { [login.id]: [testing] },
@@ -232,6 +238,9 @@ describe('Adding items', () => {
     await user.click(within(list).getByRole('button', { name: 'Add item' }))
     const box = within(list).getByRole('textbox', { name: 'New item' })
     await typeInto(user, box, '   {Enter}')
+    // Jon, 2026-11-03: the shared rule's message.
+    expect(await within(list).findByText("Can't be blank")).toBeInTheDocument()
+    expect(api.requests).toEqual([])
     await user.clear(box)
     box.focus()
     await user.paste('x'.repeat(501))

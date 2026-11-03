@@ -57,4 +57,21 @@ describe('checklist limits', () => {
     expect(newChecklistSchema.safeParse({ name }).success).toBe(true);
     expect(newChecklistItemSchema.safeParse({ text }).success).toBe(true);
   });
+
+  // Jon, 2026-11-03: a blank name or item is refused here, with the same
+  // message the web app shows, so the web app and the API answer the same.
+  it('refuse a blank name or item, saying "Can\'t be blank"', () => {
+    for (const blank of ['', ' ', '   ']) {
+      const refusals = [
+        newChecklistSchema.safeParse({ name: blank }),
+        checklistChangesSchema.safeParse({ name: blank }),
+        newChecklistItemSchema.safeParse({ text: blank }),
+        checklistItemChangesSchema.safeParse({ text: blank }),
+      ];
+      for (const result of refusals) {
+        expect(result.success, `“${blank}” is refused`).toBe(false);
+        expect(result.error?.issues[0]?.message).toBe("Can't be blank");
+      }
+    }
+  });
 });
