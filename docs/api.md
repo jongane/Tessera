@@ -119,7 +119,7 @@ Completing a card, or moving it into a done column, while some of its direct sub
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `GET /api/cards/:cardId/subtasks` | Members | `{ subtasks, progress }`: the direct subtasks in number order, and `{ complete, total }` |
+| `GET /api/cards/:cardId/subtasks` | Members | `{ subtasks, progress }`: the direct subtasks in number order, and `{ complete, total }` for them. Each subtask also has its `number` (`WEB-12.1`), `columnName` and `boardName` (its own column and board, which may be another board of the project) and `subtaskProgress` `{ complete, total }` (its own direct subtasks only), so the list needs no request per subtask |
 | `POST /api/cards/:cardId/subtasks` | Members | Body `{ columnId, title, description? }`. A subtask in any column of the project, numbered under the card (`WEB-12.1`). At most 5 levels deep (409) |
 | `PUT /api/cards/:cardId/parent` | Members | Body `{ parentId }`, or null for the top level. Moves the card with its own subtasks. They get new numbers, and the old ones keep working |
 | `GET /api/cards/:cardId/relatives` | Members | `{ parents, subtasks, siblings }`, on any board of the project, for outlining a selected card's relatives. Parents go nearest first; subtasks are every level below, in number order, each with `level` (1 is a direct subtask); siblings share the card's parent. Each has `id`, `number`, `title`, `boardId`, `boardName` and `isComplete` |
