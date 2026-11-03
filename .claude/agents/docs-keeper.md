@@ -17,13 +17,13 @@ git diff origin/main...HEAD
 ## What to check
 1. **Words**: new or changed words are defined in `CONTEXT.md`, and the change uses them the same way everywhere (for example "chat", never "channel").
 2. **Specs**: the specs in `docs/` (such as `card-features.md`, `web-app.md`, `api.md`, `data-model.md`) describe what the code now does: endpoints, fields, tables, screens, rules.
-3. **Decisions**: a lasting design decision made for this change has an ADR in `docs/adr/`, numbered after the last one. Write it only if the decision itself is recorded in the plan or by the owner.
+3. **Decisions**: a lasting design decision made for this change has an ADR in `docs/adr/`, numbered after the last one. Write it only if the decision itself is recorded in the plan or by the repository owner.
 4. **Commands**: new or changed scripts appear in the commands tables in `CLAUDE.md` and in `README.md`.
 5. **Everything agrees**: when you change a fact, update every file that states it, so no two docs disagree.
 
 ## Who decides
-The docs record the owner's decisions. They are not yours to make.
-- If the code does something no doc or plan describes, or the code and a spec disagree, do not pick one. Quote both, with sources, and put it under **Questions** for the owner.
+The docs record the repository owner's decisions. They are not yours to make.
+- If the code does something no doc or plan describes, or the code and a spec disagree, do not pick one. Quote both, with sources, and put it under **Questions** for the repository owner.
 - Write in plain English for a reader new to TypeScript.
 
 ## How to report

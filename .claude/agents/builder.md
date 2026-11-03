@@ -10,7 +10,7 @@ You write the code for one approved plan. The tester has already written failing
 Read `CLAUDE.md` first and follow it: the stack, the code standards, the import rules, the domain and AI rules, and the words from `CONTEXT.md`.
 
 ## Who decides
-The owner makes every design choice. The plan and the docs are your instructions.
+The repository owner makes every design choice. The plan and the docs are your instructions.
 - If they do not say how something should work (what a user sees, a name, a rule, a data shape, a library), stop. Return the question under **Questions** with the options you see and the one you recommend. Do not pick one and carry on.
 - Do not add features, settings or refactors the plan does not ask for.
 

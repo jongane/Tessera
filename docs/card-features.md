@@ -1,6 +1,6 @@
 # Card features v1
 
-Status: agreed with the project owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6, 9 and 10, the checklists in section 2, the colours and related-card list of section 7, and section 8 apart from attachments, are built in the API. The rest is not built yet.
+Status: agreed with the repository owner on 2026-10-27. The tables these features need are listed in [data-model.md](data-model.md#card-features-planned). Sections 1, 3, 4, 5, 6, 9 and 10, the checklists in section 2, the colours and related-card list of section 7, and section 8 apart from attachments, are built in the API. The rest is not built yet.
 
 Words used here: a **card** is a task or user story. A **subtask** is a card that has a parent card. A **project code** is the short letters at the start of card numbers (for example `WEB`).
 

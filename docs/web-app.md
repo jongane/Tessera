@@ -1,6 +1,6 @@
 # Web app v1
 
-Status: agreed with the project owner on 2026-10-29 in a design session. Sections are built in the order of section 10. The look is shown in the board mock-up (the "Look" screens): https://claude.ai/artifact/7N2n8s3gW14KMZiNbMPRr1
+Status: agreed with the repository owner on 2026-10-29 in a design session. Sections are built in the order of section 10. The look is shown in the board mock-up (the "Look" screens): https://claude.ai/artifact/7N2n8s3gW14KMZiNbMPRr1
 
 Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to is described in [api.md](api.md).
 
