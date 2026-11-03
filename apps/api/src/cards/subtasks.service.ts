@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { CardRelatives, RelatedCard } from '@tessera/shared';
+import type {
+  CardRelatives,
+  RelatedCard,
+  SubtaskListItem as SharedSubtaskListItem,
+} from '@tessera/shared';
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
@@ -16,7 +20,12 @@ import {
   moveSubtree,
 } from './card-tree.js';
 import { isDueAfter } from './card-fields.js';
-import { byNumber } from './card-number.js';
+import { byNumber, formatCardNumber } from './card-number.js';
+import {
+  directSubtaskCompletion,
+  type SubtaskProgress,
+  subtaskProgressOf,
+} from './subtask-progress.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
 
 export interface DueDateWarnings {
@@ -26,10 +35,20 @@ export interface DueDateWarnings {
   subtasksDueAfter: string[];
 }
 
-export interface SubtaskProgress {
-  complete: number;
-  total: number;
-}
+// A listed subtask: its own fields plus what the Subtasks list shows
+// (SubtaskListItem in @tessera/shared, with dates not yet turned into text).
+export type SubtaskListItem = Card &
+  Pick<
+    SharedSubtaskListItem,
+    'number' | 'columnName' | 'boardName' | 'subtaskProgress'
+  >;
+
+// Read for each listed subtask, beyond its own fields.
+const subtaskListDetails = {
+  column: { select: { name: true } },
+  board: { select: { name: true } },
+  ...directSubtaskCompletion,
+} satisfies Prisma.CardInclude;
 
 // Subtasks are ordinary cards with a parent card in the same project, on
 // any of its boards (docs/card-features.md, section 4). Every method takes
@@ -73,13 +92,33 @@ export class SubtasksService {
     );
   }
 
-  // The card's direct subtasks, in number order (1.2 before 1.10).
-  async listSubtasks(userId: string, cardId: string): Promise<Card[]> {
+  // The card's direct subtasks, in number order (1.2 before 1.10), each
+  // with its number, column, board and own progress. Two queries however
+  // many subtasks there are.
+  async listSubtasks(
+    userId: string,
+    cardId: string,
+  ): Promise<SubtaskListItem[]> {
     const card = await this.findVisibleCard(userId, cardId);
-    const subtasks = await this.prisma.card.findMany({
-      where: { parentId: card.id },
-    });
-    return subtasks.sort(byNumber);
+    const [subtasks, project] = await Promise.all([
+      this.prisma.card.findMany({
+        where: { parentId: card.id },
+        include: subtaskListDetails,
+      }),
+      this.prisma.project.findUniqueOrThrow({
+        where: { id: card.projectId },
+        select: { code: true },
+      }),
+    ]);
+    return subtasks
+      .sort(byNumber)
+      .map(({ column, board, subtasks: below, ...fields }) => ({
+        ...fields,
+        number: formatCardNumber(project.code, fields.numberPath),
+        columnName: column.name,
+        boardName: board.name,
+        subtaskProgress: subtaskProgressOf(below),
+      }));
   }
 
   // The card's parents, subtasks at every level and siblings, on any board

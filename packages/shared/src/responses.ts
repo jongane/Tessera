@@ -104,10 +104,23 @@ export interface CompleteCardResult {
   doneColumnId: string | null;
 }
 
+// One row of GET /api/cards/:cardId/subtasks: the subtask's own fields plus
+// what the Subtasks list shows, so it needs no extra request per row.
+export interface SubtaskListItem extends Card {
+  // With the project's current code, e.g. "WEB-12.1".
+  number: string;
+  // The subtask's own column and board, which may be another board of the
+  // project.
+  columnName: string;
+  boardName: string;
+  // The subtask's own direct subtasks only.
+  subtaskProgress: { complete: number; total: number };
+}
+
 // GET /api/cards/:cardId/subtasks
 export interface SubtaskList {
   // Direct subtasks, in number order.
-  subtasks: Card[];
+  subtasks: SubtaskListItem[];
   progress: { complete: number; total: number };
 }
 
