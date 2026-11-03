@@ -1,8 +1,27 @@
 import { z } from 'zod';
 
-// The API trims and checks lengths (names up to 100, items up to 500).
-const nameField = z.string().max(200);
-const textField = z.string().max(1000);
+// The limits on checklists (docs/card-features.md, section 2). The API and
+// the web app's forms both use them, so they give the same answer.
+export const MAX_CHECKLIST_NAME = 100;
+export const MAX_CHECKLIST_ITEM = 500;
+export const MAX_CHECKLIST_ITEMS = 100;
+
+// What an empty or spaces-only checklist name or item is refused with
+// (agreed 2026-11-03).
+export const CHECKLIST_BLANK_MESSAGE = "Can't be blank";
+
+// Trimmed first, so spaces around the text don't count. A custom check
+// rather than `.min(1)`, so forms show this message as it is.
+function trimmedText(max: number) {
+  return z
+    .string()
+    .trim()
+    .refine((value) => value.length > 0, { message: CHECKLIST_BLANK_MESSAGE })
+    .max(max);
+}
+
+const nameField = trimmedText(MAX_CHECKLIST_NAME);
+const textField = trimmedText(MAX_CHECKLIST_ITEM);
 // Where to move it: 0 is first. Past the end puts it last.
 const positionField = z.number().int().min(0);
 
