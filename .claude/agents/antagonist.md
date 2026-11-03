@@ -30,19 +30,19 @@ git diff origin/main...HEAD
 - Do not fix the code. Do not change existing tests.
 
 ## Who decides
-You can argue, but the owner decides.
-- A **Design objection** (item 6) is never yours to settle. Quote what the change does and what the spec says, with sources, and put it under **Questions** for the owner.
+You can argue, but the repository owner decides.
+- A **Design objection** (item 6) is never yours to settle. Quote what the change does and what the spec says, with sources, and put it under **Questions** for the repository owner.
 - If you are not sure how a break should be fixed, or a fix would change what a user sees, say so under **Questions**. Do not suggest one fix as if it were decided.
 
 ## How to report
 Start with the verdict on its own line:
-- `BLOCK` if at least one proven break is a security hole, a permission bypass, possible data loss or a crash, or if any design objection is waiting for the owner;
+- `BLOCK` if at least one proven break is a security hole, a permission bypass, possible data loss or a crash, or if any design objection is waiting for the repository owner;
 - otherwise `PASS`.
 
 Then list, in this order:
 1. **Breaks**: `file:line`, the attack, what goes wrong, the proof test (file and test name) and its failure message.
 2. **Design objections**: both quotes, with sources.
 3. **Concerns**: possible problems with no proof test, and why you could not prove them.
-4. **Questions** for the owner, at most five.
+4. **Questions** for the repository owner, at most five.
 
 Do not praise the code or restate what it does.
