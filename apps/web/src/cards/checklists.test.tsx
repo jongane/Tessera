@@ -339,7 +339,6 @@ describe('Adding items', () => {
     expectTurnedOn(within(list).getByRole('button', { name: 'Add item' }))
   })
 
-  // Escape in the Add item form cancels the form only.
   // Escape in the Add item form cancels the form; it does not also close
   // the whole card panel.
   it('closes the Add item form on Escape from its Add button, not the panel', async () => {
@@ -432,6 +431,45 @@ describe('Editing an item', () => {
       },
     ])
   })
+
+  // Regression: the 30-second reload must not undo a text change still being saved.
+  it('keeps an item’s new text shown while it is still being saved when the 30-second reload comes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const testing = checklist('Testing', ['Safari'])
+      const { user } = openCard(login, {
+        checklists: { [login.id]: [testing] },
+      })
+      let answer = () => {}
+      const answered = new Promise<void>((resolve) => (answer = resolve))
+      server.use(
+        http.patch('/api/checklist-items/:itemId', async () => {
+          await answered
+          return HttpResponse.json({ ...testing.items[0], text: 'Safari 17' })
+        }),
+      )
+      const panel = await cardPanel()
+      const list = await findChecklist(panel, 'Testing')
+      await user.click(within(list).getByRole('button', { name: 'Safari' }))
+      const box = within(list).getByDisplayValue('Safari')
+      await user.clear(box)
+      await typeInto(user, box, 'Safari 17{Enter}')
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(
+        within(panel).getByRole('checkbox', { name: 'Safari 17' }),
+      ).toBeInTheDocument()
+      answer()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('Ticking items', () => {
@@ -497,6 +535,47 @@ describe('Ticking items', () => {
       ).not.toBeChecked(),
     )
     expect(list).toHaveTextContent('1 of 2')
+  })
+
+  // Regression: the 30-second reload must not undo a tick still being saved.
+  it('keeps a tick shown while it is still being saved when the 30-second reload comes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const testing = checklist('Testing', ['Safari'])
+      const { user } = openCard(login, {
+        checklists: { [login.id]: [testing] },
+      })
+      // The save is slow, so the server still says unticked at reload time.
+      let answer = () => {}
+      const answered = new Promise<void>((resolve) => (answer = resolve))
+      server.use(
+        http.patch('/api/checklist-items/:itemId', async () => {
+          await answered
+          return HttpResponse.json({ ...testing.items[0], isDone: true })
+        }),
+      )
+      const panel = await cardPanel()
+      const safari = await within(panel).findByRole('checkbox', {
+        name: 'Safari',
+      })
+      await user.click(safari)
+      await waitFor(() => expect(safari).toBeChecked())
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      // Let the reload's answer arrive.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      expect(
+        within(panel).getByRole('checkbox', { name: 'Safari' }),
+      ).toBeChecked()
+      answer()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
