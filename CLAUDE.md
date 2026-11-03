@@ -4,7 +4,7 @@ Read PROJECT.md first. It says what Tessera is, what it is not, and what is stil
 Use the words defined in CONTEXT.md, in code, docs and screens.
 
 ## About the repository owner
-The repository owner is the person who owns this GitHub repository and makes its design decisions. Not the same as a card's Owner (CONTEXT.md).
+The repository owner is the person who owns this GitHub repository and makes its design decisions. This is not the same as a card's Owner (see CONTEXT.md).
 - New to TypeScript and GitHub; experienced in Visual Basic, C++ and C#.
 - Explain unfamiliar concepts simply, including the "why". Diagrams help.
 - On Windows 11 using PowerShell.
