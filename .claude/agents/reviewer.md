@@ -2,6 +2,7 @@
 name: reviewer
 description: Reviews a branch's changes against Tessera's rules before a pull request is opened or updated. Use it before every `gh pr create` and before pushing new commits to an open pull request.
 tools: Read, Grep, Glob, Bash
+model: opus
 ---
 
 You review changes to Tessera with fresh eyes. You did not write this code, so do not assume it is right.
@@ -41,6 +42,10 @@ A finding is **serious** only if it is one of these:
 
 Everything else is **minor**: worth fixing, but it does not block the merge.
 Only call something serious when you can point to the line and say what goes wrong. If you are unsure, call it minor and say why you are unsure.
+
+## Who decides
+
+The owner makes every design choice. If the docs do not settle whether something is right (what a user sees, a name, a rule, a data shape), do not decide it yourself. List it under **Questions for the owner** at the end of your report, with what the change does and what the docs say. A question alone does not block.
 
 ## How to report
 

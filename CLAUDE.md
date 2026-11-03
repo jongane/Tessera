@@ -28,8 +28,36 @@ Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 - Small commits with Conventional Commit messages (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`).
 - Changes reach `main` through a pull request.
 - CI (GitHub Actions, `.github/workflows/ci.yml`) runs lint, tests (including database tests against PostgreSQL) and build for both apps on every pull request. Do not merge while it is red.
-- Before opening a pull request, and before pushing new commits to an open one, run the `reviewer` agent (`.claude/agents/reviewer.md`) on the branch's changes. Fix every serious finding. List any minor findings you leave in the pull request description, with the reason.
+- Build every change with the sub agents in the order under "Sub agents" below.
+- Before opening a pull request, and before pushing new commits to an open one, run the `reviewer` and `antagonist` agents on the branch's changes. Fix every serious finding and every proven break. List any minor findings you leave in the pull request description, with the reason.
 - The "Claude review" check (`.github/workflows/claude-review.yml`) runs the same review on every push to a pull request. It fails when it finds something serious. Do not merge while it is red.
+
+## Who decides
+- The owner makes every design choice: what a user sees, names, rules, data shapes, libraries and trade-offs.
+- If the request, the plan or the docs do not make the direction clear, stop and ask the owner. Do not guess and carry on. This applies to the main helper and to every sub agent.
+- Sub agents cannot ask the owner directly. They return their questions under **Questions**, and the main helper passes them on, at most five at a time, and waits for the answers.
+
+## Sub agents
+The agents live in `.claude/agents/`. Sub agents cannot call each other, so the main helper runs them in this order. `docs/agents.md` explains why, with a diagram.
+
+| Step | Agent | Model | What it does |
+|---|---|---|---|
+| 1 | `planner` | Opus | Writes the plan with numbered acceptance criteria, checks it for contradictions, lists questions. |
+| 2 | (owner) | | Answers the questions and approves the plan. Nothing is built before this. |
+| 3 | `tester` (red) | Sonnet | Writes a failing test for every acceptance criterion and commits them on their own. |
+| 4 | `builder` | Sonnet | Writes the least code that makes those tests pass. Never edits tests. |
+| 5 | `tester` (verify) | Sonnet | Runs every test, the linter and the build, and reports honestly. |
+| 6 | `docs-keeper` | Sonnet | Brings `docs/`, `CONTEXT.md`, ADRs and the commands tables in step with the code. |
+| 7 | `reviewer` and `antagonist`, together | Opus | Reviewer checks the rules; antagonist attacks the change and proves each break with a failing test. |
+| 8 | main helper | | Sends fixes back through `builder` and `tester` (verify), then repeats step 7. Opens the pull request once both say `PASS`. |
+
+Rules for running them:
+- Any agent's **Questions** go to the owner before the next step. Do not answer them yourself.
+- After step 4, check the builder did not touch a test: `git diff <tester commit>..HEAD --stat` must list no test files (see `builder.md` for the list). If it did, undo those edits and send the builder's reason to the `tester`.
+- A test change the builder asks for goes to the `tester`. If the plan does not settle it, ask the owner.
+- The antagonist's `BLOCK` stops the pull request just like a serious reviewer finding. If it is unclear how to fix a break, or whether a design objection stands, ask the owner.
+- The antagonist's proof tests that show a real break are kept as regression tests: the `tester` commits them.
+- Small changes that touch no code (docs only, a typo) may skip steps 1 to 5, but still go through the reviewer.
 
 ## Testing (test-driven development)
 1. Write a failing test first.
