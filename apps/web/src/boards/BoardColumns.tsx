@@ -29,6 +29,13 @@ import { cardsInLayout, plannedMove } from './move-card'
 // Card ids in each column, from the top, while a card is being dragged.
 type Layout = Record<string, string[]>
 
+// Asks for a column's Add card form to open. `at` tells one ask from the
+// next, so asking again opens it again.
+export interface AddCardRequest {
+  columnId: string
+  at: number
+}
+
 interface BoardColumnsProps {
   view: BoardView
   timeZone: string
@@ -37,6 +44,7 @@ interface BoardColumnsProps {
   highlightOf?: (cardId: string) => Highlight | undefined
   onSelect: (card: BoardCard) => void
   onMove: (card: BoardCard, column: BoardColumn, position: number) => void
+  addCardRequest?: AddCardRequest
 }
 
 // The board's columns, side by side. Cards can be dragged within a column
@@ -49,6 +57,7 @@ export function BoardColumns({
   highlightOf,
   onSelect,
   onMove,
+  addCardRequest,
 }: BoardColumnsProps) {
   const [layout, setLayout] = useState<Layout | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -209,6 +218,11 @@ export function BoardColumns({
             highlightOf={highlightOf}
             onSelect={onSelect}
             onMoveTo={(card, to) => onMove(card, to, to.cards.length)}
+            openAddCard={
+              addCardRequest?.columnId === column.id
+                ? addCardRequest.at
+                : undefined
+            }
           />
         ))}
       </div>
@@ -236,6 +250,7 @@ function ColumnView({
   highlightOf,
   onSelect,
   onMoveTo,
+  openAddCard,
 }: {
   boardId: string
   column: BoardColumn
@@ -246,6 +261,7 @@ function ColumnView({
   highlightOf?: (cardId: string) => Highlight | undefined
   onSelect: (card: BoardCard) => void
   onMoveTo: (card: BoardCard, column: BoardColumn) => void
+  openAddCard?: number
 }) {
   const { setNodeRef } = useDroppable({ id: column.id })
   const headingId = `column-${column.id}`
@@ -298,7 +314,11 @@ function ColumnView({
           ))}
         </ul>
       </SortableContext>
-      <AddCardForm boardId={boardId} columnId={column.id} />
+      <AddCardForm
+        boardId={boardId}
+        columnId={column.id}
+        openRequest={openAddCard}
+      />
     </section>
   )
 }

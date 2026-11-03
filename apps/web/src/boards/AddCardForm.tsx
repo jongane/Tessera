@@ -10,11 +10,22 @@ import { TextField } from '../ui/TextField'
 export function AddCardForm({
   boardId,
   columnId,
+  openRequest,
 }: {
   boardId: string
   columnId: string
+  // Opens the form each time it changes (from the card panel's
+  // "Create a card").
+  openRequest?: number
 }) {
   const [open, setOpen] = useState(false)
+  const [seenRequest, setSeenRequest] = useState(openRequest)
+  if (openRequest !== seenRequest) {
+    setSeenRequest(openRequest)
+    if (openRequest !== undefined) {
+      setOpen(true)
+    }
+  }
   const [title, setTitle] = useState('')
   const [error, setError] = useState<string>()
   const createCard = useCreateCard(boardId)

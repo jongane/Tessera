@@ -23,6 +23,7 @@ import {
   TitleField,
 } from './CardFields'
 import { DeleteCardDialog } from './DeleteCardDialog'
+import { Checklists } from './Checklists'
 import { AssigneesField, LabelsField } from './PeopleAndLabels'
 import { RelatedElsewhere } from './RelatedElsewhere'
 
@@ -40,6 +41,8 @@ export interface CardPanelProps {
   project: Project
   onClose: () => void
   onOpenChat: (chatId: string) => void
+  // Opens the board's Add card form in this column.
+  onCreateCard: (columnId: string) => void
 }
 
 // One card, with everything about it that can be changed. The panel does
@@ -103,6 +106,7 @@ function CardDetails({
   project,
   onClose,
   onOpenChat,
+  onCreateCard,
 }: CardPanelProps & { card: BoardCard; columnName: string }) {
   const [saveFailed, setSaveFailed] = useState(false)
   const [unsavedDescription, setUnsavedDescription] = useState(false)
@@ -150,6 +154,7 @@ function CardDetails({
             }}
           />
         </Suspense>
+        <Checklists card={card} track={track} onCreateCard={onCreateCard} />
         <DeleteButton
           card={card}
           projectId={project.id}
