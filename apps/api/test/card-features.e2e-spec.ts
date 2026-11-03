@@ -389,6 +389,24 @@ describe('Card features (e2e)', () => {
           .expect(400);
         expect(refused.body.message).toBe(futureDayMessage(BEHIND));
       }
+
+      // Sending back the entry's current date unchanged is not checked,
+      // even when that day has not started yet in the project's zone (an
+      // entry logged under the old rule).
+      await prisma.timeEntry.update({
+        where: { id: entry.id },
+        data: { workDate: new Date(`${todayIn(AHEAD)}T00:00:00Z`) },
+      });
+      await cara.agent
+        .patch(`/api/time-entries/${entry.id}`)
+        .send({ workDate: todayIn(AHEAD), note: 'Same day' })
+        .expect(200)
+        .expect((r) =>
+          expect(r.body).toMatchObject({
+            note: 'Same day',
+            workDate: `${todayIn(AHEAD)}T00:00:00.000Z`,
+          }),
+        );
     });
 
     // Criteria 4 and 5

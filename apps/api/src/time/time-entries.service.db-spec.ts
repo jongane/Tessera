@@ -337,6 +337,42 @@ describe('TimeEntriesService (database)', () => {
       });
     });
 
+    // Criterion 3: sending back the entry's own date unchanged is not a
+    // change, so it is not checked against the future-day rule.
+    it("does not check the date when an edit sends back the entry's current date", async () => {
+      const { ana, cara, one } = await setUpIn(BEHIND);
+      const entry = await entries.logTime(cara.id, one.id, {
+        minutes: 30,
+        workDate: todayIn(BEHIND),
+      });
+      // As if logged under the old rule: a day that has started in
+      // Kiritimati but not yet in the project's zone.
+      const oldRuleDay = todayIn(AHEAD);
+      // A day that has not started anywhere yet.
+      const farDay = '2999-01-01';
+
+      for (const [who, day] of [
+        [cara, oldRuleDay],
+        [ana, oldRuleDay],
+        [cara, farDay],
+      ] as const) {
+        await prisma.timeEntry.update({
+          where: { id: entry.id },
+          data: { workDate: new Date(`${day}T00:00:00Z`) },
+        });
+
+        await expect(
+          entries.updateEntry(who.id, entry.id, {
+            workDate: day,
+            note: `Kept ${day}`,
+          }),
+        ).resolves.toMatchObject({
+          note: `Kept ${day}`,
+          workDate: new Date(`${day}T00:00:00Z`),
+        });
+      }
+    });
+
     // Criterion 3: an old entry dated later than today in the project's
     // zone can still be changed, as long as the date is left out.
     it('does not check the date again when an edit leaves it out', async () => {
