@@ -45,7 +45,8 @@ model Project {
   // are never reused, even after a card is deleted.
   nextCardNumber  Int             @default(1) @map("next_card_number")
   // The project's IANA time zone, e.g. "Europe/London". Set by an admin and
-  // used to find the day of a due time. Checked by ProjectsService.
+  // used to find the day of a due time and of logged time (typed in or from
+  // the timer). Checked by ProjectsService.
   timeZone        String          @default("UTC") @map("time_zone")
   // The colours that outline a selected card's relatives, by relationship
   // (docs/card-features.md, section 7), set by an admin. Keys and colours
@@ -276,7 +277,8 @@ model TimeEntry {
   projectId   String    @map("project_id") @db.Uuid
   cardId      String    @map("card_id") @db.Uuid
   userId      String    @map("user_id") @db.Uuid
-  // The day the work was done, in the person's own time zone.
+  // The day the work was done, in the project's time zone. Entries logged
+  // before this rule keep the day they were given.
   workDate    DateTime  @map("work_date") @db.Date
   minutes     Int
   note        String?
@@ -310,8 +312,9 @@ model RunningTimer {
   projectId String   @map("project_id") @db.Uuid
   cardId    String   @map("card_id") @db.Uuid
   startedAt DateTime @default(now()) @map("started_at") @db.Timestamptz(3)
-  // The day the timer started, in the person's time zone. The entry it
-  // makes is dated this day, even if the timer runs past midnight.
+  // The day the timer started, in the project's time zone. The entry it
+  // makes is dated this day, even if the timer runs past midnight or the
+  // project's zone changes meanwhile.
   workDate  DateTime @map("work_date") @db.Date
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)

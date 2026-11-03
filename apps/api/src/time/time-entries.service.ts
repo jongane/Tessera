@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma, TimeEntry, User } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { findVisibleCard } from '../cards/card-access.js';
+import { projectTimeZone } from '../projects/project-access.js';
 import { findChangeableEntry } from './time-access.js';
 import { requireEntryMinutes, requireWorkDate } from './time-input.js';
 import {
@@ -41,7 +42,11 @@ export class TimeEntriesService {
   ): Promise<TimeEntry> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
     const minutes = requireEntryMinutes(entry.minutes);
-    const workDate = requireWorkDate(entry.workDate, new Date());
+    const workDate = requireWorkDate(
+      entry.workDate,
+      new Date(),
+      await projectTimeZone(this.prisma, card.projectId),
+    );
     return this.prisma.$transaction(async (tx) => {
       const saved = await tx.timeEntry.create({
         data: {
@@ -82,10 +87,17 @@ export class TimeEntriesService {
       changes.minutes === undefined
         ? undefined
         : requireEntryMinutes(changes.minutes);
+    // Only a changed date is checked, so an entry can still be edited when
+    // its date is sent back as it is.
     const workDate =
-      changes.workDate === undefined
+      changes.workDate === undefined ||
+      changes.workDate === entry.workDate.toISOString().slice(0, 10)
         ? undefined
-        : requireWorkDate(changes.workDate, new Date());
+        : requireWorkDate(
+            changes.workDate,
+            new Date(),
+            await projectTimeZone(this.prisma, entry.projectId),
+          );
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM time_entries WHERE id = ${entry.id}::uuid FOR UPDATE`;
       const before = await tx.timeEntry.findUniqueOrThrow({
