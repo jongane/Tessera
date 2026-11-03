@@ -10,7 +10,8 @@ import type {
   ProjectMember,
 } from '@tessera/shared'
 import { http, HttpResponse } from 'msw'
-import { backlog, sprint, website } from './fixtures'
+import { checklistHandlers, type FakeChecklist } from './fake-checklists'
+import { backlog, boardCard, sprint, website } from './fixtures'
 import { ana, server, signedInAs } from './server'
 
 export const ben: Me = {
@@ -50,6 +51,8 @@ export interface FakeBoardOptions {
   chats?: Chat[]
   // By card id; a card not listed has no relatives.
   relatives?: Record<string, CardRelatives>
+  // By card id; a card not listed has no checklists.
+  checklists?: Record<string, FakeChecklist[]>
 }
 
 // A fake API for one board that remembers changes to its cards, so the
@@ -64,6 +67,7 @@ export function fakeBoard(
     project = website,
     chats = [],
     relatives = {},
+    checklists = {},
   }: FakeBoardOptions = {},
 ) {
   let view = structuredClone(start)
@@ -95,7 +99,38 @@ export function fakeBoard(
     })
   }
 
+  // A new subtask of `parent`, at the bottom of the parent's column.
+  function addSubtask(parent: BoardCard, title: string): BoardCard {
+    const n = parent.subtaskProgress.total + 1
+    const column = view.columns.find((c) => c.id === parent.columnId)!
+    const subtask = boardCard(`${parent.numberPath}.${n}`, title, {
+      parentId: parent.id,
+      boardId: parent.boardId,
+      columnId: column.id,
+      position: column.cards.length,
+    })
+    view = {
+      ...view,
+      columns: view.columns.map((c) =>
+        c.id === column.id ? { ...c, cards: [...c.cards, subtask] } : c,
+      ),
+    }
+    update(parent.id, (c) => ({
+      ...c,
+      subtaskProgress: { ...c.subtaskProgress, total: n },
+    }))
+    return subtask
+  }
+
   server.use(
+    ...checklistHandlers({
+      start: checklists,
+      record,
+      cardOf: card,
+      addSubtask,
+      onChange: (cardId, done, total) =>
+        update(cardId, (c) => ({ ...c, checklistProgress: { done, total } })),
+    }),
     signedInAs(me),
     http.get('/api/projects/by-code/WEB', () => HttpResponse.json(project)),
     http.get(`/api/projects/${website.id}/boards`, () =>
