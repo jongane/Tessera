@@ -1,7 +1,9 @@
 // Card numbers are a project code and a number path: WEB-12, or WEB-12.1.2
 // for a subtask. The path is stored on the card; the code is the project's.
 
-const CARD_REFERENCE_PATTERN = /^([A-Z]{2,6})-([1-9][0-9]*(?:\.[1-9][0-9]*)*)$/;
+const NUMBER_PATH = '[1-9][0-9]*(?:\\.[1-9][0-9]*)*';
+const NUMBER_PATH_PATTERN = new RegExp(`^${NUMBER_PATH}$`);
+const CARD_REFERENCE_PATTERN = new RegExp(`^([A-Z]{2,6})-(${NUMBER_PATH})$`);
 
 export interface CardReference {
   code: string;
@@ -20,6 +22,11 @@ export function parseCardReference(reference: string): CardReference | null {
     return null;
   }
   return { code: match[1]!, numberPath: match[2]! };
+}
+
+// True for a number path on its own, such as "12" or "12.1".
+export function isNumberPath(text: string): boolean {
+  return NUMBER_PATH_PATTERN.test(text.trim());
 }
 
 // Number order, part by part, so 1.2 comes before 1.10 and 1.1.1 comes

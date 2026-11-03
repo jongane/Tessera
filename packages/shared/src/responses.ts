@@ -146,7 +146,8 @@ export interface CardRelatives {
 
 // GET /api/projects/:projectId/cards?q=... Cards whose number matches come
 // first (the card, then its subtasks), then cards whose title matches, each
-// group in number order.
+// group in number order. When more titles match than fit, the newest cards
+// are the ones given.
 export interface CardSearchResults {
   cards: (RelatedCard & {
     // 0 for a top-level card, 1 for its subtasks, and so on (at most 4), so

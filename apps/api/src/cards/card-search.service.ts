@@ -4,14 +4,18 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { requireMember } from '../projects/project-access.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
-import { byNumber } from './card-number.js';
+import {
+  byNumber,
+  formatCardNumber,
+  isNumberPath,
+  parseCardReference,
+} from './card-number.js';
 
 const DEFAULT_LIMIT = 20;
-const NUMBER_PATH_PATTERN = /^[1-9][0-9]*(?:\.[1-9][0-9]*)*$/;
-const REFERENCE_PATTERN = /^([A-Z]{2,6})-(.+)$/;
 
 const withBoard = { board: { select: { name: true } } } as const;
 type FoundCard = Prisma.CardGetPayload<{ include: typeof withBoard }>;
+type CardSearchResult = CardSearchResults['cards'][number];
 
 @Injectable()
 export class CardSearchService {
@@ -42,7 +46,8 @@ export class CardSearchService {
         title: { contains: escapeLike(query.q), mode: 'insensitive' },
       },
       include: withBoard,
-      // The newest are most likely what people are looking for.
+      // When more match than fit, the newest are kept: they are most likely
+      // what people are looking for. They are then put in number order.
       orderBy: { createdAt: 'desc' },
       take: Math.max(limit - byNumberMatch.length, 0),
     });
@@ -63,19 +68,18 @@ export class CardSearchService {
     projectId: string,
     q: string,
   ): Promise<string | null> {
-    const text = q.toUpperCase();
-    if (NUMBER_PATH_PATTERN.test(text)) {
-      return text;
+    if (isNumberPath(q)) {
+      return q.trim();
     }
-    const match = REFERENCE_PATTERN.exec(text);
-    if (!match || !NUMBER_PATH_PATTERN.test(match[2]!)) {
+    const reference = parseCardReference(q);
+    if (!reference) {
       return null;
     }
     const code = await this.prisma.projectCode.findUnique({
-      where: { code: match[1]! },
+      where: { code: reference.code },
       select: { projectId: true },
     });
-    return code?.projectId === projectId ? match[2]! : null;
+    return code?.projectId === projectId ? reference.numberPath : null;
   }
 
   // The card with this number (or old number), then its subtasks at every
@@ -109,10 +113,10 @@ export class CardSearchService {
   }
 }
 
-function toResult(code: string, card: FoundCard) {
+function toResult(code: string, card: FoundCard): CardSearchResult {
   return {
     id: card.id,
-    number: `${code}-${card.numberPath}`,
+    number: formatCardNumber(code, card.numberPath),
     title: card.title,
     boardId: card.boardId,
     boardName: card.board.name,

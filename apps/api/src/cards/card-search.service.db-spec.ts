@@ -238,6 +238,21 @@ describe('CardSearchService (database)', () => {
     ).toHaveLength(3);
   });
 
+  it('cuts a card and its subtasks to the limit, leaving no room for titles', async () => {
+    const { ana, project, sprintToDo, add } = await setUp();
+    const parent = await add('Parent');
+    for (let i = 1; i <= 3; i++) {
+      await subtasks.createSubtask(ana.id, parent.id, sprintToDo.id, {
+        title: `Step ${i}`,
+      });
+    }
+    await add('Mentions 1 in its title');
+
+    expect(
+      numbers(await search.search(ana.id, project.id, { q: '1', limit: 3 })),
+    ).toEqual(['WEB-1', 'WEB-1.1', 'WEB-1.2']);
+  });
+
   it('tells people who are not members that the project was not found', async () => {
     const { ben, project, add } = await setUp();
     await add('Login');
