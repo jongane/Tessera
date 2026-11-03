@@ -8,6 +8,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BoardsService } from '../boards/boards.service.js';
 import { CardsService } from '../cards/cards.service.js';
+import { ProjectsService } from '../projects/projects.service.js';
 import { TimeEntriesService } from './time-entries.service.js';
 import { resetDatabase } from '../../test/support/reset-database.js';
 import { cardScenario } from '../../test/support/card-scenario.js';
@@ -19,16 +20,23 @@ describe('TimeEntriesService (database)', () => {
   let boards: BoardsService;
   let cards: CardsService;
   let entries: TimeEntriesService;
+  let projects: ProjectsService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [PrismaModule],
-      providers: [BoardsService, CardsService, TimeEntriesService],
+      providers: [
+        BoardsService,
+        CardsService,
+        TimeEntriesService,
+        ProjectsService,
+      ],
     }).compile();
     prisma = moduleRef.get(PrismaService);
     boards = moduleRef.get(BoardsService);
     cards = moduleRef.get(CardsService);
     entries = moduleRef.get(TimeEntriesService);
+    projects = moduleRef.get(ProjectsService);
   });
 
   beforeEach(async () => {
@@ -51,6 +59,20 @@ describe('TimeEntriesService (database)', () => {
 
   function today() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  // Pacific/Kiritimati (UTC+14) is always 25 hours ahead of
+  // Pacific/Pago_Pago (UTC-11), so its today has never started yet in
+  // Pago Pago, whenever the test runs.
+  const AHEAD = 'Pacific/Kiritimati';
+  const BEHIND = 'Pacific/Pago_Pago';
+
+  function todayIn(timeZone: string) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+  }
+
+  function futureDayMessage(timeZone: string) {
+    return `Time can't be logged for a day that hasn't started yet in the project's time zone (${timeZone})`;
   }
 
   // Makes an entry look as if it was logged `hours` ago.
@@ -249,6 +271,108 @@ describe('TimeEntriesService (database)', () => {
       await expect(entries.deleteEntry(ben.id, entry.id)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+  // Criteria 2, 3, 7 and 9: dates are checked in the project's time zone.
+  describe("in the project's time zone", () => {
+    async function setUpIn(timeZone: string) {
+      const setup = await setUp();
+      await projects.setTimeZone(setup.ana.id, setup.project.id, timeZone);
+      return setup;
+    }
+
+    // Criterion 2
+    it("logs today in the card's project time zone", async () => {
+      const { cara, one } = await setUpIn(AHEAD);
+
+      const entry = await entries.logTime(cara.id, one.id, {
+        minutes: 30,
+        workDate: todayIn(AHEAD),
+      });
+
+      expect(entry.workDate).toEqual(new Date(`${todayIn(AHEAD)}T00:00:00Z`));
+    });
+
+    // Criteria 2 and 9
+    it('refuses a day that has started elsewhere but not in the project time zone', async () => {
+      const { cara, one } = await setUpIn(BEHIND);
+
+      await expect(
+        entries.logTime(cara.id, one.id, {
+          minutes: 30,
+          workDate: todayIn(AHEAD),
+        }),
+      ).rejects.toThrow(futureDayMessage(BEHIND));
+      await expect(prisma.timeEntry.count()).resolves.toBe(0);
+      await expect(
+        entries.logTime(cara.id, one.id, {
+          minutes: 30,
+          workDate: todayIn(BEHIND),
+        }),
+      ).resolves.toMatchObject({
+        workDate: new Date(`${todayIn(BEHIND)}T00:00:00Z`),
+      });
+    });
+
+    // Criterion 3
+    it("checks a changed date against the project's time zone, for the person and an admin", async () => {
+      const { ana, cara, one } = await setUpIn(BEHIND);
+      const entry = await entries.logTime(cara.id, one.id, {
+        minutes: 30,
+        workDate: '2026-10-27',
+      });
+
+      for (const who of [cara, ana]) {
+        await expect(
+          entries.updateEntry(who.id, entry.id, { workDate: todayIn(AHEAD) }),
+        ).rejects.toThrow(futureDayMessage(BEHIND));
+      }
+      await expect(
+        prisma.timeEntry.findUniqueOrThrow({ where: { id: entry.id } }),
+      ).resolves.toMatchObject({ workDate: new Date('2026-10-27T00:00:00Z') });
+      await expect(
+        entries.updateEntry(ana.id, entry.id, { workDate: todayIn(BEHIND) }),
+      ).resolves.toMatchObject({
+        workDate: new Date(`${todayIn(BEHIND)}T00:00:00Z`),
+      });
+    });
+
+    // Criterion 3: an old entry dated later than today in the project's
+    // zone can still be changed, as long as the date is left out.
+    it('does not check the date again when an edit leaves it out', async () => {
+      const { cara, one } = await setUpIn(BEHIND);
+      const entry = await entries.logTime(cara.id, one.id, {
+        minutes: 30,
+        workDate: todayIn(BEHIND),
+      });
+      await prisma.timeEntry.update({
+        where: { id: entry.id },
+        data: { workDate: new Date(`${todayIn(AHEAD)}T00:00:00Z`) },
+      });
+
+      await expect(
+        entries.updateEntry(cara.id, entry.id, { minutes: 50 }),
+      ).resolves.toMatchObject({
+        minutes: 50,
+        workDate: new Date(`${todayIn(AHEAD)}T00:00:00Z`),
+      });
+    });
+
+    // Criterion 7
+    it("keeps an entry's date when the project's time zone changes", async () => {
+      const { ana, cara, project, one } = await setUpIn(AHEAD);
+      const entry = await entries.logTime(cara.id, one.id, {
+        minutes: 30,
+        workDate: todayIn(AHEAD),
+      });
+
+      await projects.setTimeZone(ana.id, project.id, BEHIND);
+
+      await expect(
+        prisma.timeEntry.findUniqueOrThrow({ where: { id: entry.id } }),
+      ).resolves.toMatchObject({
+        workDate: new Date(`${todayIn(AHEAD)}T00:00:00Z`),
+      });
     });
   });
 });
