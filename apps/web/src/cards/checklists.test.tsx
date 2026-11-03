@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { BOARD_RELOAD_MS } from '../api/query-keys'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import { cardPanel, login, openCard, typeInto } from '../test/card-panel'
 import { checklist, itemOf } from '../test/fake-checklists'
@@ -107,10 +108,51 @@ describe('Seeing a card’s checklists', () => {
     expectBefore(first, second)
     // Under the description (plan, section 2).
     expectBefore(
-      within(panel).getByRole('button', { name: 'Edit description' }),
+      await within(panel).findByRole('button', { name: 'Edit description' }),
       first,
     )
     await expectNoAccessibilityProblems(container)
+  })
+
+  // Changes reload with the board every 30 seconds: someone else ticks an
+  // item, and after the reload this panel shows it.
+  it('reloads with the board every 30 seconds and shows another person’s tick', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const testing = checklist('Testing', ['Safari'])
+      openCard(login, { checklists: { [login.id]: [testing] } })
+      const panel = await cardPanel()
+      const box = await within(panel).findByRole('checkbox', {
+        name: 'Safari',
+      })
+      expect(box).not.toBeChecked()
+
+      // Another person ticks it on the server.
+      server.use(
+        http.get('/api/cards/:cardId/checklists', () =>
+          HttpResponse.json([
+            {
+              ...testing,
+              cardId: login.id,
+              items: testing.items.map((i) => ({ ...i, isDone: true })),
+              progress: { done: 1, total: 1 },
+            },
+          ]),
+        ),
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      await vi.waitFor(
+        () =>
+          expect(
+            within(panel).getByRole('checkbox', { name: 'Safari' }),
+          ).toBeChecked(),
+        { timeout: 3000 },
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -198,6 +240,21 @@ describe('Adding checklists', () => {
       ),
     ).toBe(null)
   })
+
+  // Escape in the Add checklist form cancels the form only.
+  it('closes the Add checklist form on Escape from its Cancel button, not the panel', async () => {
+    const { user } = openCard(login)
+    const panel = await cardPanel()
+    await user.click(
+      within(panel).getByRole('button', { name: 'Add checklist' }),
+    )
+    within(panel).getByRole('button', { name: 'Cancel' }).focus()
+    await user.keyboard('{Escape}')
+
+    expect(
+      screen.getByRole('complementary', { name: 'Card WEB-12' }),
+    ).toBeInTheDocument()
+  })
 })
 
 describe('Adding items', () => {
@@ -279,6 +336,59 @@ describe('Adding items', () => {
     openCard(login, { checklists: { [login.id]: [almost] } })
     const list = await findChecklist(await cardPanel(), 'Browsers')
 
+    expectTurnedOn(within(list).getByRole('button', { name: 'Add item' }))
+  })
+
+  // Escape in the Add item form cancels the form only.
+  // Escape in the Add item form cancels the form; it does not also close
+  // the whole card panel.
+  it('closes the Add item form on Escape from its Add button, not the panel', async () => {
+    const testing = checklist('Testing', ['Safari'])
+    const { user } = openCard(login, {
+      checklists: { [login.id]: [testing] },
+    })
+    const panel = await cardPanel()
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Add item' }),
+    )
+    const box = within(panel).getByRole('textbox', { name: 'New item' })
+    await typeInto(user, box, 'Edge')
+    within(panel).getByRole('button', { name: 'Add' }).focus()
+    await user.keyboard('{Escape}')
+
+    expect(
+      screen.getByRole('complementary', { name: 'Card WEB-12' }),
+    ).toBeInTheDocument()
+  })
+
+  // Criterion 23: the box closes when the list fills up, and stays closed
+  // when room appears again.
+  it('closes the New item box at 100 items and keeps it closed after an item is deleted', async () => {
+    const almost = checklist(
+      'Browsers',
+      Array.from({ length: 99 }, (_, i) => `Browser ${i + 1}`),
+    )
+    const { user } = openCard(login, { checklists: { [login.id]: [almost] } })
+    const list = await findChecklist(await cardPanel(), 'Browsers')
+
+    await user.click(within(list).getByRole('button', { name: 'Add item' }))
+    const box = within(list).getByRole('textbox', { name: 'New item' })
+    await typeInto(user, box, 'Browser 100{Enter}')
+    await within(list).findByRole('checkbox', { name: 'Browser 100' })
+    await waitFor(() =>
+      expect(within(list).queryByRole('textbox', { name: 'New item' })).toBe(
+        null,
+      ),
+    )
+
+    await user.click(menuButton(list, 'Browser 100'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    await waitFor(() =>
+      expect(
+        within(list).queryByRole('checkbox', { name: 'Browser 100' }),
+      ).toBe(null),
+    )
+    expect(within(list).queryByRole('textbox', { name: 'New item' })).toBe(null)
     expectTurnedOn(within(list).getByRole('button', { name: 'Add item' }))
   })
 })
