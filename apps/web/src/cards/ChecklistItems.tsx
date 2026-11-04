@@ -28,7 +28,7 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   type FormEvent,
   type KeyboardEvent,
-  useEffect,
+  useLayoutEffect,
   useId,
   useRef,
   useState,
@@ -346,16 +346,19 @@ function AddItem({
   const [error, setError] = useState<string>()
   const add = useAddItem(card.boardId, card.id)
   const reasonRef = useRef<HTMLParagraphElement>(null)
-  const [focusInside, setFocusInside] = useState(false)
-  const [focusReason, setFocusReason] = useState(false)
+  // True while the New item box holds the focus. Only read after a commit.
+  const focusInside = useRef(false)
   const full = list.items.length >= MAX_CHECKLIST_ITEMS
 
-  // When the box closes because the list is full, focus moves to the reason.
-  useEffect(() => {
-    if (focusReason) reasonRef.current?.focus()
-  }, [focusReason])
+  // When the box closes because the list is full, focus moves to the reason,
+  // but only if it was inside the box (not elsewhere on the page).
+  useLayoutEffect(() => {
+    if (full && focusInside.current) reasonRef.current?.focus()
+    focusInside.current = false
+  }, [full])
 
   function close() {
+    focusInside.current = false
     setOpen(false)
     setText('')
     setError(undefined)
@@ -363,12 +366,10 @@ function AddItem({
   }
 
   // Reaching 100 items closes the box; it stays closed if an item is deleted.
-  // Focus moves to the reason only if it was inside the box (not elsewhere).
   if (full && open) {
     setOpen(false)
     setText('')
     setError(undefined)
-    setFocusReason(focusInside)
   }
 
   if (!open || full) {
@@ -380,7 +381,7 @@ function AddItem({
           disabled={full}
           aria-describedby={full ? reasonId : undefined}
           onClick={() => {
-            setFocusReason(false)
+            focusInside.current = false
             setOpen(true)
           }}
         >
@@ -420,10 +421,16 @@ function AddItem({
   return (
     <form
       noValidate
-      onFocus={() => setFocusInside(true)}
-      onBlur={(event) =>
-        setFocusInside(event.currentTarget.contains(event.relatedTarget))
-      }
+      onFocus={() => {
+        focusInside.current = true
+      }}
+      // When the window loses focus the box stays the active element, so
+      // that counts as still holding the focus.
+      onBlur={(event) => {
+        focusInside.current =
+          event.currentTarget.contains(event.relatedTarget) ||
+          event.currentTarget.contains(document.activeElement)
+      }}
       onSubmit={submit}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return
