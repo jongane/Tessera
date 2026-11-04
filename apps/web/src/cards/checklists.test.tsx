@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { BOARD_RELOAD_MS } from '../api/query-keys'
@@ -558,6 +558,114 @@ describe('The New item box closing at 100 items', () => {
       expect(
         within(list).getByRole('textbox', { name: 'New item' }),
       ).toHaveValue('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Owner, 2026-11-04 (docs/web-app.md §5): the focus moves to the reason text
+  // only if the person was typing in the box. These tests fill the list to 100
+  // items by someone else's change while the box is open.
+  const REASON = 'A checklist holds up to 100 items'
+
+  async function openAlmostFull() {
+    const almost = checklist(
+      'Browsers',
+      Array.from({ length: 99 }, (_, i) => `Browser ${i + 1}`),
+    )
+    const full = checklist(
+      'Browsers',
+      Array.from({ length: 100 }, (_, i) => `Browser ${i + 1}`),
+    )
+    const { user } = openCard(login, { checklists: { [login.id]: [almost] } })
+    const panel = await cardPanel()
+    const list = await findChecklist(panel, 'Browsers')
+    async function someoneFillsTheList() {
+      server.use(
+        http.get('/api/cards/:cardId/checklists', () =>
+          HttpResponse.json([
+            {
+              ...full,
+              id: almost.id,
+              cardId: login.id,
+              progress: { done: 0, total: 100 },
+            },
+          ]),
+        ),
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      await within(list).findByRole('checkbox', { name: 'Browser 100' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+    }
+    return { user, list, someoneFillsTheList }
+  }
+
+  it('still moves the focus to the reason text when the window lost focus while typing in the box', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { user, list, someoneFillsTheList } = await openAlmostFull()
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      const box = within(list).getByRole('textbox', { name: 'New item' })
+      await typeInto(user, box, 'half')
+      // Switching to another window: the browser reports the box losing focus
+      // with nothing taking it, but the box stays the active element.
+      fireEvent.blur(box, { relatedTarget: null })
+      fireEvent.focusOut(box, { relatedTarget: null })
+      expect(box).toHaveFocus()
+      await someoneFillsTheList()
+      expect(within(list).getByText(REASON)).toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('moves the focus to the reason text when the box was closed with Escape and opened again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { user, list, someoneFillsTheList } = await openAlmostFull()
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      await user.keyboard('{Escape}')
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      await someoneFillsTheList()
+      await waitFor(() => expect(within(list).getByText(REASON)).toHaveFocus())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('leaves the focus alone when the box was closed with Escape, opened again and left by a click on the page', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { user, list, someoneFillsTheList } = await openAlmostFull()
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      await user.keyboard('{Escape}')
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      await user.click(document.body)
+      await someoneFillsTheList()
+      expect(within(list).getByText(REASON)).not.toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('leaves the focus alone when the person tabbed out of the box before the list filled up', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { user, list, someoneFillsTheList } = await openAlmostFull()
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      await user.tab() // Add
+      await user.tab() // Cancel
+      await user.tab() // out of the box
+      const outside = document.activeElement
+      expect(
+        within(list).getByRole('textbox', { name: 'New item' }).closest('form'),
+      ).not.toContainElement(outside as HTMLElement)
+      await someoneFillsTheList()
+      expect(outside).toHaveFocus()
     } finally {
       vi.useRealTimers()
     }
