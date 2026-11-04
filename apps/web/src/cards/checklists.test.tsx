@@ -702,6 +702,115 @@ describe('Ticking items', () => {
       vi.useRealTimers()
     }
   })
+
+  it('keeps reloading every 30 seconds after a tick has been saved', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const testing = checklist('Testing', ['Chrome', 'Safari'])
+      const { user } = openCard(login, {
+        checklists: { [login.id]: [testing] },
+      })
+      const serverSays = (ticked: string[]) =>
+        http.get('/api/cards/:cardId/checklists', () =>
+          HttpResponse.json([
+            {
+              ...testing,
+              cardId: login.id,
+              items: testing.items.map((i) => ({
+                ...i,
+                isDone: ticked.includes(i.text),
+              })),
+              progress: { done: ticked.length, total: 2 },
+            },
+          ]),
+        )
+      server.use(
+        http.patch('/api/checklist-items/:itemId', () =>
+          HttpResponse.json({ ...testing.items[1], isDone: true }),
+        ),
+      )
+      const panel = await cardPanel()
+      const safari = await within(panel).findByRole('checkbox', {
+        name: 'Safari',
+      })
+      await user.click(safari)
+      await waitFor(() => expect(safari).toBeChecked())
+      // Let the save and its reload finish.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+      // Someone else ticks Chrome on the server.
+      server.use(serverSays(['Chrome', 'Safari']))
+      for (let i = 0; i < 2; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+        })
+      }
+      await vi.waitFor(
+        () =>
+          expect(
+            within(panel).getByRole('checkbox', { name: 'Chrome' }),
+          ).toBeChecked(),
+        { timeout: 3000 },
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps reloading every 30 seconds after a tick could not be saved', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const testing = checklist('Testing', ['Chrome', 'Safari'])
+      const { user } = openCard(login, {
+        checklists: { [login.id]: [testing] },
+      })
+      const serverSays = (ticked: string[]) =>
+        http.get('/api/cards/:cardId/checklists', () =>
+          HttpResponse.json([
+            {
+              ...testing,
+              cardId: login.id,
+              items: testing.items.map((i) => ({
+                ...i,
+                isDone: ticked.includes(i.text),
+              })),
+              progress: { done: ticked.length, total: 2 },
+            },
+          ]),
+        )
+      server.use(
+        http.patch('/api/checklist-items/:itemId', () =>
+          apiError(500, 'Broken'),
+        ),
+      )
+      const panel = await cardPanel()
+      const safari = await within(panel).findByRole('checkbox', {
+        name: 'Safari',
+      })
+      await user.click(safari)
+      expect(await within(panel).findByText(SAVE_FAILED)).toBeInTheDocument()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+      // Someone else ticks Chrome on the server.
+      server.use(serverSays(['Chrome']))
+      for (let i = 0; i < 2; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+        })
+      }
+      await vi.waitFor(
+        () =>
+          expect(
+            within(panel).getByRole('checkbox', { name: 'Chrome' }),
+          ).toBeChecked(),
+        { timeout: 3000 },
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('The item menu', () => {
