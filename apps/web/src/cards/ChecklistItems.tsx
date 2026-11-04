@@ -346,6 +346,7 @@ function AddItem({
   const [error, setError] = useState<string>()
   const add = useAddItem(card.boardId, card.id)
   const reasonRef = useRef<HTMLParagraphElement>(null)
+  const [focusInside, setFocusInside] = useState(false)
   const [focusReason, setFocusReason] = useState(false)
   const full = list.items.length >= MAX_CHECKLIST_ITEMS
 
@@ -362,11 +363,12 @@ function AddItem({
   }
 
   // Reaching 100 items closes the box; it stays closed if an item is deleted.
+  // Focus moves to the reason only if it was inside the box (not elsewhere).
   if (full && open) {
     setOpen(false)
     setText('')
     setError(undefined)
-    setFocusReason(true)
+    setFocusReason(focusInside)
   }
 
   if (!open || full) {
@@ -418,6 +420,10 @@ function AddItem({
   return (
     <form
       noValidate
+      onFocus={() => setFocusInside(true)}
+      onBlur={(event) =>
+        setFocusInside(event.currentTarget.contains(event.relatedTarget))
+      }
       onSubmit={submit}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return
