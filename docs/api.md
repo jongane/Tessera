@@ -169,7 +169,7 @@ Each of these answers with the card's assignees afterwards, owner first.
 | `POST /api/cards/:cardId/checklists` | Members | Body `{ name }`. `suggestNewCard` in the answer is true once the card has more than 10 |
 | `PATCH /api/checklists/:checklistId` | Members | Body `{ name?, position? }`. Renames and/or moves it (0 is first) |
 | `DELETE /api/checklists/:checklistId` | Members | Deletes it with its items |
-| `POST /api/checklists/:checklistId/items` | Members | Body `{ text }`. Adds an item at the bottom; at most 100 (409) |
+| `POST /api/checklists/:checklistId/items` | Members | Body `{ text }`. Adds an item at the bottom; at most 100, then 409 "A checklist holds up to 100 items". An empty text gives 400 "This can’t be empty"; a name over 100 or text over 500 characters gives "Use at most 100/500 characters" |
 | `PATCH /api/checklist-items/:itemId` | Members | Body `{ text?, isDone?, position? }`. Edits, ticks and/or moves the item |
 | `DELETE /api/checklist-items/:itemId` | Members | Deletes the item |
 | `POST /api/checklist-items/:itemId/subtask` | Members | Replaces the item with an unassigned subtask of the card, titled with its text |
