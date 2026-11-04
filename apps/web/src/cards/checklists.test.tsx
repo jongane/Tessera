@@ -1045,9 +1045,8 @@ describe('The item menu', () => {
     ])
   })
 
-  // Criterion 21. That the subtask shows in the Subtasks section comes
-  // with PR 7b.
-  it('turns an item into a subtask: the item leaves and the board shows the subtask', async () => {
+  // Criterion 21, with the Subtasks section (web PR 7b).
+  it('turns an item into a subtask: the item leaves, and the board and the Subtasks list show the subtask', async () => {
     const testing = checklist('Testing', ['Write tests', 'Deploy'])
     const { user, api } = openCard(login, {
       checklists: { [login.id]: [testing] },
@@ -1061,8 +1060,18 @@ describe('The item menu', () => {
 
     await waitFor(() => expectItems(list, ['Deploy']))
     expect(
-      await screen.findByRole('button', { name: 'WEB-12.1 Write tests' }),
+      await within(screen.getByRole('region', { name: 'To do' })).findByRole(
+        'button',
+        { name: 'WEB-12.1 Write tests' },
+      ),
     ).toBeInTheDocument()
+    const subtasks = await within(await cardPanel()).findByRole('region', {
+      name: 'Subtasks',
+    })
+    await waitFor(() => {
+      expect(subtasks).toHaveTextContent('WEB-12.1')
+      expect(subtasks).toHaveTextContent('Write tests')
+    })
     expect(api.requests.map((r) => r.request)).toEqual([
       `POST /api/checklist-items/${itemOf(testing, 'Write tests').id}/subtask`,
     ])

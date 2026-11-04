@@ -94,6 +94,32 @@ describe('Labels on a card', () => {
 })
 
 describe('The description', () => {
+  // Escape in the link form closes the form only, not the panel (the same
+  // as in the checklist forms).
+  it.each(['Apply', 'Cancel'])(
+    'closes the link form on Escape from its %s button, not the panel',
+    async (button) => {
+      const { user } = openCard()
+      const panel = await cardPanel()
+      await user.click(
+        within(panel).getByRole('button', { name: 'Edit description' }),
+      )
+      await within(panel).findByRole('textbox', { name: 'Description' })
+      await user.click(within(panel).getByRole('button', { name: 'Link' }))
+      expect(within(panel).getByLabelText('Link address')).toBeInTheDocument()
+      const form = within(panel).getByLabelText('Link address').closest('form')!
+      within(form).getByRole('button', { name: button }).focus()
+      await user.keyboard('{Escape}')
+
+      expect(
+        within(panel).queryByLabelText('Link address'),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('complementary', { name: 'Card WEB-12' }),
+      ).toBeInTheDocument()
+    },
+  )
+
   it('shows the description formatted', async () => {
     const { container } = openCard(
       boardCard('12', 'Login page', {
