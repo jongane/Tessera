@@ -400,7 +400,7 @@ describe('Adding items', () => {
 describe('The New item box closing at 100 items', () => {
   // Owner, 2026-11-04: the focus goes to the reason text, which stays in the
   // panel so Escape still closes the panel.
-  it('moves the focus to the reason text, so Escape still closes the panel', async () => {
+  it('moves the focus from the box to the reason text, so Escape still closes the panel', async () => {
     const almost = checklist(
       'Browsers',
       Array.from({ length: 99 }, (_, i) => `Browser ${i + 1}`),
@@ -426,6 +426,72 @@ describe('The New item box closing at 100 items', () => {
     expect(screen.queryByRole('complementary', { name: 'Card WEB-12' })).toBe(
       null,
     )
+  })
+
+  // Owner, 2026-11-04: the focus moves to the reason text only if it was in
+  // the New item box. Here it is in another item's box, which keeps it.
+  it('leaves the focus and the half-typed text of an item being edited alone when another checklist fills up', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const almost = checklist(
+        'Browsers',
+        Array.from({ length: 99 }, (_, i) => `Browser ${i + 1}`),
+      )
+      const other = checklist('Release', ['Tag the build'])
+      const { user, api } = openCard(login, {
+        checklists: { [login.id]: [almost, other] },
+      })
+      const panel = await cardPanel()
+      const browsers = await findChecklist(panel, 'Browsers')
+      const release = await findChecklist(panel, 'Release')
+      await user.click(
+        within(browsers).getByRole('button', { name: 'Add item' }),
+      )
+      await user.click(
+        within(release).getByRole('button', { name: 'Tag the build' }),
+      )
+      const box = within(release).getByDisplayValue('Tag the build')
+      await user.clear(box)
+      await typeInto(user, box, 'Tag the bu')
+
+      const full = Array.from({ length: 100 }, (_, i) => ({
+        ...almost.items[0]!,
+        id: `cccccccc-cccc-4ccc-8ccc-${String(900000 + i).padStart(12, '0')}`,
+        text: `Browser ${i + 1}`,
+        position: i,
+      }))
+      server.use(
+        http.get('/api/cards/:cardId/checklists', () =>
+          HttpResponse.json([
+            {
+              ...almost,
+              cardId: login.id,
+              items: full,
+              progress: { done: 0, total: 100 },
+            },
+            {
+              ...other,
+              cardId: login.id,
+              position: 1,
+              progress: { done: 0, total: 1 },
+            },
+          ]),
+        ),
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      await within(browsers).findByRole('checkbox', { name: 'Browser 100' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+
+      // Nothing was saved behind the person's back, and they can keep typing.
+      expect(api.requests).toEqual([])
+      expect(box).toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // Owner, 2026-11-04: half-typed text is cleared when the list fills up
@@ -473,6 +539,12 @@ describe('The New item box closing at 100 items', () => {
         expect(within(list).queryByRole('textbox', { name: 'New item' })).toBe(
           null,
         ),
+      )
+      // The focus was in the box, so it moves to the reason text.
+      await waitFor(() =>
+        expect(
+          within(list).getByText('A checklist holds up to 100 items'),
+        ).toHaveFocus(),
       )
 
       served = almost
