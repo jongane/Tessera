@@ -213,6 +213,45 @@ export interface Chat {
   createdAt: string;
 }
 
+// One tick-box item of a checklist (docs/api.md, "Checklists").
+// POST /api/checklists/:checklistId/items and PATCH
+// /api/checklist-items/:itemId answer with one.
+export interface ChecklistItem {
+  id: string;
+  checklistId: string;
+  text: string;
+  isDone: boolean;
+  // 0 is the top of the checklist.
+  position: number;
+  createdAt: string;
+}
+
+// A checklist's own fields.
+export interface Checklist {
+  id: string;
+  cardId: string;
+  projectId: string;
+  name: string;
+  // 0 is the card's first checklist.
+  position: number;
+  createdAt: string;
+}
+
+// GET /api/cards/:cardId/checklists, in order.
+export interface ChecklistWithItems extends Checklist {
+  // In order.
+  items: ChecklistItem[];
+  // "2 of 4". Shown only on this card; never counted in a parent's progress.
+  progress: { done: number; total: number };
+}
+
+// POST /api/cards/:cardId/checklists
+export interface NewChecklist extends Checklist {
+  // True once the card has more than 10 checklists, so the screen can
+  // suggest a new card. Nothing is refused.
+  suggestNewCard: boolean;
+}
+
 // The body of every 4xx answer. `message` says what is wrong, in words that
 // can be shown to people.
 export interface ApiErrorBody {

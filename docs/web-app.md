@@ -57,6 +57,12 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
 - Small fields (title, priority, due date, estimate) save as soon as they change. Due times are typed in the project's time zone, which is shown next to the box (agreed 2026-11-01).
 - Leaving a card with unsaved changes to its description asks "Discard your changes?" first.
 - Everyone can see the "Delete card" button. For people who may not delete the card (only its creator or a project admin may), it is turned off and says why (agreed 2026-11-01).
+- **Checklists** sit under the description. Each shows its name and its own progress ("2 of 4"), then its items as tick boxes (agreed 2026-11-03):
+  - "Add checklist" asks for a checklist name. "Add item" adds an item at the bottom: Enter adds it and leaves the "New item" box open for the next one. Clicking an item's text edits it: Enter saves, Escape puts it back, and clicking away saves it. Renaming a checklist works the same way.
+  - Items are reordered within their checklist by dragging (with the keyboard too: Space, the arrow keys, Space), or with "Move up" and "Move down" in the item's menu. The item's menu also has Delete and "Turn into subtask" ([card-features.md](card-features.md) section 2). "Turn into subtask" is turned off on a card 5 levels deep, and says "Subtasks can only go 5 levels deep".
+  - Each checklist's menu has Rename, Move up, Move down and Delete. Delete asks "Delete 'Testing' and its 6 items?" first.
+  - The limits come from the shared rules, so the form and the API give the same answer: a name up to 100 characters, an item up to 500, and a name or item that is empty or only spaces is refused with "This can’t be empty" (the same words as the app's other forms). One that is too long is refused with "Use at most 100 characters" (or 500 for an item). At 100 items "Add item" is turned off and says "A checklist holds up to 100 items". If the "New item" box is open when the list fills, it closes, any half-typed text is cleared, and the keyboard focus moves to that reason only if you were typing in that box. If you were somewhere else (for example editing another item), focus stays where it is, so that edit is not saved early.
+  - Adding an 11th or later checklist shows a note: "This card has a lot of checklists. Would a new card be clearer?" Its "Create a card" button opens the board's Add card form in this card's column. The checklist is still added.
 - Quick actions such as dragging a card or ticking a checklist item show on screen straight away. If saving fails, the change is undone and a short message says "Couldn't save, try again".
 
 ## 6. Keeping screens up to date
@@ -94,4 +100,8 @@ One pull request at a time, each with its plan approved first:
    Then, as its own pull request: rename "thread" to "chat" in the API, database and code (agreed 2026-10-31; done). Messages, threads (replies) and typed links get their own design round with chat.
 5. Project settings and the server admin screen.
 6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting, and seeing related cards ([card-features.md](card-features.md) section 7; agreed 2026-11-01).
-7. Card panel extras: subtasks, checklists, time and the timer, Activity tab.
+7. Card panel extras, split into four pull requests, one after another, each from `main` (agreed 2026-11-03):
+   - 7a. Checklists in the card panel (done).
+   - 7b. Subtasks: the parent line, the Subtasks section, adding and moving subtasks, and the third choice in the Delete card dialog. A small API pull request comes first, adding each subtask's number, board name, column name and subtask progress to `GET /cards/:id/subtasks`.
+   - 7c. Time and the timer, with the running-timer chip in the top bar.
+   - 7d. The Activity tab (Details and Activity tabs in the panel).

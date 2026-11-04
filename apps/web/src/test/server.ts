@@ -3,8 +3,11 @@ import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 
 // A fake API for component tests. Each test says what the API answers with
-// server.use(...). A request nobody answered fails the test.
-export const server = setupServer()
+// server.use(...). A request nobody answered fails the test, except the
+// few below that every open card makes, which answer "nothing yet".
+export const server = setupServer(
+  http.get('/api/cards/:cardId/checklists', () => HttpResponse.json([])),
+)
 
 export const ana: Me = {
   id: '11111111-1111-4111-8111-111111111111',

@@ -286,3 +286,58 @@ test('see an open card’s relatives on the board', async ({ page }) => {
   ).toBeVisible()
   await expectNoAccessibilityProblems(page)
 })
+
+// Web PR 7a, criterion 46 (its checklist part).
+test('add a checklist to a card, tick an item and turn another into a subtask', async ({
+  page,
+}) => {
+  await openNewBoard(page)
+  await addCard(page, 'To do', 'Login page')
+  await card(page, 'To do', 'Login page').click()
+  const panel = page.getByRole('complementary', { name: /^Card / })
+
+  await panel.getByRole('button', { name: 'Add checklist' }).click()
+  await panel.getByLabel('Checklist name').fill('Testing')
+  await panel.getByLabel('Checklist name').press('Enter')
+  const list = panel.getByRole('region', { name: 'Testing' })
+  await list.getByRole('button', { name: 'Add item' }).click()
+  const box = list.getByLabel('New item')
+  for (const text of ['Check the form', 'Write tests']) {
+    await box.fill(text)
+    await box.press('Enter')
+    await expect(list.getByRole('checkbox', { name: text })).toBeVisible()
+  }
+
+  // Not check(): the tick shows once the change is on its way.
+  await list.getByRole('checkbox', { name: 'Check the form' }).click()
+  await expect(
+    list.getByRole('checkbox', { name: 'Check the form' }),
+  ).toBeChecked()
+  await expect(list).toContainText('1 of 2')
+  await expectNoAccessibilityProblems(page)
+
+  await list
+    .getByRole('button', { name: /Write tests/ })
+    .and(page.locator('[aria-haspopup="menu"]'))
+    .click()
+  await page.getByRole('menuitem', { name: 'Turn into subtask' }).click()
+  await expect(list.getByRole('checkbox', { name: 'Write tests' })).toHaveCount(
+    0,
+  )
+  await expect(
+    page
+      .getByRole('region', { name: 'To do' })
+      .getByRole('button', { name: /-1\.1 Write tests$/ }),
+  ).toBeVisible()
+  await expectNoAccessibilityProblems(page)
+
+  // Everything was saved.
+  await page.reload()
+  await expect(
+    list.getByRole('checkbox', { name: 'Check the form' }),
+  ).toBeChecked()
+  await expect(list.getByRole('checkbox', { name: 'Write tests' })).toHaveCount(
+    0,
+  )
+  await expect(list).toContainText('1 of 1')
+})

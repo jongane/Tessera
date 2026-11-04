@@ -16,7 +16,7 @@ import { NotFoundPage } from '../app/NotFoundPage'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
-import { BoardColumns } from './BoardColumns'
+import { type AddCardRequest, BoardColumns } from './BoardColumns'
 import { BoardLayout } from './BoardLayout'
 import { CompleteAnywayDialog } from './CompleteAnywayDialog'
 import { highlights } from './highlight'
@@ -88,6 +88,8 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   const [creatingChat, setCreatingChat] = useState(false)
   const moveCard = useMoveCard(boardId)
   const [saveFailed, setSaveFailed] = useState(false)
+  // "Create a card" in the card panel opens this column's Add card form.
+  const [addCardRequest, setAddCardRequest] = useState<AddCardRequest>()
   const [confirming, setConfirming] = useState<{
     move: CardMove
     openSubtasks: number
@@ -154,6 +156,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
         highlightOf={highlightOf}
         onSelect={onSelect}
         onMove={onMove}
+        addCardRequest={addCardRequest}
       />
     </div>
   )
@@ -181,6 +184,9 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
                   onClose={() => setSearchParams(withParams({ card: null }))}
                   onOpenChat={(chatId) =>
                     setSearchParams(withParams({ chat: chatId }))
+                  }
+                  onCreateCard={(columnId) =>
+                    setAddCardRequest({ columnId, at: Date.now() })
                   }
                 />
               </Suspense>

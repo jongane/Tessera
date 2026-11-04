@@ -4,6 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  MAX_CHECKLIST_ITEM,
+  CHECKLIST_FULL_MESSAGE,
+  MAX_CHECKLIST_ITEMS,
+  MAX_CHECKLIST_NAME,
+} from '@tessera/shared';
 import type {
   Card,
   Checklist,
@@ -16,10 +22,6 @@ import { findVisibleCard } from '../cards/card-access.js';
 import { insertSubtask } from '../cards/subtasks.service.js';
 import { recordActivity } from '../activity/activity.js';
 import { reorder } from '../common/reorder.js';
-
-const MAX_NAME_LENGTH = 100;
-const MAX_TEXT_LENGTH = 500;
-const MAX_ITEMS = 100;
 // Past this many checklists the screen suggests splitting the work into a
 // new card. It is only a suggestion; there is no limit.
 const SUGGEST_NEW_CARD_AFTER = 10;
@@ -179,10 +181,8 @@ export class ChecklistsService {
         _count: true,
         _max: { position: true },
       });
-      if (items._count >= MAX_ITEMS) {
-        throw new ConflictException(
-          `A checklist can have at most ${MAX_ITEMS} items`,
-        );
+      if (items._count >= MAX_CHECKLIST_ITEMS) {
+        throw new ConflictException(CHECKLIST_FULL_MESSAGE);
       }
       return tx.checklistItem.create({
         data: {
@@ -317,11 +317,11 @@ function cardOf(list: Checklist): { id: string; projectId: string } {
 }
 
 function requireName(name: string): string {
-  return requireLength(name, MAX_NAME_LENGTH, 'A checklist name');
+  return requireLength(name, MAX_CHECKLIST_NAME, 'A checklist name');
 }
 
 function requireText(text: string): string {
-  return requireLength(text, MAX_TEXT_LENGTH, 'A checklist item');
+  return requireLength(text, MAX_CHECKLIST_ITEM, 'A checklist item');
 }
 
 function requireLength(value: string, max: number, what: string): string {

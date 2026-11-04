@@ -16,6 +16,10 @@ Range.prototype.getClientRects ??= () =>
   Object.assign([], { item: () => null }) as unknown as DOMRectList
 Range.prototype.getBoundingClientRect ??= () => new DOMRect()
 
+// jsdom does not scroll either. Dragging with the keyboard scrolls the
+// item being moved into view.
+Element.prototype.scrollIntoView ??= () => {}
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   cleanup()

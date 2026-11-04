@@ -166,13 +166,15 @@ Each of these answers with the card's assignees afterwards, owner first.
 | Method and path | Who | What it does |
 |---|---|---|
 | `GET /api/cards/:cardId/checklists` | Members | The card's checklists in order, each with its `items` and `progress` (`{ done, total }`) |
-| `POST /api/cards/:cardId/checklists` | Members | Body `{ name }`. `suggestNewCard` in the answer is true once the card has more than 10 |
-| `PATCH /api/checklists/:checklistId` | Members | Body `{ name?, position? }`. Renames and/or moves it (0 is first) |
+| `POST /api/cards/:cardId/checklists` | Members | Body `{ name }`. An empty name gives 400 "This can’t be empty"; a name over 100 characters gives "Use at most 100 characters". `suggestNewCard` in the answer is true once the card has more than 10 |
+| `PATCH /api/checklists/:checklistId` | Members | Body `{ name?, position? }`. Renames and/or moves it (0 is first). The name follows the same limit as when creating (empty: "This can’t be empty"; over 100: "Use at most 100 characters") |
 | `DELETE /api/checklists/:checklistId` | Members | Deletes it with its items |
-| `POST /api/checklists/:checklistId/items` | Members | Body `{ text }`. Adds an item at the bottom; at most 100 (409) |
-| `PATCH /api/checklist-items/:itemId` | Members | Body `{ text?, isDone?, position? }`. Edits, ticks and/or moves the item |
+| `POST /api/checklists/:checklistId/items` | Members | Body `{ text }`. Adds an item at the bottom; at most 100, then 409 "A checklist holds up to 100 items". An empty text gives 400 "This can’t be empty"; text over 500 characters gives "Use at most 500 characters" |
+| `PATCH /api/checklist-items/:itemId` | Members | Body `{ text?, isDone?, position? }`. Edits, ticks and/or moves the item. The text follows the same limit as when adding (empty: "This can’t be empty"; over 500: "Use at most 500 characters") |
 | `DELETE /api/checklist-items/:itemId` | Members | Deletes the item |
 | `POST /api/checklist-items/:itemId/subtask` | Members | Replaces the item with an unassigned subtask of the card, titled with its text |
+
+Names and item text have the spaces around them dropped. An empty or spaces-only one, a name over 100 characters or an item over 500 gets 400. These are the shared rules in `packages/shared`, so the web app's forms give the same answer.
 
 ### Activity
 
