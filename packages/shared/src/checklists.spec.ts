@@ -58,9 +58,9 @@ describe('checklist limits', () => {
     expect(newChecklistItemSchema.safeParse({ text }).success).toBe(true);
   });
 
-  // Jon, 2026-11-03: a blank name or item is refused here, with the same
-  // message the web app shows, so the web app and the API answer the same.
-  it('refuse a blank name or item, saying "Can\'t be blank"', () => {
+  // Repository owner, 2026-11-04: a blank name or item is refused here, with
+  // the app's own wording, so the web app and the API answer the same.
+  it('refuse a blank name or item, saying "This can’t be empty"', () => {
     for (const blank of ['', ' ', '   ']) {
       const refusals = [
         newChecklistSchema.safeParse({ name: blank }),
@@ -70,8 +70,30 @@ describe('checklist limits', () => {
       ];
       for (const result of refusals) {
         expect(result.success, `“${blank}” is refused`).toBe(false);
-        expect(result.error?.issues[0]?.message).toBe("Can't be blank");
+        expect(result.error?.issues[0]?.message).toBe('This can’t be empty');
       }
+    }
+  });
+
+  // Repository owner, 2026-11-04: the same words the web app shows.
+  it('refuse a name over 100 characters and an item over 500, saying "Use at most N characters"', () => {
+    const name = 'x'.repeat(MAX_CHECKLIST_NAME + 1);
+    const text = 'x'.repeat(MAX_CHECKLIST_ITEM + 1);
+    for (const result of [
+      newChecklistSchema.safeParse({ name }),
+      checklistChangesSchema.safeParse({ name }),
+    ]) {
+      expect(result.error?.issues[0]?.message).toBe(
+        'Use at most 100 characters',
+      );
+    }
+    for (const result of [
+      newChecklistItemSchema.safeParse({ text }),
+      checklistItemChangesSchema.safeParse({ text }),
+    ]) {
+      expect(result.error?.issues[0]?.message).toBe(
+        'Use at most 500 characters',
+      );
     }
   });
 });

@@ -519,6 +519,66 @@ describe('Card features (e2e)', () => {
       await ana.agent.delete(`/api/checklists/${list.id}`).expect(204);
     });
 
+    // Repository owner, 2026-11-04: the API says the same words as the web
+    // app. The pipe puts the field name in front of every 400 message.
+    it('words its refusals the way the web app does', async () => {
+      const { ana, cardUrl } = await setUp();
+      const list = (
+        await ana.agent.post(`${cardUrl}/checklists`).send({ name: 'QA' })
+      ).body as { id: string };
+      const refused = async (
+        request: ReturnType<typeof ana.agent.post>,
+      ): Promise<string> => {
+        const response = await request.expect(400);
+        return response.body.message as string;
+      };
+
+      expect(
+        await refused(
+          ana.agent.post(`${cardUrl}/checklists`).send({ name: ' ' }),
+        ),
+      ).toBe('name: This can’t be empty');
+      expect(
+        await refused(
+          ana.agent
+            .post(`${cardUrl}/checklists`)
+            .send({ name: 'x'.repeat(101) }),
+        ),
+      ).toBe('name: Use at most 100 characters');
+      expect(
+        await refused(
+          ana.agent.post(`/api/checklists/${list.id}/items`).send({ text: '' }),
+        ),
+      ).toBe('text: This can’t be empty');
+      expect(
+        await refused(
+          ana.agent
+            .post(`/api/checklists/${list.id}/items`)
+            .send({ text: 'x'.repeat(501) }),
+        ),
+      ).toBe('text: Use at most 500 characters');
+    });
+
+    it('says "A checklist holds up to 100 items" when a checklist is full', async () => {
+      const { ana, cardUrl } = await setUp();
+      const list = (
+        await ana.agent.post(`${cardUrl}/checklists`).send({ name: 'QA' })
+      ).body as { id: string };
+      await prisma.checklistItem.createMany({
+        data: Array.from({ length: 100 }, (_, i) => ({
+          checklistId: list.id,
+          text: `Item ${i}`,
+          position: i,
+        })),
+      });
+
+      const response = await ana.agent
+        .post(`/api/checklists/${list.id}/items`)
+        .send({ text: 'One too many' })
+        .expect(409);
+      expect(response.body.message).toBe('A checklist holds up to 100 items');
+    });
+
     it('refuses a bad item change without moving the item', async () => {
       const { ana, cardUrl } = await setUp();
       const list = (

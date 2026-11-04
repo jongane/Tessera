@@ -175,10 +175,13 @@ describe('Adding checklists', () => {
     expect(api.requests).toEqual([])
     await expectNoAccessibilityProblems(container)
 
-    // Jon, 2026-11-03: spaces only is refused by the shared rule.
+    // Spaces only is refused by the shared rule (owner, 2026-11-04: the
+    // app's own wording).
     await user.clear(name)
     await typeInto(user, name, '   {Enter}')
-    expect(await within(panel).findByText("Can't be blank")).toBeInTheDocument()
+    expect(
+      await within(panel).findByText('This can’t be empty'),
+    ).toBeInTheDocument()
     expect(api.requests).toEqual([])
 
     await user.clear(name)
@@ -295,8 +298,10 @@ describe('Adding items', () => {
     await user.click(within(list).getByRole('button', { name: 'Add item' }))
     const box = within(list).getByRole('textbox', { name: 'New item' })
     await typeInto(user, box, '   {Enter}')
-    // Jon, 2026-11-03: the shared rule's message.
-    expect(await within(list).findByText("Can't be blank")).toBeInTheDocument()
+    // The shared rule's message (owner, 2026-11-04).
+    expect(
+      await within(list).findByText('This can’t be empty'),
+    ).toBeInTheDocument()
     expect(api.requests).toEqual([])
     await user.clear(box)
     box.focus()
@@ -392,6 +397,101 @@ describe('Adding items', () => {
   })
 })
 
+describe('The New item box closing at 100 items', () => {
+  // Owner, 2026-11-04: the focus goes to the reason text, which stays in the
+  // panel so Escape still closes the panel.
+  it('moves the focus to the reason text, so Escape still closes the panel', async () => {
+    const almost = checklist(
+      'Browsers',
+      Array.from({ length: 99 }, (_, i) => `Browser ${i + 1}`),
+    )
+    const { user } = openCard(login, { checklists: { [login.id]: [almost] } })
+    const panel = await cardPanel()
+    const list = await findChecklist(panel, 'Browsers')
+
+    await user.click(within(list).getByRole('button', { name: 'Add item' }))
+    const box = within(list).getByRole('textbox', { name: 'New item' })
+    await typeInto(user, box, 'Browser 100{Enter}')
+    await within(list).findByRole('checkbox', { name: 'Browser 100' })
+    await waitFor(() =>
+      expect(within(list).queryByRole('textbox', { name: 'New item' })).toBe(
+        null,
+      ),
+    )
+
+    const reason = within(list).getByText('A checklist holds up to 100 items')
+    await waitFor(() => expect(reason).toHaveFocus())
+    expect(panel).toContainElement(reason)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('complementary', { name: 'Card WEB-12' })).toBe(
+      null,
+    )
+  })
+
+  // Owner, 2026-11-04: half-typed text is cleared when the list fills up
+  // because of someone else's change.
+  it('clears half-typed text when someone else fills the list to 100 items', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const almost = checklist(
+        'Browsers',
+        Array.from({ length: 99 }, (_, i) => `Browser ${i + 1}`),
+      )
+      const full = checklist(
+        'Browsers',
+        Array.from({ length: 100 }, (_, i) => `Browser ${i + 1}`),
+      )
+      const { user } = openCard(login, {
+        checklists: { [login.id]: [almost] },
+      })
+      const panel = await cardPanel()
+      const list = await findChecklist(panel, 'Browsers')
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      const box = within(list).getByRole('textbox', { name: 'New item' })
+      await typeInto(user, box, 'half typed')
+
+      // What the server says on the next reloads: first 100 items (someone
+      // else added one), then 99 again (someone else deleted one).
+      let served = full
+      server.use(
+        http.get('/api/cards/:cardId/checklists', () =>
+          HttpResponse.json([
+            {
+              ...served,
+              id: almost.id,
+              cardId: login.id,
+              progress: { done: 0, total: served.items.length },
+            },
+          ]),
+        ),
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      await within(list).findByRole('checkbox', { name: 'Browser 100' })
+      await waitFor(() =>
+        expect(within(list).queryByRole('textbox', { name: 'New item' })).toBe(
+          null,
+        ),
+      )
+
+      served = almost
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      await waitFor(() =>
+        expectTurnedOn(within(list).getByRole('button', { name: 'Add item' })),
+      )
+      await user.click(within(list).getByRole('button', { name: 'Add item' }))
+      expect(
+        within(list).getByRole('textbox', { name: 'New item' }),
+      ).toHaveValue('')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('Editing an item', () => {
   // Criteria 17 and 44.
   it('edits an item’s text when it is clicked: Escape puts it back, Enter saves', async () => {
@@ -420,6 +520,31 @@ describe('Editing an item', () => {
     box = within(list).getByDisplayValue('Safari')
     await user.clear(box)
     await typeInto(user, box, 'Safari 17{Enter}')
+
+    expect(
+      await within(list).findByRole('checkbox', { name: 'Safari 17' }),
+    ).toBeInTheDocument()
+    expect(api.requests).toEqual([
+      {
+        request: `PATCH /api/checklist-items/${itemOf(testing, 'Safari').id}`,
+        body: { text: 'Safari 17' },
+      },
+    ])
+  })
+
+  // Owner, 2026-11-04: clicking away saves the change.
+  it('saves an item’s new text when the box loses focus', async () => {
+    const testing = checklist('Testing', ['Safari', 'Edge'])
+    const { user, api } = openCard(login, {
+      checklists: { [login.id]: [testing] },
+    })
+    const list = await findChecklist(await cardPanel(), 'Testing')
+
+    await user.click(within(list).getByRole('button', { name: 'Safari' }))
+    const box = within(list).getByDisplayValue('Safari')
+    await user.clear(box)
+    await typeInto(user, box, 'Safari 17')
+    await user.click(document.body)
 
     expect(
       await within(list).findByRole('checkbox', { name: 'Safari 17' }),
@@ -772,6 +897,29 @@ describe('The checklist menu', () => {
       { request: `PATCH /api/checklists/${testing.id}`, body: { name: 'QA' } },
       { request: `PATCH /api/checklists/${testing.id}`, body: { position: 1 } },
       { request: `PATCH /api/checklists/${testing.id}`, body: { position: 0 } },
+    ])
+  })
+
+  // Owner, 2026-11-04: clicking away saves the new name.
+  it('saves a checklist’s new name when the box loses focus', async () => {
+    const testing = checklist('Testing', ['Chrome'])
+    const { user, api } = openCard(login, {
+      checklists: { [login.id]: [testing] },
+    })
+    const panel = await cardPanel()
+
+    await user.click(
+      menuButton(await findChecklist(panel, 'Testing'), 'Testing'),
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+    const name = within(panel).getByDisplayValue('Testing')
+    await user.clear(name)
+    await typeInto(user, name, 'QA')
+    await user.click(document.body)
+
+    expect(await findChecklist(panel, 'QA')).toBeInTheDocument()
+    expect(api.requests).toEqual([
+      { request: `PATCH /api/checklists/${testing.id}`, body: { name: 'QA' } },
     ])
   })
 
