@@ -22,9 +22,9 @@ const OFFER = 'Completed. Move it to Done?'
 const OFFER_MOVE = 'Move'
 const OFFER_KEEP = 'Keep here'
 const EMPTY = 'This can’t be empty'
-// The names of the picker's dialog, by where it was opened from.
-const PICKER_FROM_ROW = 'Move to another parent'
-const PICKER_FROM_HEADER = 'Change parent'
+// The name of the picker's dialog, wherever it was opened from (answered
+// 2026-11-04: the same from a row, the card's menu and the delete dialog).
+const PICKER = 'Move to another parent'
 
 const todoId = '88888888-8888-4888-8888-000000000001'
 const doneId = '88888888-8888-4888-8888-000000000002'
@@ -101,6 +101,21 @@ function rowMenu(row: HTMLElement) {
     .getAllByRole('button')
     .filter((button) => button.getAttribute('aria-haspopup') === 'menu')
   expect(buttons, 'one menu button in the row').toHaveLength(1)
+  return buttons[0]!
+}
+
+// The button of the card panel's own "⋯" options menu: a menu button that is
+// neither in a subtask's row nor a checklist's. (Its name is not decided.)
+function cardMenu(panel: HTMLElement) {
+  const buttons = within(panel)
+    .queryAllByRole('button')
+    .filter(
+      (button) =>
+        button.getAttribute('aria-haspopup') === 'menu' &&
+        !button.closest('li') &&
+        !/^Options for /.test(button.getAttribute('aria-label') ?? ''),
+    )
+  expect(buttons, 'one options menu on the card panel').toHaveLength(1)
   return buttons[0]!
 }
 
@@ -631,7 +646,7 @@ describe('Moving a subtask to another parent', () => {
     await user.click(
       await screen.findByRole('menuitem', { name: 'Move to another parent' }),
     )
-    const dialog = await screen.findByRole('dialog', { name: PICKER_FROM_ROW })
+    const dialog = await screen.findByRole('dialog', { name: PICKER })
     await search(user, dialog, 'form')
 
     // Typed in one go, asked once; the card and its subtask are not offered.
@@ -653,9 +668,7 @@ describe('Moving a subtask to another parent', () => {
     await user.click(builderButton)
 
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: PICKER_FROM_ROW })).toBe(
-        null,
-      ),
+      expect(screen.queryByRole('dialog', { name: PICKER })).toBe(null),
     )
     expect(api.requests).toEqual([
       {
@@ -687,7 +700,7 @@ describe('Moving a subtask to another parent', () => {
     await user.click(
       await screen.findByRole('menuitem', { name: 'Move to another parent' }),
     )
-    const dialog = await screen.findByRole('dialog', { name: PICKER_FROM_ROW })
+    const dialog = await screen.findByRole('dialog', { name: PICKER })
     await search(user, dialog, 'icon')
     await user.click(
       await within(dialog).findByRole('button', { name: /WEB-14 Icon set/ }),
@@ -740,17 +753,16 @@ describe('Changing the parent from the header', () => {
   }
 
   // Criterion 12 and 44.
-  it('changes the parent with the same picker, and the header shows the new number', async () => {
+  it('changes the parent from the card’s menu with the same picker, and the header shows the new number', async () => {
     const { form, cards } = formUnderLogin()
     const { user, api, container } = open(cards(form), form.id)
     const panel = await cardPanel('WEB-12.1')
 
+    await user.click(cardMenu(panel))
     await user.click(
-      await within(panel).findByRole('button', { name: 'Change parent' }),
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
     )
-    const dialog = await screen.findByRole('dialog', {
-      name: PICKER_FROM_HEADER,
-    })
+    const dialog = await screen.findByRole('dialog', { name: PICKER })
     await search(user, dialog, 'form')
     // Itself and its own subtask are left out; nothing else matches.
     await waitFor(() => expect(api.searches).toEqual(['form']))
@@ -776,13 +788,14 @@ describe('Changing the parent from the header', () => {
     ])
   })
 
-  it('makes the subtask its own card from the header', async () => {
+  it('makes the subtask its own card from the card’s menu', async () => {
     const { form, cards } = formUnderLogin()
     const { user, api } = open(cards(form), form.id)
     const panel = await cardPanel('WEB-12.1')
 
+    await user.click(cardMenu(panel))
     await user.click(
-      await within(panel).findByRole('button', { name: 'Make its own card' }),
+      await screen.findByRole('menuitem', { name: 'Make its own card' }),
     )
 
     await waitFor(() =>
@@ -801,17 +814,46 @@ describe('Changing the parent from the header', () => {
     )
   })
 
-  it('has neither button on a top-level card', async () => {
-    open([login], login.id)
+  it('has neither item in the menu of a top-level card', async () => {
+    const { user } = open([login], login.id)
     const panel = await cardPanel()
     await within(panel).findByRole('region', { name: 'Subtasks' })
 
+    // The menu may be absent, or have other items, but not these two.
+    const menus = within(panel)
+      .queryAllByRole('button')
+      .filter(
+        (button) =>
+          button.getAttribute('aria-haspopup') === 'menu' &&
+          !button.closest('li') &&
+          !/^Options for /.test(button.getAttribute('aria-label') ?? ''),
+      )
+    for (const menu of menus) {
+      await user.click(menu)
+      await screen.findByRole('menu')
+      expect(
+        screen.queryByRole('menuitem', { name: 'Move to another parent' }),
+      ).toBe(null)
+      expect(
+        screen.queryByRole('menuitem', { name: 'Make its own card' }),
+      ).toBe(null)
+      await user.keyboard('{Escape}')
+    }
+    // The old plain buttons are gone too.
     expect(within(panel).queryByRole('button', { name: 'Change parent' })).toBe(
       null,
     )
     expect(
       within(panel).queryByRole('button', { name: 'Make its own card' }),
     ).toBe(null)
+  })
+
+  it('puts the options menu on the subtask’s card panel', async () => {
+    const { form, cards } = formUnderLogin()
+    open(cards(form), form.id)
+    const panel = await cardPanel('WEB-12.1')
+
+    expect(cardMenu(panel)).toBeInTheDocument()
   })
 })
 
@@ -857,14 +899,8 @@ describe('Deleting a card with subtasks: the third choice', () => {
     // Delete is off until the subtask has its new parent.
     const confirm = within(dialog).getByRole('button', { name: 'Delete card' })
     expect(confirm).toBeDisabled()
-    // The picker opens by itself or from a button beside the choice.
-    let picker = await screen
-      .findByRole('dialog', { name: PICKER_FROM_ROW }, { timeout: 300 })
-      .catch(() => null)
-    if (!picker) {
-      await user.click(within(group).getByRole('button', { name: /parent/i }))
-      picker = await screen.findByRole('dialog', { name: PICKER_FROM_ROW })
-    }
+    // Choosing it opens the picker straight away: no separate button.
+    const picker = await screen.findByRole('dialog', { name: PICKER })
     // The deleted card and the subtask's own subtask are not offered.
     await search(user, picker, 'login')
     await waitFor(() => expect(api.searches).toEqual(['login']))
@@ -885,6 +921,7 @@ describe('Deleting a card with subtasks: the third choice', () => {
     )
 
     await waitFor(() => expect(confirm).toBeEnabled())
+    // The dialog shows the chosen parent's number.
     expect(dialog).toHaveTextContent('WEB-14')
     await user.click(confirm)
 
