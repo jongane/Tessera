@@ -3,6 +3,7 @@ import {
   type ChecklistItem,
   type ChecklistWithItems,
   checklistItemChangesSchema,
+  CHECKLIST_FULL_MESSAGE,
   MAX_CHECKLIST_ITEMS,
   newChecklistItemSchema,
 } from '@tessera/shared'
@@ -27,6 +28,7 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   type FormEvent,
   type KeyboardEvent,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -343,7 +345,14 @@ function AddItem({
   const [text, setText] = useState('')
   const [error, setError] = useState<string>()
   const add = useAddItem(card.boardId, card.id)
+  const reasonRef = useRef<HTMLParagraphElement>(null)
+  const [focusReason, setFocusReason] = useState(false)
   const full = list.items.length >= MAX_CHECKLIST_ITEMS
+
+  // When the box closes because the list is full, focus moves to the reason.
+  useEffect(() => {
+    if (focusReason) reasonRef.current?.focus()
+  }, [focusReason])
 
   function close() {
     setOpen(false)
@@ -353,7 +362,12 @@ function AddItem({
   }
 
   // Reaching 100 items closes the box; it stays closed if an item is deleted.
-  if (full && open) setOpen(false)
+  if (full && open) {
+    setOpen(false)
+    setText('')
+    setError(undefined)
+    setFocusReason(true)
+  }
 
   if (!open || full) {
     return (
@@ -363,13 +377,21 @@ function AddItem({
           className="min-h-8 self-start text-sm"
           disabled={full}
           aria-describedby={full ? reasonId : undefined}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setFocusReason(false)
+            setOpen(true)
+          }}
         >
           Add item
         </Button>
         {full && (
-          <p id={reasonId} className="text-sm text-muted">
-            {`A checklist holds up to ${MAX_CHECKLIST_ITEMS} items`}
+          <p
+            id={reasonId}
+            ref={reasonRef}
+            tabIndex={-1}
+            className="text-sm text-muted"
+          >
+            {CHECKLIST_FULL_MESSAGE}
           </p>
         )}
       </div>

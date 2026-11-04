@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   MAX_CHECKLIST_ITEM,
+  CHECKLIST_FULL_MESSAGE,
   MAX_CHECKLIST_ITEMS,
   MAX_CHECKLIST_NAME,
 } from '@tessera/shared';
@@ -181,9 +182,7 @@ export class ChecklistsService {
         _max: { position: true },
       });
       if (items._count >= MAX_CHECKLIST_ITEMS) {
-        throw new ConflictException(
-          `A checklist can have at most ${MAX_CHECKLIST_ITEMS} items`,
-        );
+        throw new ConflictException(CHECKLIST_FULL_MESSAGE);
       }
       return tx.checklistItem.create({
         data: {
