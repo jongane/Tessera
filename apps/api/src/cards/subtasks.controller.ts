@@ -12,9 +12,10 @@ import {
 } from '@tessera/shared';
 import {
   type DueDateWarnings,
+  type SubtaskListItem,
   SubtasksService,
-  type SubtaskProgress,
 } from './subtasks.service.js';
+import type { SubtaskProgress } from './subtask-progress.js';
 
 @Controller('cards/:cardId')
 export class SubtasksController {
@@ -25,7 +26,7 @@ export class SubtasksController {
   async list(
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
-  ): Promise<{ subtasks: Card[]; progress: SubtaskProgress }> {
+  ): Promise<{ subtasks: SubtaskListItem[]; progress: SubtaskProgress }> {
     const [subtasks, progress] = await Promise.all([
       this.subtasks.listSubtasks(user.id, cardId),
       this.subtasks.subtaskProgress(user.id, cardId),
