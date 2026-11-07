@@ -1,7 +1,8 @@
 import type { BoardCard } from '@tessera/shared'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { BOARD_RELOAD_MS } from '../api/query-keys'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import { boardPath, cardPanel, typeInto } from '../test/card-panel'
 import { backlogCard, backlogColumns, fakeBoard } from '../test/fake-board'
@@ -1286,5 +1287,183 @@ describe('The picker and the 5 level limit', () => {
     expect(fine).not.toHaveAccessibleDescription(
       expect.stringContaining(TOO_DEEP),
     )
+  })
+})
+
+// Regression tests for breaks found in review of web PR 7b.
+
+function twoOpenSubtasks() {
+  const form = boardCard('12.1', 'Form', { depth: 1, parentId: login.id })
+  const errors = boardCard('12.2', 'Errors', { depth: 1, parentId: login.id })
+  const parent = { ...login, subtaskProgress: { complete: 0, total: 2 } }
+  return { parent, form, errors }
+}
+
+// A request that waits until `release` is called.
+function held() {
+  let release: () => void = () => {}
+  const promise = new Promise<void>((resolve) => (release = resolve))
+  return { promise, release }
+}
+
+describe('Subtasks: ticks and the 30 second reload', () => {
+  it('still reloads every 30 seconds after a quick tick and untick', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors], parent.id)
+      const gate = held()
+      const gate2 = held()
+      server.use(
+        http.post(`/api/cards/${form.id}/complete`, async () => {
+          await gate.promise
+          return undefined
+        }),
+        http.post(`/api/cards/${form.id}/reopen`, async () => {
+          await gate2.promise
+          return undefined
+        }),
+      )
+      const section = await subtasksOf(await cardPanel())
+      const box = within(await row(section, 'WEB-12.1')).getByRole('checkbox')
+      await user.click(box)
+      await user.click(box)
+      gate.release()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500)
+      })
+      gate2.release()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+      })
+      expect(box).not.toBeChecked()
+
+      // Someone else renames the other subtask on the server.
+      server.use(
+        http.get(`/api/cards/${parent.id}/subtasks`, () =>
+          HttpResponse.json({
+            subtasks: [form, { ...errors, title: 'Errors renamed' }].map(
+              (c) => ({ ...c, columnName: 'To do', boardName: 'Website' }),
+            ),
+            progress: { complete: 0, total: 2 },
+          }),
+        ),
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+      })
+      await vi.waitFor(
+        () => expect(section).toHaveTextContent('Errors renamed'),
+        { timeout: 3000 },
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Another change's reload must not undo a tick that is still saving.
+  it('keeps a tick shown while a Move to Done reload finishes', async () => {
+    const { parent, form, errors } = twoOpenSubtasks()
+    const { user } = open([parent, form, errors], parent.id)
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(
+      within(await row(section, 'WEB-12.1')).getByRole('checkbox'),
+    )
+    await waitFor(() => expect(section).toHaveTextContent(OFFER))
+
+    const moveGate = held()
+    const tickGate = held()
+    server.use(
+      http.post(`/api/cards/${form.id}/move`, async () => {
+        await moveGate.promise
+        return undefined
+      }),
+      http.post(`/api/cards/${errors.id}/complete`, async () => {
+        await tickGate.promise
+        return undefined
+      }),
+    )
+    await user.click(within(section).getByRole('button', { name: OFFER_MOVE }))
+    const errorsBox = within(await row(section, 'WEB-12.2')).getByRole(
+      'checkbox',
+    )
+    await user.click(errorsBox)
+    expect(errorsBox).toBeChecked()
+    moveGate.release()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    const now = within(await row(section, 'WEB-12.2')).getByRole('checkbox')
+    try {
+      expect(now).toBeChecked()
+    } finally {
+      tickGate.release()
+    }
+  })
+})
+
+describe('Deleting a card: when its relatives cannot be loaded', () => {
+  it('says why when choosing Move to another parent', async () => {
+    const { parent, form, errors } = twoOpenSubtasks()
+    const { user } = open([parent, form, errors], parent.id)
+    server.use(
+      http.get(`/api/cards/${parent.id}/relatives`, () =>
+        apiError(500, 'Something broke'),
+      ),
+    )
+    await user.click(
+      await within(await cardPanel()).findByRole('button', {
+        name: 'Delete card',
+      }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Delete WEB-12?' })
+    const group = await within(dialog).findByRole('radiogroup', {
+      name: 'WEB-12.1 Form',
+    })
+    await user.click(within(group).getByRole('radio', { name: PICKER }))
+
+    expect(
+      await within(dialog).findByRole('alert', undefined, { timeout: 3000 }),
+    ).toHaveTextContent('Something broke')
+  })
+})
+
+describe('The card’s own Complete box', () => {
+  // Criterion 6: the board's progress was out of date, so the card looked
+  // like it had no open subtasks and the API said otherwise.
+  it('asks “Complete anyway?” when the API says subtasks are still open', async () => {
+    const { user, api } = open([login], login.id)
+    server.use(
+      http.post(
+        `/api/cards/${login.id}/complete`,
+        () =>
+          HttpResponse.json(
+            {
+              statusCode: 409,
+              message: '2 subtasks are still open',
+              openSubtasks: 2,
+            },
+            { status: 409 },
+          ),
+        { once: true },
+      ),
+    )
+    const panel = await cardPanel()
+
+    await user.click(within(panel).getByRole('checkbox', { name: 'Complete' }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Complete anyway?',
+    })
+    expect(dialog).toHaveTextContent('2 subtasks are still open.')
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Complete anyway' }),
+    )
+
+    await waitFor(() => expect(api.requests).toHaveLength(1))
+    expect(api.requests[0]).toMatchObject({
+      request: `POST /api/cards/${login.id}/complete`,
+      body: { confirmOpenSubtasks: true },
+    })
   })
 })
