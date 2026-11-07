@@ -28,7 +28,7 @@ describe('The description’s length limit', () => {
     const panel = await cardPanel()
 
     await user.click(
-      within(panel).getByRole('button', { name: 'Edit description' }),
+      await within(panel).findByRole('button', { name: 'Edit description' }),
     )
     const editor = await within(panel).findByRole('textbox', {
       name: 'Description',
