@@ -7,6 +7,7 @@ import type {
 import { type KeyboardEvent, lazy, Suspense, useState } from 'react'
 import { useBlocker } from 'react-router'
 import { useMe } from '../api/auth'
+import { ApiError } from '../api/client'
 import { useChangeCard, useCompleteCard, useReopenCard } from '../api/cards'
 import { useSetParent } from '../api/subtasks'
 import { useMembers } from '../api/members'
@@ -33,6 +34,14 @@ import { RelatedElsewhere } from './RelatedElsewhere'
 import { Subtasks } from './Subtasks'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
+
+// The API's own message when it refused the change (4xx), else a general
+// one for a network failure or a server error.
+function refusal(error: unknown) {
+  return error instanceof ApiError && error.status >= 400 && error.status < 500
+    ? error.message
+    : SAVE_FAILED
+}
 
 // The rich-text editor is most of the panel's code, so it loads on its own
 // and the other fields can be used straight away.
@@ -113,14 +122,14 @@ function CardDetails({
   onOpenChat,
   onCreateCard,
 }: CardPanelProps & { card: BoardCard; columnName: string }) {
-  const [saveFailed, setSaveFailed] = useState(false)
+  const [saveFailed, setSaveFailed] = useState<string>()
   const [unsavedDescription, setUnsavedDescription] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const change = useChangeCard(card.boardId, card.id)
 
   function track(saving: Promise<unknown>) {
-    setSaveFailed(false)
-    saving.catch(() => setSaveFailed(true))
+    setSaveFailed(undefined)
+    saving.catch((error: unknown) => setSaveFailed(refusal(error)))
   }
   const save = (body: CardChangesBody) => track(change.mutateAsync(body))
 
@@ -133,7 +142,7 @@ function CardDetails({
         track={track}
       />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
-        {saveFailed && <Alert>{SAVE_FAILED}</Alert>}
+        {saveFailed && <Alert>{saveFailed}</Alert>}
         <TitleField card={card} save={save} />
         <ParentLine card={card} />
         <CompleteControl card={card} view={view} track={track} />

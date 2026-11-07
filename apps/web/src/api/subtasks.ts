@@ -28,11 +28,23 @@ export function subtasksKey(boardId: string, cardId: string) {
 }
 
 export function useSubtasks(boardId: string, cardId: string) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: subtasksKey(boardId, cardId),
     queryFn: () => api<SubtaskList>(`/cards/${cardId}/subtasks`),
-    refetchInterval: BOARD_RELOAD_MS,
+    // Skipped while a tick is still being saved, so it cannot put back what
+    // the tick has already shown.
+    refetchInterval: () =>
+      queryClient.isMutating({ mutationKey: tickKey(cardId) }) > 0
+        ? false
+        : BOARD_RELOAD_MS,
   })
+}
+
+// Every tick on one card's subtasks, so the reload waits until the last of
+// several quick ticks has been saved.
+function tickKey(cardId: string) {
+  return ['subtasks', cardId, 'tick'] as const
 }
 
 type ParentCard = Pick<Card, 'id' | 'boardId'>
@@ -68,8 +80,14 @@ export interface SubtaskTick {
 export function useTickSubtask(parent: ParentCard) {
   const queryClient = useQueryClient()
   const key = subtasksKey(parent.boardId, parent.id)
-  const reload = useReloadBoards()
+  const reloadBoards = useReloadBoards()
+  const reload = () => {
+    if (queryClient.isMutating({ mutationKey: tickKey(parent.id) }) <= 1) {
+      return reloadBoards()
+    }
+  }
   return useMutation({
+    mutationKey: tickKey(parent.id),
     mutationFn: ({ subtask, done, confirmOpenSubtasks }: SubtaskTick) =>
       done
         ? api<CompleteCardResult>(`/cards/${subtask.id}/complete`, {

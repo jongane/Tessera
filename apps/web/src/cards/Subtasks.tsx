@@ -13,6 +13,7 @@ import {
   useSubtasks,
   useTickSubtask,
 } from '../api/subtasks'
+import { ApiError } from '../api/client'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { checkForm } from '../ui/form-errors'
@@ -51,7 +52,7 @@ export function Subtasks({ card, track }: { card: BoardCard; track: Track }) {
       </div>
       {list.error && <Alert>{list.error.message}</Alert>}
       {subtasks.length === 0 ? (
-        <p className="text-muted">No subtasks yet</p>
+        !list.error && <p className="text-muted">No subtasks yet</p>
       ) : (
         <SubtaskRows card={card} subtasks={subtasks} track={track} />
       )}
@@ -98,7 +99,8 @@ function SubtaskRow({
   tick: Tick
   track: Track
 }) {
-  const [asking, setAsking] = useState(false)
+  // How many subtasks of this subtask are open, while asking.
+  const [asking, setAsking] = useState<number | null>(null)
   const [moving, setMoving] = useState(false)
   // The done column of the subtask's own board, once it is ticked.
   const [offer, setOffer] = useState<string | null>(null)
@@ -108,7 +110,14 @@ function SubtaskRow({
   function change(done: boolean, confirmOpenSubtasks = false) {
     setOffer(null)
     const saving = tick({ subtask, done, confirmOpenSubtasks })
-    track(saving)
+    // The API may know of open subtasks the list did not show.
+    track(
+      saving.catch((error: unknown) => {
+        const count = openSubtasksOf(error)
+        if (count === null) throw error
+        setAsking(count)
+      }),
+    )
     saving.then(
       (result) => setOffer(result?.doneColumnId ?? null),
       () => {},
@@ -117,7 +126,7 @@ function SubtaskRow({
 
   function onTick(done: boolean) {
     if (done && open > 0) {
-      setAsking(true)
+      setAsking(open)
     } else {
       change(done)
     }
@@ -164,13 +173,13 @@ function SubtaskRow({
           track={track}
         />
       )}
-      {asking && (
+      {asking !== null && (
         <CompleteAnywayDialog
-          openSubtasks={open}
+          openSubtasks={asking}
           byMoving={false}
-          onCancel={() => setAsking(false)}
+          onCancel={() => setAsking(null)}
           onConfirm={() => {
-            setAsking(false)
+            setAsking(null)
             change(true, true)
           }}
         />
@@ -180,6 +189,16 @@ function SubtaskRow({
       )}
     </li>
   )
+}
+
+// The count in the API's 409 "subtasks are still open", else null.
+function openSubtasksOf(error: unknown): number | null {
+  const count = error instanceof ApiError ? error.details.openSubtasks : null
+  return error instanceof ApiError &&
+    error.status === 409 &&
+    typeof count === 'number'
+    ? count
+    : null
 }
 
 // Opens the subtask in the panel, or its board when it is on another one.
@@ -329,7 +348,7 @@ function AddSubtaskForm({
       />
       <div className="flex gap-2">
         <Button type="submit" disabled={add.isPending}>
-          Add subtask
+          Add
         </Button>
         <Button variant="secondary" onClick={onClose}>
           Cancel
