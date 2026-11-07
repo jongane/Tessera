@@ -358,3 +358,44 @@ test('add a checklist to a card, tick an item and turn another into a subtask', 
   await expect(subtasks).toContainText('Write tests')
   await expect(subtasks).toContainText('Review')
 })
+
+// Web PR 7c, criterion 46 (its time part).
+test('start and stop the timer, and log time by hand', async ({ page }) => {
+  await openNewBoard(page)
+  await addCard(page, 'To do', 'Login page')
+  await card(page, 'To do', 'Login page').click()
+  const panel = page.getByRole('complementary', { name: /^Card / })
+  const time = panel.getByRole('region', { name: 'Time' })
+
+  // The chip in the top bar follows the timer. (Wording proposed.)
+  await time.getByRole('button', { name: 'Start timer' }).click()
+  const chip = page.getByRole('group', { name: 'Running timer' })
+  await expect(chip).toContainText(/-\d+/)
+  await expect(chip.getByText(/^\d+:\d{2}:\d{2}$/)).toBeVisible()
+  await expectNoAccessibilityProblems(page)
+
+  // Stopped at once, it ran under half a minute and nothing is saved.
+  await time.getByRole('button', { name: 'Stop timer' }).click()
+  await expect(panel).toContainText('Under half a minute, nothing saved')
+  await expect(chip).toBeHidden()
+  await expect(time.getByRole('button', { name: 'Start timer' })).toBeVisible()
+
+  await time.getByRole('button', { name: 'Log time' }).click()
+  await time.getByLabel('Minutes').fill('30')
+  await time.getByLabel('Note').fill('Checked the form')
+  await time.getByRole('button', { name: 'Save' }).click()
+  const entries = time.getByRole('list', { name: 'Entries' })
+  await expect(entries).toContainText('Checked the form')
+  await expect(entries).toContainText('Ben')
+  await expect(entries).toContainText('30m')
+  await expect(time).toContainText(/Time spent\s*30m/)
+  await expectNoAccessibilityProblems(page)
+
+  // Everything was saved.
+  await page.reload()
+  await expect(
+    panel
+      .getByRole('region', { name: 'Time' })
+      .getByRole('list', { name: 'Entries' }),
+  ).toContainText('Checked the form')
+})

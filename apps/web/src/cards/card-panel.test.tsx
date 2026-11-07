@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import {
@@ -263,29 +263,7 @@ describe('Editing a card’s fields', () => {
     ])
   })
 
-  it('shows the estimate rolled up from the subtasks', async () => {
-    const parent = boardCard('12', 'Login page', {
-      estimateMinutes: 120,
-      subtaskProgress: { complete: 0, total: 2 },
-    })
-    server.use(
-      http.get(`/api/cards/${parent.id}/time-totals`, () =>
-        HttpResponse.json({
-          estimateMinutes: 300,
-          originalEstimateMinutes: 120,
-          timeSpentMinutes: 0,
-          ownTimeMinutes: 0,
-        }),
-      ),
-    )
-    openCard(parent)
-    const panel = await cardPanel()
-
-    expect(
-      await within(panel).findByText('5h from its subtasks'),
-    ).toBeInTheDocument()
-    expect(within(panel).getByText('Original estimate')).toBeInTheDocument()
-  })
+  // The rolled-up estimate moved to time.test.tsx (web PR 7c, criterion 25).
 
   it('puts a change back and says so when it cannot be saved', async () => {
     const { user } = openCard()
