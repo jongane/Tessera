@@ -33,7 +33,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 ## 4. Subtasks
 
 - A subtask is an ordinary card with a parent card. It has its own column, assignees, estimate, time, checklist and chat.
-- Subtasks can be nested **up to 5 levels** deep. A card picker shows results that are too deep to take the subtask as turned off, with the reason "Subtasks can only go 5 levels deep". (Agreed 2026-11-07.)
+- Subtasks can be nested **up to 5 levels** deep. A card picker shows results that are too deep to take the subtask as turned off, with the reason "Subtasks can only go 5 levels deep". When moving a subtask, the picker also leaves out the subtask's current parent, the subtask itself and every card under it. (Agreed 2026-11-07.)
 - A **new subtask** starts in its parent's column. When adding it, you can pick any column of any board in the project instead. (Agreed 2026-11-03.)
 - A subtask can be on **any board in the same project**, but never in another project.
 - The parent card shows a **list of its subtasks**, and each subtask shows its parent.
