@@ -6,8 +6,11 @@ import {
   useEditorState,
 } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { cardChangesSchema } from '@tessera/shared'
 import { type FormEvent, useEffect, useId, useState } from 'react'
+import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
+import { checkForm } from '../ui/form-errors'
 
 // The card's description: rich text with a formatting toolbar (Tiptap),
 // stored as Markdown (docs/card-features.md, section 2). Edited only after
@@ -123,6 +126,7 @@ function DescriptionEditor({
   onDone: (markdown: string | null) => void
 }) {
   const [asking, setAsking] = useState(false)
+  const [tooLong, setTooLong] = useState<string>()
   const editor = useEditor({
     extensions,
     content: description,
@@ -148,6 +152,17 @@ function DescriptionEditor({
     }
   }
 
+  function save(editor: Editor) {
+    const markdown = markdownOf(editor)
+    const checked = checkForm(cardChangesSchema, { description: markdown })
+    if (!checked.ok) {
+      setTooLong(checked.errors.description ?? 'Check the description')
+      return
+    }
+    setTooLong(undefined)
+    onDone(markdown)
+  }
+
   if (!editor) {
     return null
   }
@@ -155,6 +170,7 @@ function DescriptionEditor({
     <div className="flex flex-col gap-2">
       <Toolbar editor={editor} />
       <EditorContent editor={editor} />
+      {tooLong && <Alert>{tooLong}</Alert>}
       {asking ? (
         <div role="alert" className="flex flex-wrap items-center gap-2">
           <span>Discard your changes?</span>
@@ -165,7 +181,7 @@ function DescriptionEditor({
         </div>
       ) : (
         <div className="flex gap-2">
-          <Button disabled={saving} onClick={() => onDone(markdownOf(editor))}>
+          <Button disabled={saving} onClick={() => save(editor)}>
             Save
           </Button>
           <Button variant="secondary" onClick={cancel}>

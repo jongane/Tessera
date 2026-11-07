@@ -3,7 +3,7 @@ import {
   newSubtaskSchema,
   type SubtaskListItem,
 } from '@tessera/shared'
-import { type FormEvent, useId, useState } from 'react'
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
   useAddSubtask,
@@ -41,7 +41,7 @@ export function Subtasks({ card, track }: { card: BoardCard; track: Track }) {
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 id={headingId} className="font-semibold">
+        <h3 id={headingId} tabIndex={-1} className="font-semibold">
           Subtasks
         </h3>
         {subtasks.length > 0 && (
@@ -54,7 +54,12 @@ export function Subtasks({ card, track }: { card: BoardCard; track: Track }) {
       {subtasks.length === 0 ? (
         !list.error && <p className="text-muted">No subtasks yet</p>
       ) : (
-        <SubtaskRows card={card} subtasks={subtasks} track={track} />
+        <SubtaskRows
+          card={card}
+          subtasks={subtasks}
+          track={track}
+          headingId={headingId}
+        />
       )}
       <AddSubtask card={card} />
     </section>
@@ -65,10 +70,12 @@ function SubtaskRows({
   card,
   subtasks,
   track,
+  headingId,
 }: {
   card: BoardCard
   subtasks: SubtaskListItem[]
   track: Track
+  headingId: string
 }) {
   const tick = useTickSubtask(card)
   return (
@@ -80,6 +87,7 @@ function SubtaskRows({
           subtask={subtask}
           tick={tick.mutateAsync}
           track={track}
+          headingId={headingId}
         />
       ))}
     </ul>
@@ -93,11 +101,13 @@ function SubtaskRow({
   subtask,
   tick,
   track,
+  headingId,
 }: {
   card: BoardCard
   subtask: SubtaskListItem
   tick: Tick
   track: Track
+  headingId: string
 }) {
   // How many subtasks of this subtask are open, while asking.
   const [asking, setAsking] = useState<number | null>(null)
@@ -106,6 +116,21 @@ function SubtaskRow({
   // The done column of the subtask's own board, once it is ticked.
   const [offer, setOffer] = useState<string | null>(null)
   const setParent = useSetParent()
+  // A subtask moved away takes its row, and the button that had focus, with
+  // it: focus goes to the list's heading.
+  const gone = useRef({ opener, headingId })
+  useEffect(() => {
+    gone.current = { opener, headingId }
+  })
+  useEffect(
+    () => () => {
+      const { opener: button, headingId: id } = gone.current
+      if (button && !button.isConnected) {
+        document.getElementById(id)?.focus()
+      }
+    },
+    [],
+  )
   const open = subtask.subtaskProgress.total - subtask.subtaskProgress.complete
 
   function change(done: boolean, confirmOpenSubtasks = false) {

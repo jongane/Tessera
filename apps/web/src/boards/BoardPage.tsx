@@ -5,7 +5,7 @@ import type {
   Project,
   Chat,
 } from '@tessera/shared'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { type CardMove, useBoardView, useMoveCard } from '../api/boards'
 import { isApiError } from '../api/client'
@@ -90,6 +90,15 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   const [saveFailed, setSaveFailed] = useState(false)
   // "Create a card" in the card panel opens this column's Add card form.
   const [addCardRequest, setAddCardRequest] = useState<AddCardRequest>()
+  // The column of a card just deleted: its heading gets focus once the card
+  // panel has closed, as the button that had focus is gone.
+  const focusColumn = useRef<string | null>(null)
+  useEffect(() => {
+    if (focusColumn.current && !selectedCardId) {
+      document.getElementById(`column-${focusColumn.current}`)?.focus()
+      focusColumn.current = null
+    }
+  }, [selectedCardId])
   const [confirming, setConfirming] = useState<{
     move: CardMove
     openSubtasks: number
@@ -185,6 +194,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
                   onOpenChat={(chatId) =>
                     setSearchParams(withParams({ chat: chatId }))
                   }
+                  onDeleted={(columnId) => (focusColumn.current = columnId)}
                   onCreateCard={(columnId) =>
                     setAddCardRequest({ columnId, at: Date.now() })
                   }

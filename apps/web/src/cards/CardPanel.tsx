@@ -36,11 +36,14 @@ import { Subtasks } from './Subtasks'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
+// The API's input check starts its message with the field name ("title: ").
+const FIELD_PREFIX = /^[A-Za-z][\w.]*: /
+
 // The API's own message when it refused the change (4xx), else a general
 // one for a network failure or a server error.
 function refusal(error: unknown) {
   return error instanceof ApiError && error.status >= 400 && error.status < 500
-    ? error.message
+    ? error.message.replace(FIELD_PREFIX, '')
     : SAVE_FAILED
 }
 
@@ -58,6 +61,8 @@ export interface CardPanelProps {
   onOpenChat: (chatId: string) => void
   // Opens the board's Add card form in this column.
   onCreateCard: (columnId: string) => void
+  // The card was deleted from this column, and the panel is closing.
+  onDeleted?: (columnId: string) => void
 }
 
 // One card, with everything about it that can be changed. The panel does
@@ -78,6 +83,7 @@ export default function CardPanel(props: CardPanelProps) {
           key={found.card.id}
           {...props}
           card={found.card}
+          columnId={found.column.id}
           columnName={found.column.name}
         />
       ) : (
@@ -116,13 +122,15 @@ function closeOnEscape(event: KeyboardEvent<HTMLElement>, onClose: () => void) {
 
 function CardDetails({
   card,
+  columnId,
   columnName,
   view,
   project,
   onClose,
   onOpenChat,
   onCreateCard,
-}: CardPanelProps & { card: BoardCard; columnName: string }) {
+  onDeleted,
+}: CardPanelProps & { card: BoardCard; columnId: string; columnName: string }) {
   const [saveFailed, setSaveFailed] = useState<string>()
   const [unsavedDescription, setUnsavedDescription] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -196,6 +204,7 @@ function CardDetails({
           onCancel={() => setDeleting(false)}
           onDeleted={() => {
             setDeleting(false)
+            onDeleted?.(columnId)
             onClose()
           }}
         />
