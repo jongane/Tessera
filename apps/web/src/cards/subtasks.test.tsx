@@ -1072,3 +1072,219 @@ describe('Subtasks: what the list shows when things go wrong', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('Deleting a card: the picker leaves out its whole subtree', () => {
+  function setup() {
+    const { parent, children } = family(
+      login,
+      boardCard('12.1', 'Form', { depth: 1 }),
+      boardCard('12.2', 'Errors', { depth: 1 }),
+      boardCard('12.2.1', 'Errors detail', { depth: 2 }),
+    )
+    const [form, errors, detail] = children as [BoardCard, BoardCard, BoardCard]
+    const icons = boardCard('14', 'Icon set')
+    return open(
+      [
+        parent,
+        form,
+        { ...errors, subtaskProgress: { complete: 0, total: 1 } },
+        { ...detail, parentId: errors.id },
+        icons,
+      ],
+      parent.id,
+    )
+  }
+
+  async function openPicker(user: ReturnType<typeof renderApp>['user']) {
+    await user.click(
+      await within(await cardPanel()).findByRole('button', {
+        name: 'Delete card',
+      }),
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Delete WEB-12?' })
+    const group = await within(dialog).findByRole('radiogroup', {
+      name: 'WEB-12.1 Form',
+    })
+    const radio = within(group).getByRole('radio', {
+      name: 'Move to another parent',
+    })
+    await user.click(radio)
+    return {
+      dialog,
+      radio,
+      picker: await screen.findByRole('dialog', { name: PICKER }),
+    }
+  }
+
+  // Decision 1 (2026-11-07).
+  it('does not offer another subtask of the card being deleted, nor its subtasks', async () => {
+    const { user, api } = setup()
+    const { picker } = await openPicker(user)
+
+    // Both cards match "errors"; neither may be offered.
+    await search(user, picker, 'errors')
+    await waitFor(() => expect(api.searches).toEqual(['errors']))
+    expect(await within(picker).findByRole('status')).toHaveTextContent(
+      'No cards found',
+    )
+    expect(within(picker).queryByRole('button', { name: /Errors/ })).toBe(null)
+  })
+
+  // Decision 2.
+  it('closes only the picker on Escape, and focus goes back to “Move to another parent”', async () => {
+    const { user } = setup()
+    const { dialog, radio, picker } = await openPicker(user)
+    within(picker).getByLabelText('Find a card').focus()
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(picker).not.toBeInTheDocument())
+    expect(
+      screen.getByRole('dialog', { name: 'Delete WEB-12?' }),
+    ).toBeInTheDocument()
+    expect(dialog).toContainElement(radio)
+    expect(radio).toHaveFocus()
+  })
+
+  it('gives focus back to “Move to another parent” on Cancel and after a pick', async () => {
+    const { user } = setup()
+    const first = await openPicker(user)
+    await user.click(
+      within(first.picker).getByRole('button', { name: 'Cancel' }),
+    )
+    await waitFor(() => expect(first.picker).not.toBeInTheDocument())
+    expect(first.radio).toHaveFocus()
+
+    // Open it again (choose another option, then this one).
+    const group = within(first.dialog).getByRole('radiogroup', {
+      name: 'WEB-12.1 Form',
+    })
+    await user.click(within(group).getByRole('radio', { name: 'Delete' }))
+    await user.click(
+      within(group).getByRole('radio', { name: 'Move to another parent' }),
+    )
+    const picker = await screen.findByRole('dialog', { name: PICKER })
+    await search(user, picker, 'icon')
+    await user.click(
+      await within(picker).findByRole('button', { name: /WEB-14 Icon set/ }),
+    )
+    await waitFor(() => expect(picker).not.toBeInTheDocument())
+    expect(
+      within(group).getByRole('radio', { name: 'Move to another parent' }),
+    ).toHaveFocus()
+  })
+})
+
+describe('Where focus goes when a card picker closes', () => {
+  function setup() {
+    const { parent, children } = family(
+      login,
+      boardCard('12.1', 'Form', { depth: 1 }),
+    )
+    return {
+      parent,
+      ...open([parent, ...children], parent.id),
+    }
+  }
+
+  // Decision 2: back to the "Options for <number>" button.
+  it('goes back to the subtask row’s options button on Escape and on Cancel', async () => {
+    const { user } = setup()
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    let picker = await screen.findByRole('dialog', { name: PICKER })
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(picker).not.toBeInTheDocument())
+    expect(
+      within(section).getByRole('button', { name: 'Options for WEB-12.1' }),
+    ).toHaveFocus()
+
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    picker = await screen.findByRole('dialog', { name: PICKER })
+    await user.click(within(picker).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(picker).not.toBeInTheDocument())
+    expect(
+      within(section).getByRole('button', { name: 'Options for WEB-12.1' }),
+    ).toHaveFocus()
+  })
+
+  it('goes back to “Card options” on Escape and on Cancel', async () => {
+    const { parent, children } = family(
+      login,
+      boardCard('12.1', 'Form', { depth: 1 }),
+    )
+    const [form] = children as [BoardCard]
+    const { user } = open([parent, form], form.id)
+    const panel = await cardPanel('WEB-12.1')
+
+    await user.click(cardMenu(panel))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    let picker = await screen.findByRole('dialog', { name: PICKER })
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(picker).not.toBeInTheDocument())
+    expect(cardMenu(panel)).toHaveFocus()
+
+    await user.click(cardMenu(panel))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    picker = await screen.findByRole('dialog', { name: PICKER })
+    await user.click(within(picker).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(picker).not.toBeInTheDocument())
+    expect(cardMenu(panel)).toHaveFocus()
+  })
+})
+
+describe('The picker and the 5 level limit', () => {
+  // Decision 3: a leaf subtask can go under a card at depth 3 at most.
+  it('shows cards too deep for the subtask, turned off and saying why', async () => {
+    const { parent, children } = family(
+      login,
+      boardCard('12.1', 'Form', { depth: 1 }),
+    )
+    const chain = [
+      boardCard('20', 'Chain a'),
+      boardCard('20.1', 'Chain b'),
+      boardCard('20.1.1', 'Chain c'),
+      boardCard('20.1.1.1', 'Chain d'),
+      boardCard('20.1.1.1.1', 'Chain e'),
+    ]
+    const linked = chain.map((card, i) => ({
+      ...card,
+      parentId: i === 0 ? null : chain[i - 1]!.id,
+    }))
+    const { user, api } = open([parent, ...children, ...linked], parent.id)
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: PICKER })
+    await search(user, dialog, 'chain')
+    await waitFor(() => expect(api.searches).toEqual(['chain']))
+
+    const tooDeep = await within(dialog).findByRole('button', {
+      name: /WEB-20\.1\.1\.1\.1 Chain e/,
+    })
+    expectTurnedOff(tooDeep)
+    expect(tooDeep).toHaveAccessibleDescription(
+      expect.stringContaining(TOO_DEEP),
+    )
+    const fine = within(dialog).getByRole('button', {
+      name: /WEB-20\.1\.1\.1 Chain d/,
+    })
+    expect(fine).toBeEnabled()
+    expect(fine).not.toHaveAccessibleDescription(
+      expect.stringContaining(TOO_DEEP),
+    )
+  })
+})

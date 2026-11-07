@@ -548,3 +548,24 @@ describe('On a phone', () => {
     }
   })
 })
+
+describe('Deleting a card: focus', () => {
+  // Decision 2 (2026-11-07): the PR 6 dialog gives focus back too.
+  it('goes back to the “Delete card” button after Cancel and after Escape', async () => {
+    const { user } = openCard(login)
+    const panel = await cardPanel()
+    const button = within(panel).getByRole('button', { name: 'Delete card' })
+
+    await user.click(button)
+    let dialog = screen.getByRole('dialog', { name: 'Delete WEB-12?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    expect(button).toHaveFocus()
+
+    await user.click(button)
+    dialog = screen.getByRole('dialog', { name: 'Delete WEB-12?' })
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    expect(button).toHaveFocus()
+  })
+})
