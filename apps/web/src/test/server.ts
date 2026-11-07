@@ -7,6 +7,15 @@ import { setupServer } from 'msw/node'
 // few below that every open card makes, which answer "nothing yet".
 export const server = setupServer(
   http.get('/api/cards/:cardId/checklists', () => HttpResponse.json([])),
+  // A card with subtasks asks for its rolled-up totals.
+  http.get('/api/cards/:cardId/time-totals', () =>
+    HttpResponse.json({
+      estimateMinutes: null,
+      originalEstimateMinutes: null,
+      timeSpentMinutes: 0,
+      ownTimeMinutes: 0,
+    }),
+  ),
 )
 
 export const ana: Me = {

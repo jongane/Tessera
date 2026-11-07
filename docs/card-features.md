@@ -33,12 +33,13 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 ## 4. Subtasks
 
 - A subtask is an ordinary card with a parent card. It has its own column, assignees, estimate, time, checklist and chat.
-- Subtasks can be nested **up to 5 levels** deep.
+- Subtasks can be nested **up to 5 levels** deep. A card picker shows results that are too deep to take the subtask as turned off, with the reason "Subtasks can only go 5 levels deep". When moving a subtask, the picker also leaves out the subtask's current parent, the subtask itself and every card under it. (Agreed 2026-11-07.)
+- A **new subtask** starts in its parent's column. When adding it, you can pick any column of any board in the project instead. (Agreed 2026-11-03.)
 - A subtask can be on **any board in the same project**, but never in another project.
 - The parent card shows a **list of its subtasks**, and each subtask shows its parent.
 - **Progress** on a parent ("3 of 5 complete") counts its **direct subtasks only**.
 - A parent is **never completed automatically**. Completing a parent while some subtasks are open asks: "3 subtasks are still open. Complete anyway?"
-- **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent. (The card panel offers "move to another parent" once it shows subtasks; agreed 2026-11-01.)
+- **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent. (The card panel offers "Move to another parent" for each subtask, in the Delete card dialog and from the subtask's own menu; agreed 2026-11-01. In that dialog's picker, the card being deleted and every card under it are left out. Agreed 2026-11-07.)
   - A direct subtask that has subtasks of its own **cannot be chosen for deletion** until the user has decided what happens to its subtasks. This stops one click deleting a whole branch. (Agreed 2026-10-27.)
 
 ## 5. Completing cards
@@ -82,7 +83,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - Deeper subtasks keep their own colour. They are drawn in a paler shade only when their colour is the same as the direct subtasks' colour, so the two levels still look different; in any other colour they are drawn at full strength. (Agreed 2026-11-02.)
 - Each highlight also has a small text tag such as "Parent" or "Subtask", so colour is never the only signal.
 - The colours are a **project setting that only admins can change**, so everyone in the project sees the same colours. Admins pick each one from the 10 label colours (section 8), which read well in light and dark mode, or dark. (Agreed 2026-11-01.)
-- Related cards on other boards are listed in the card's panel, with links to them: the parents up to the top, the subtasks at every level and the siblings, grouped, each with its board's name. (Agreed 2026-11-01.)
+- Related cards on other boards are listed in the card's panel, with links to them: the parents up to the top, the subtasks at every level and the siblings, grouped, each with its board's name. (Agreed 2026-11-01.) A subtask's direct parent is not repeated in this list, because the "Subtask of" line under the card's title already shows it; grandparents and higher levels on other boards are still listed. (Agreed 2026-11-07.)
 
 ## 8. Other card fields
 

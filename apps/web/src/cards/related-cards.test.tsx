@@ -123,6 +123,44 @@ describe('Seeing related cards', () => {
     expect(within(others).queryByRole('list', { name: 'Parents' })).toBe(null)
   })
 
+  // Decision 4 (2026-11-07): the direct parent is in the "Subtask of" line.
+  it('leaves out the direct parent on another board, but lists a grandparent there', async () => {
+    const elsewhere = (id: string, number: string, title: string) => ({
+      ...errors,
+      id,
+      number,
+      title,
+    })
+    const direct = elsewhere(
+      'aaaaaaaa-aaaa-4aaa-8aaa-000000000001',
+      'WEB-30.1',
+      'Direct parent',
+    )
+    const grand = elsewhere(
+      'aaaaaaaa-aaaa-4aaa-8aaa-000000000002',
+      'WEB-30',
+      'Grandparent',
+    )
+    fakeBoard(boardView([boardColumn('To do', [login, form, checks, icons])]), {
+      relatives: {
+        [form.id]: { parents: [direct, grand], subtasks: [], siblings: [] },
+      },
+    })
+    renderApp(`${boardPath}?card=${form.id}`)
+    const panel = await cardPanel('WEB-12.1')
+
+    const others = await within(panel).findByRole('region', {
+      name: 'Related cards on other boards',
+    })
+    const parents = within(others).getByRole('list', { name: 'Parents' })
+    expect(
+      within(parents).getByRole('link', { name: 'WEB-30 Grandparent' }),
+    ).toBeInTheDocument()
+    expect(within(others).queryByRole('link', { name: /Direct parent/ })).toBe(
+      null,
+    )
+  })
+
   it('has no list when every relative is on this board', async () => {
     openBoard(checks.id)
     const panel = await cardPanel('WEB-12.1.1')

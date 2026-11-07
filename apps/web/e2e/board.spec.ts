@@ -287,7 +287,7 @@ test('see an open card’s relatives on the board', async ({ page }) => {
   await expectNoAccessibilityProblems(page)
 })
 
-// Web PR 7a, criterion 46 (its checklist part).
+// Web PR 7a and 7b, criterion 46 (its checklist and subtask parts).
 test('add a checklist to a card, tick an item and turn another into a subtask', async ({
   page,
 }) => {
@@ -329,6 +329,21 @@ test('add a checklist to a card, tick an item and turn another into a subtask', 
       .getByRole('region', { name: 'To do' })
       .getByRole('button', { name: /-1\.1 Write tests$/ }),
   ).toBeVisible()
+  // Web PR 7b: the item turned into a subtask is in the Subtasks section,
+  // and another subtask can be added there.
+  const subtasks = panel.getByRole('region', { name: 'Subtasks' })
+  await expect(subtasks).toContainText('Write tests')
+  await expect(subtasks).toContainText('0 of 1 complete')
+  await subtasks.getByRole('button', { name: 'Add subtask' }).click()
+  await subtasks.getByRole('textbox', { name: /title/i }).fill('Review')
+  await subtasks.getByRole('textbox', { name: /title/i }).press('Enter')
+  await expect(subtasks).toContainText('Review')
+  await expect(subtasks).toContainText('0 of 2 complete')
+  await expect(
+    page
+      .getByRole('region', { name: 'To do' })
+      .getByRole('button', { name: /-1\.2 Review$/ }),
+  ).toBeVisible()
   await expectNoAccessibilityProblems(page)
 
   // Everything was saved.
@@ -340,4 +355,6 @@ test('add a checklist to a card, tick an item and turn another into a subtask', 
     0,
   )
   await expect(list).toContainText('1 of 1')
+  await expect(subtasks).toContainText('Write tests')
+  await expect(subtasks).toContainText('Review')
 })

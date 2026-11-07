@@ -7,9 +7,12 @@ import type {
 import { type KeyboardEvent, lazy, Suspense, useState } from 'react'
 import { useBlocker } from 'react-router'
 import { useMe } from '../api/auth'
+import { ApiError } from '../api/client'
 import { useChangeCard, useCompleteCard, useReopenCard } from '../api/cards'
+import { useSetParent } from '../api/subtasks'
 import { useMembers } from '../api/members'
 import { useMoveCard } from '../api/boards'
+import { openSubtasksOf } from './open-subtasks'
 import { CompleteAnywayDialog } from '../boards/CompleteAnywayDialog'
 import { findCard } from '../boards/move-card'
 import { Alert } from '../ui/Alert'
@@ -24,10 +27,25 @@ import {
 } from './CardFields'
 import { DeleteCardDialog } from './DeleteCardDialog'
 import { Checklists } from './Checklists'
+import { ActionsMenu } from './ActionsMenu'
+import { MoveToParent } from './MoveToParent'
+import { ParentLine } from './ParentLine'
 import { AssigneesField, LabelsField } from './PeopleAndLabels'
 import { RelatedElsewhere } from './RelatedElsewhere'
+import { Subtasks } from './Subtasks'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
+
+// The API's input check starts its message with the field name ("title: ").
+const FIELD_PREFIX = /^[A-Za-z][\w.]*: /
+
+// The API's own message when it refused the change (4xx), else a general
+// one for a network failure or a server error.
+function refusal(error: unknown) {
+  return error instanceof ApiError && error.status >= 400 && error.status < 500
+    ? error.message.replace(FIELD_PREFIX, '')
+    : SAVE_FAILED
+}
 
 // The rich-text editor is most of the panel's code, so it loads on its own
 // and the other fields can be used straight away.
@@ -43,6 +61,8 @@ export interface CardPanelProps {
   onOpenChat: (chatId: string) => void
   // Opens the board's Add card form in this column.
   onCreateCard: (columnId: string) => void
+  // The card was deleted from this column, and the panel is closing.
+  onDeleted?: (columnId: string) => void
 }
 
 // One card, with everything about it that can be changed. The panel does
@@ -63,6 +83,7 @@ export default function CardPanel(props: CardPanelProps) {
           key={found.card.id}
           {...props}
           card={found.card}
+          columnId={found.column.id}
           columnName={found.column.name}
         />
       ) : (
@@ -101,30 +122,39 @@ function closeOnEscape(event: KeyboardEvent<HTMLElement>, onClose: () => void) {
 
 function CardDetails({
   card,
+  columnId,
   columnName,
   view,
   project,
   onClose,
   onOpenChat,
   onCreateCard,
-}: CardPanelProps & { card: BoardCard; columnName: string }) {
-  const [saveFailed, setSaveFailed] = useState(false)
+  onDeleted,
+}: CardPanelProps & { card: BoardCard; columnId: string; columnName: string }) {
+  const [saveFailed, setSaveFailed] = useState<string>()
   const [unsavedDescription, setUnsavedDescription] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteButton, setDeleteButton] = useState<HTMLElement | null>(null)
   const change = useChangeCard(card.boardId, card.id)
 
   function track(saving: Promise<unknown>) {
-    setSaveFailed(false)
-    saving.catch(() => setSaveFailed(true))
+    setSaveFailed(undefined)
+    saving.catch((error: unknown) => setSaveFailed(refusal(error)))
   }
   const save = (body: CardChangesBody) => track(change.mutateAsync(body))
 
   return (
     <>
-      <PanelHeader card={card} columnName={columnName} onClose={onClose} />
+      <PanelHeader
+        card={card}
+        columnName={columnName}
+        onClose={onClose}
+        track={track}
+      />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
-        {saveFailed && <Alert>{SAVE_FAILED}</Alert>}
+        {saveFailed && <Alert>{saveFailed}</Alert>}
         <TitleField card={card} save={save} />
+        <ParentLine card={card} />
         <CompleteControl card={card} view={view} track={track} />
         {card.chatId && (
           <Button
@@ -154,11 +184,15 @@ function CardDetails({
             }}
           />
         </Suspense>
+        <Subtasks card={card} track={track} />
         <Checklists card={card} track={track} onCreateCard={onCreateCard} />
         <DeleteButton
           card={card}
           projectId={project.id}
-          onDelete={() => setDeleting(true)}
+          onDelete={(button) => {
+            setDeleteButton(button)
+            setDeleting(true)
+          }}
         />
       </div>
       {unsavedDescription && <DiscardOnLeave />}
@@ -166,9 +200,11 @@ function CardDetails({
         <DeleteCardDialog
           card={card}
           projectCode={project.code}
+          returnFocusTo={deleteButton}
           onCancel={() => setDeleting(false)}
           onDeleted={() => {
             setDeleting(false)
+            onDeleted?.(columnId)
             onClose()
           }}
         />
@@ -181,10 +217,12 @@ function PanelHeader({
   card,
   columnName,
   onClose,
+  track,
 }: {
   card: BoardCard
   columnName: string
   onClose: () => void
+  track: (saving: Promise<unknown>) => void
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -206,15 +244,62 @@ function PanelHeader({
       <span role="status" className="text-xs text-muted">
         {copied ? 'Copied' : ''}
       </span>
-      <button
-        type="button"
-        aria-label="Close card"
-        onClick={onClose}
-        className="ml-auto flex size-9 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
-      >
-        <span aria-hidden="true">✕</span>
-      </button>
+      <div className="ml-auto flex items-center gap-1">
+        {card.parentId !== null && <ParentActions card={card} track={track} />}
+        <button
+          type="button"
+          aria-label="Close card"
+          onClick={onClose}
+          className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
+      </div>
     </div>
+  )
+}
+
+// The card's options menu, on a subtask: give it another parent, or make
+// it a card of its own.
+function ParentActions({
+  card,
+  track,
+}: {
+  card: BoardCard
+  track: (saving: Promise<unknown>) => void
+}) {
+  const [moving, setMoving] = useState(false)
+  const [opener, setOpener] = useState<HTMLElement | null>(null)
+  const setParent = useSetParent()
+  return (
+    <>
+      <ActionsMenu
+        label="Card options"
+        className=""
+        actions={[
+          {
+            name: 'Move to another parent',
+            onSelect: (button) => {
+              setOpener(button)
+              setMoving(true)
+            },
+          },
+          {
+            name: 'Make its own card',
+            onSelect: () =>
+              track(setParent.mutateAsync({ cardId: card.id, parentId: null })),
+          },
+        ]}
+      />
+      {moving && (
+        <MoveToParent
+          card={card}
+          onDone={() => setMoving(false)}
+          onLateFailure={(error) => track(Promise.reject(error))}
+          returnFocusTo={opener}
+        />
+      )}
+    </>
   )
 }
 
@@ -233,14 +318,22 @@ function CompleteControl({
   const complete = useCompleteCard(card.boardId, card.id)
   const reopen = useReopenCard(card.boardId, card.id)
   const move = useMoveCard(card.boardId)
-  const [asking, setAsking] = useState(false)
+  // How many subtasks are open, while asking.
+  const [asking, setAsking] = useState<number | null>(null)
   const [offer, setOffer] = useState<string | null>(null)
   const open = card.subtaskProgress.total - card.subtaskProgress.complete
   const doneColumn = view.columns.find((column) => column.id === offer)
 
   function completeCard(confirmOpenSubtasks: boolean) {
     const saving = complete.mutateAsync(confirmOpenSubtasks)
-    track(saving)
+    // The API may know of open subtasks the board did not show.
+    track(
+      saving.catch((error: unknown) => {
+        const count = openSubtasksOf(error)
+        if (count === null) throw error
+        setAsking(count)
+      }),
+    )
     saving.then(
       (result) => setOffer(result.doneColumnId),
       () => {},
@@ -252,7 +345,7 @@ function CompleteControl({
     if (!checked) {
       track(reopen.mutateAsync())
     } else if (open > 0) {
-      setAsking(true)
+      setAsking(open)
     } else {
       completeCard(false)
     }
@@ -301,13 +394,13 @@ function CompleteControl({
           </Button>
         </div>
       )}
-      {asking && (
+      {asking !== null && (
         <CompleteAnywayDialog
-          openSubtasks={open}
+          openSubtasks={asking}
           byMoving={false}
-          onCancel={() => setAsking(false)}
+          onCancel={() => setAsking(null)}
           onConfirm={() => {
-            setAsking(false)
+            setAsking(null)
             completeCard(true)
           }}
         />
@@ -325,7 +418,7 @@ function DeleteButton({
 }: {
   card: BoardCard
   projectId: string
-  onDelete: () => void
+  onDelete: (button: HTMLElement) => void
 }) {
   const me = useMe()
   const members = useMembers(projectId)
@@ -342,7 +435,7 @@ function DeleteButton({
         className="self-start text-danger"
         disabled={!mayDelete}
         aria-describedby={mayDelete ? undefined : reasonId}
-        onClick={onDelete}
+        onClick={(event) => onDelete(event.currentTarget)}
       >
         Delete card
       </Button>

@@ -271,7 +271,7 @@ function ColumnView({
       className="flex w-72 shrink-0 flex-col gap-2 rounded-xl bg-column p-2"
     >
       <div className="flex items-center gap-2 px-1 pt-1">
-        <h2 id={headingId} className="font-semibold">
+        <h2 id={headingId} tabIndex={-1} className="font-semibold">
           {column.name}
           {column.isDone && (
             <span aria-hidden="true" className="ml-1 text-success">

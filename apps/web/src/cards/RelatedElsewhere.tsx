@@ -20,7 +20,8 @@ export function RelatedElsewhere({ card }: { card: BoardCard }) {
   const elsewhere = (cards: RelatedCard[]) =>
     cards.filter((related) => related.boardId !== card.boardId)
   const groups = [
-    { name: 'Parents', cards: elsewhere(relatives.data.parents) },
+    // The direct parent is linked from the line under the card's title.
+    { name: 'Parents', cards: elsewhere(relatives.data.parents.slice(1)) },
     { name: 'Subtasks', cards: elsewhere(relatives.data.subtasks) },
     { name: 'Siblings', cards: elsewhere(relatives.data.siblings) },
   ].filter((group) => group.cards.length > 0)
