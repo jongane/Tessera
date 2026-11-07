@@ -1877,4 +1877,36 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
       vi.useRealTimers()
     }
   })
+
+  // Owner's decision, 2026-11-07 (antagonist round 6): a picked move that
+  // fails after its picker closed shows in the panel's message area, also
+  // for the picker opened from the card's own “Card options” menu.
+  it('shows in the panel that a picked move failed after the card’s own picker was closed with Escape', async () => {
+    const { parent, form, errors } = twoOpenSubtasks()
+    const { user } = open([parent, form, errors, icons], form.id)
+    const gate = held()
+    server.use(
+      http.put(`/api/cards/${form.id}/parent`, async () => {
+        await gate.promise
+        return apiError(500, 'Something broke')
+      }),
+    )
+    const panel = await cardPanel('WEB-12.1')
+    await user.click(cardMenu(panel))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    const picker = await screen.findByRole('dialog', { name: PICKER })
+    await search(user, picker, 'icon')
+    await user.click(
+      await within(picker).findByRole('button', { name: /WEB-14 Icon set/ }),
+    )
+    await user.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: PICKER })).toBe(null),
+    )
+    gate.release()
+
+    expect(await screen.findByText(SAVE_FAILED)).toBeInTheDocument()
+  })
 })
