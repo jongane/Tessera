@@ -1527,3 +1527,213 @@ describe('Subtasks: where focus goes when a row goes away', () => {
     expect(errorsBox).toHaveFocus()
   })
 })
+
+describe('Subtasks: focus when a reload removes the row mid-save', () => {
+  // Owner's decisions, 2026-11-07 (antagonist round 4): the picker never
+  // offers the subtask's current parent; and if a reload removes the row
+  // while the person's own move or “Make its own card” is still saving,
+  // focus still goes to the Subtasks heading when the request succeeds, and
+  // does not when it fails.
+  const icons = boardCard('14', 'Icon set')
+
+  // The list as another person's change leaves it: WEB-12.1 is gone.
+  function onlyErrors(parent: BoardCard, errors: BoardCard) {
+    return http.get(`/api/cards/${parent.id}/subtasks`, () =>
+      HttpResponse.json({
+        subtasks: [{ ...errors, columnName: 'To do', boardName: 'Website' }],
+        progress: { complete: 0, total: 1 },
+      }),
+    )
+  }
+
+  // Lets the 30 second reload run and waits until the row is gone.
+  async function reloadDropsRow(section: HTMLElement) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
+    })
+    await vi.waitFor(
+      () => expect(within(section).queryByText(/WEB-12\.1/)).toBe(null),
+      { timeout: 3000 },
+    )
+  }
+
+  async function settle() {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+  }
+
+  it('does not offer the subtask’s current parent in the picker from its row', async () => {
+    const { parent, form, errors } = twoOpenSubtasks()
+    const { user, api } = open([parent, form, errors, icons], parent.id)
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    const picker = await screen.findByRole('dialog', { name: PICKER })
+    await search(user, picker, 'login')
+
+    await waitFor(() => expect(api.searches).toEqual(['login']))
+    expect(await within(picker).findByRole('status')).toHaveTextContent(
+      'No cards found',
+    )
+    expect(
+      within(picker).queryByRole('button', { name: /WEB-12 Login page/ }),
+    ).toBe(null)
+  })
+
+  it('does not offer the card’s current parent in the picker from Card options', async () => {
+    const { parent, form, errors } = twoOpenSubtasks()
+    const { user, api } = open([parent, form, errors, icons], form.id)
+    const panel = await cardPanel('WEB-12.1')
+
+    await user.click(cardMenu(panel))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    const picker = await screen.findByRole('dialog', { name: PICKER })
+    await search(user, picker, 'login')
+
+    await waitFor(() => expect(api.searches).toEqual(['login']))
+    expect(await within(picker).findByRole('status')).toHaveTextContent(
+      'No cards found',
+    )
+    expect(
+      within(picker).queryByRole('button', { name: /WEB-12 Login page/ }),
+    ).toBe(null)
+  })
+
+  it('a reload that drops the row before “Make its own card” answers still sends focus to the heading', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return HttpResponse.json({ ...form, parentId: null })
+        }),
+      )
+      const section = await subtasksOf(await cardPanel())
+      await user.click(rowMenu(await row(section, 'WEB-12.1')))
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Make its own card' }),
+      )
+      // The server has saved it; the reload lands before the answer.
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      gate.release()
+      await settle()
+
+      expect(
+        within(section).getByRole('heading', { name: 'Subtasks' }),
+      ).toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a reload that drops the row before a picked move answers still sends focus to the heading', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors, icons], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return HttpResponse.json({ ...form, parentId: icons.id })
+        }),
+      )
+      const section = await subtasksOf(await cardPanel())
+      await user.click(rowMenu(await row(section, 'WEB-12.1')))
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+      )
+      const picker = await screen.findByRole('dialog', { name: PICKER })
+      await search(user, picker, 'icon')
+      await user.click(
+        await within(picker).findByRole('button', { name: /WEB-14 Icon set/ }),
+      )
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      gate.release()
+      await settle()
+
+      await vi.waitFor(() => expect(picker).not.toBeInTheDocument())
+      expect(
+        within(section).getByRole('heading', { name: 'Subtasks' }),
+      ).toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not move focus to the heading when “Make its own card” fails after a reload dropped the row', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return apiError(500, 'Something went wrong')
+        }),
+      )
+      const section = await subtasksOf(await cardPanel())
+      await user.click(rowMenu(await row(section, 'WEB-12.1')))
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Make its own card' }),
+      )
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      gate.release()
+      await settle()
+
+      expect(
+        within(section).getByRole('heading', { name: 'Subtasks' }),
+      ).not.toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not move focus to the heading when a picked move fails after a reload dropped the row', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors, icons], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return apiError(409, TOO_DEEP)
+        }),
+      )
+      const section = await subtasksOf(await cardPanel())
+      await user.click(rowMenu(await row(section, 'WEB-12.1')))
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+      )
+      const picker = await screen.findByRole('dialog', { name: PICKER })
+      await search(user, picker, 'icon')
+      await user.click(
+        await within(picker).findByRole('button', { name: /WEB-14 Icon set/ }),
+      )
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      gate.release()
+      await settle()
+
+      expect(
+        within(section).getByRole('heading', { name: 'Subtasks' }),
+      ).not.toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
