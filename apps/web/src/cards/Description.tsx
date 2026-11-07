@@ -304,7 +304,16 @@ function LinkForm({ editor, onDone }: { editor: Editor; onDone: () => void }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
+    <form
+      onSubmit={onSubmit}
+      onKeyDown={(event) => {
+        // Closes only this form, not the card panel around it.
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        onDone()
+      }}
+      className="flex flex-wrap items-end gap-2"
+    >
       <div className="flex flex-col gap-1">
         <label htmlFor={id} className="font-semibold">
           Link address
