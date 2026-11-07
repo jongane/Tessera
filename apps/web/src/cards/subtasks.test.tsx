@@ -1467,3 +1467,63 @@ describe('The card’s own Complete box', () => {
     })
   })
 })
+
+describe('Subtasks: where focus goes when a row goes away', () => {
+  // Owner's decision, 2026-11-07: focus goes to the Subtasks heading only
+  // after the person's own “Make its own card” or “Move to another parent”
+  // on that row succeeds.
+  it('puts focus on the Subtasks heading after “Make its own card” on a row succeeds', async () => {
+    const { parent, form, errors } = twoOpenSubtasks()
+    const { user } = open([parent, form, errors], parent.id)
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Make its own card' }),
+    )
+
+    await waitFor(() =>
+      expect(within(section).queryByText(/WEB-12\.1/)).toBe(null),
+    )
+    expect(
+      within(section).getByRole('heading', { name: 'Subtasks' }),
+    ).toHaveFocus()
+  })
+
+  it('does not steal focus when a row goes away after its picker was cancelled', async () => {
+    const { parent, form, errors } = twoOpenSubtasks()
+    const { user } = open([parent, form, errors], parent.id)
+    const section = await subtasksOf(await cardPanel())
+
+    // Open the picker for WEB-12.1, then cancel it.
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    const picker = await screen.findByRole('dialog', { name: PICKER })
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(picker).not.toBeInTheDocument())
+
+    // Someone else moves WEB-12.1 away; the next reload drops its row.
+    server.use(
+      http.get(`/api/cards/${parent.id}/subtasks`, () =>
+        HttpResponse.json({
+          subtasks: [{ ...errors, columnName: 'To do', boardName: 'Website' }],
+          progress: { complete: 0, total: 1 },
+        }),
+      ),
+    )
+    // Ticking WEB-12.2 reloads the list.
+    const errorsBox = within(await row(section, 'WEB-12.2')).getByRole(
+      'checkbox',
+    )
+    errorsBox.focus()
+    await user.keyboard(' ')
+    expect(errorsBox).toBeChecked()
+    await waitFor(() =>
+      expect(within(section).queryByText(/WEB-12\.1/)).toBe(null),
+    )
+
+    expect(errorsBox).toHaveFocus()
+  })
+})
