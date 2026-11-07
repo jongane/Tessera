@@ -1,4 +1,5 @@
 import type { Card } from '@tessera/shared'
+import { useEffect, useRef } from 'react'
 import { useSetParent } from '../api/subtasks'
 import { ParentPickerDialog } from './ParentPickerDialog'
 
@@ -9,15 +10,26 @@ export function MoveToParent({
   card,
   onDone,
   onMoved,
+  onLateFailure,
   returnFocusTo,
 }: {
   card: Pick<Card, 'id' | 'boardId' | 'projectId' | 'parentId'>
   onDone: () => void
   // Called when the move was saved, before `onDone`.
   onMoved?: () => void
+  // Called when saving failed after this dialog was removed (a reload took
+  // its row), so the failure can show elsewhere.
+  onLateFailure?: (error: unknown) => void
   returnFocusTo?: HTMLElement | null
 }) {
   const setParent = useSetParent()
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   return (
     <ParentPickerDialog
       projectId={card.projectId}
@@ -31,7 +43,9 @@ export function MoveToParent({
             onMoved?.()
             onDone()
           },
-          () => {},
+          (error: unknown) => {
+            if (!mounted.current) onLateFailure?.(error)
+          },
         )
       }
       onCancel={onDone}

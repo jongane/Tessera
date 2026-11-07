@@ -127,18 +127,21 @@ function SubtaskRow({
   useEffect(() => {
     headingRef.current = headingId
   })
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true
+    return () => {
       mounted.current = false
       if (movedAway.current) {
         document.getElementById(headingRef.current)?.focus()
       }
-    },
-    [],
-  )
+    }
+  }, [])
   function onMovedAway() {
     movedAway.current = true
-    if (!mounted.current) {
+    if (mounted.current) return
+    // Late: only take focus if nothing else has it.
+    const active = document.activeElement
+    if (active === null || active === document.body) {
       document.getElementById(headingRef.current)?.focus()
     }
   }
@@ -234,6 +237,7 @@ function SubtaskRow({
           card={subtask}
           onDone={() => setMoving(false)}
           onMoved={onMovedAway}
+          onLateFailure={(error) => track(Promise.reject(error))}
           returnFocusTo={opener}
         />
       )}
