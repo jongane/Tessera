@@ -295,6 +295,7 @@ function ParentActions({
         <MoveToParent
           card={card}
           onDone={() => setMoving(false)}
+          onLateFailure={(error) => track(Promise.reject(error))}
           returnFocusTo={opener}
         />
       )}
