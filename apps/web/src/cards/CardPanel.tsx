@@ -8,6 +8,7 @@ import { type KeyboardEvent, lazy, Suspense, useState } from 'react'
 import { useBlocker } from 'react-router'
 import { useMe } from '../api/auth'
 import { useChangeCard, useCompleteCard, useReopenCard } from '../api/cards'
+import { useSetParent } from '../api/subtasks'
 import { useMembers } from '../api/members'
 import { useMoveCard } from '../api/boards'
 import { CompleteAnywayDialog } from '../boards/CompleteAnywayDialog'
@@ -24,8 +25,12 @@ import {
 } from './CardFields'
 import { DeleteCardDialog } from './DeleteCardDialog'
 import { Checklists } from './Checklists'
+import { ActionsMenu } from './ActionsMenu'
+import { MoveToParent } from './MoveToParent'
+import { ParentLine } from './ParentLine'
 import { AssigneesField, LabelsField } from './PeopleAndLabels'
 import { RelatedElsewhere } from './RelatedElsewhere'
+import { Subtasks } from './Subtasks'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
@@ -121,10 +126,16 @@ function CardDetails({
 
   return (
     <>
-      <PanelHeader card={card} columnName={columnName} onClose={onClose} />
+      <PanelHeader
+        card={card}
+        columnName={columnName}
+        onClose={onClose}
+        track={track}
+      />
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
         {saveFailed && <Alert>{SAVE_FAILED}</Alert>}
         <TitleField card={card} save={save} />
+        <ParentLine card={card} />
         <CompleteControl card={card} view={view} track={track} />
         {card.chatId && (
           <Button
@@ -154,6 +165,7 @@ function CardDetails({
             }}
           />
         </Suspense>
+        <Subtasks card={card} track={track} />
         <Checklists card={card} track={track} onCreateCard={onCreateCard} />
         <DeleteButton
           card={card}
@@ -181,10 +193,12 @@ function PanelHeader({
   card,
   columnName,
   onClose,
+  track,
 }: {
   card: BoardCard
   columnName: string
   onClose: () => void
+  track: (saving: Promise<unknown>) => void
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -206,15 +220,48 @@ function PanelHeader({
       <span role="status" className="text-xs text-muted">
         {copied ? 'Copied' : ''}
       </span>
-      <button
-        type="button"
-        aria-label="Close card"
-        onClick={onClose}
-        className="ml-auto flex size-9 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
-      >
-        <span aria-hidden="true">✕</span>
-      </button>
+      <div className="ml-auto flex items-center gap-1">
+        {card.parentId !== null && <ParentActions card={card} track={track} />}
+        <button
+          type="button"
+          aria-label="Close card"
+          onClick={onClose}
+          className="flex size-9 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
+      </div>
     </div>
+  )
+}
+
+// The card's options menu, on a subtask: give it another parent, or make
+// it a card of its own.
+function ParentActions({
+  card,
+  track,
+}: {
+  card: BoardCard
+  track: (saving: Promise<unknown>) => void
+}) {
+  const [moving, setMoving] = useState(false)
+  const setParent = useSetParent()
+  return (
+    <>
+      <ActionsMenu
+        label="Card options"
+        className=""
+        actions={[
+          { name: 'Move to another parent', onSelect: () => setMoving(true) },
+          {
+            name: 'Make its own card',
+            onSelect: () =>
+              track(setParent.mutateAsync({ cardId: card.id, parentId: null })),
+          },
+        ]}
+      />
+      {moving && <MoveToParent card={card} onDone={() => setMoving(false)} />}
+    </>
   )
 }
 
