@@ -1736,4 +1736,145 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
       vi.useRealTimers()
     }
   })
+
+  // Owner's decisions, 2026-11-07 (antagonist round 5): when the move then
+  // succeeds, focus goes to the heading only if it is on nothing; and a
+  // failed picked move still shows in the panel's message area.
+  async function pickIcons(
+    user: ReturnType<typeof renderApp>['user'],
+    section: HTMLElement,
+  ) {
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Move to another parent' }),
+    )
+    const picker = await screen.findByRole('dialog', { name: PICKER })
+    await search(user, picker, 'icon')
+    await user.click(
+      await within(picker).findByRole('button', { name: /WEB-14 Icon set/ }),
+    )
+    return picker
+  }
+
+  async function focusDescriptionEditor(
+    user: ReturnType<typeof renderApp>['user'],
+    panel: HTMLElement,
+  ) {
+    await user.click(
+      within(panel).getByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    editor.focus()
+    expect(editor).toHaveFocus()
+    return editor
+  }
+
+  it('keeps focus in the description editor when “Make its own card” succeeds after a reload dropped the row', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return HttpResponse.json({ ...form, parentId: null })
+        }),
+      )
+      const panel = await cardPanel()
+      const section = await subtasksOf(panel)
+      await user.click(rowMenu(await row(section, 'WEB-12.1')))
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Make its own card' }),
+      )
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      const editor = await focusDescriptionEditor(user, panel)
+      gate.release()
+      await settle()
+
+      expect(editor).toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps focus in the description editor when a picked move succeeds after a reload dropped the row', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors, icons], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return HttpResponse.json({ ...form, parentId: icons.id })
+        }),
+      )
+      const panel = await cardPanel()
+      const section = await subtasksOf(panel)
+      await pickIcons(user, section)
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      const editor = await focusDescriptionEditor(user, panel)
+      gate.release()
+      await settle()
+
+      expect(editor).toHaveFocus()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows in the panel that a picked move failed after a reload closed the picker', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors, icons], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return apiError(500, 'Something broke')
+        }),
+      )
+      const section = await subtasksOf(await cardPanel())
+      await pickIcons(user, section)
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      gate.release()
+      await settle()
+
+      expect(await screen.findByText(SAVE_FAILED)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows the server’s words when a picked move is refused after a reload closed the picker', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { parent, form, errors } = twoOpenSubtasks()
+      const { user } = open([parent, form, errors, icons], parent.id)
+      const gate = held()
+      server.use(
+        http.put(`/api/cards/${form.id}/parent`, async () => {
+          await gate.promise
+          return apiError(409, TOO_DEEP)
+        }),
+      )
+      const section = await subtasksOf(await cardPanel())
+      await pickIcons(user, section)
+      server.use(onlyErrors(parent, errors))
+      await reloadDropsRow(section)
+      gate.release()
+      await settle()
+
+      expect(await screen.findByText(TOO_DEEP)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
