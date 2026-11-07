@@ -5,6 +5,7 @@ import { useCardSearch } from '../api/subtasks'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { Dialog, DialogClose } from '../ui/Dialog'
+import { DEEPEST_PARENT, TOO_DEEP } from './depth'
 import { TextField } from '../ui/TextField'
 
 export const PICKER_TITLE = 'Move to another parent'
@@ -34,6 +35,7 @@ export function ParentPickerDialog({
   error,
   pending = false,
   modal = true,
+  returnFocusTo,
 }: {
   projectId: string
   moving: { id: string; boardId: string }
@@ -45,6 +47,7 @@ export function ParentPickerDialog({
   pending?: boolean
   // False when opened over another dialog, which then stays readable.
   modal?: boolean
+  returnFocusTo?: HTMLElement | null
 }) {
   const [typed, setTyped] = useState('')
   const search = useDebounced(typed.trim())
@@ -58,6 +61,11 @@ export function ParentPickerDialog({
   const shown = relatives.data
     ? (found.data?.cards ?? []).filter((card) => !leftOut.has(card.id))
     : []
+  // How far the moving card's own subtasks reach below it.
+  const height = Math.max(
+    0,
+    ...(relatives.data?.subtasks.map((subtask) => subtask.level) ?? []),
+  )
   const failure = error ?? found.error ?? relatives.error
 
   return (
@@ -66,6 +74,7 @@ export function ParentPickerDialog({
       onOpenChange={(open) => !open && onCancel()}
       title={PICKER_TITLE}
       modal={modal}
+      returnFocusTo={returnFocusTo}
     >
       {failure && <Alert>{failure.message}</Alert>}
       <TextField
@@ -78,6 +87,7 @@ export function ParentPickerDialog({
         searching={search !== '' && found.isPending}
         searched={search !== '' && found.data !== undefined}
         cards={shown}
+        deepest={DEEPEST_PARENT - 1 - height}
         disabled={pending}
         onPick={onPick}
       />
@@ -94,12 +104,15 @@ function Results({
   searching,
   searched,
   cards,
+  deepest,
   disabled,
   onPick,
 }: {
   searching: boolean
   searched: boolean
-  cards: RelatedCard[]
+  cards: (RelatedCard & { depth: number })[]
+  // The deepest card that can take the moving card and its subtasks.
+  deepest: number
   disabled: boolean
   onPick: (card: RelatedCard) => void
 }) {
@@ -119,21 +132,34 @@ function Results({
   }
   return (
     <ul className="flex max-h-60 flex-col gap-0.5 overflow-y-auto">
-      {cards.map((card) => (
-        <li key={card.id}>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onPick(card)}
-            className="flex min-h-11 w-full flex-col items-start justify-center rounded-md px-2 text-left hover:bg-subtle disabled:opacity-60"
-          >
-            <span>
-              {card.number} {card.title}
-            </span>
-            <span className="text-xs text-muted">{card.boardName}</span>
-          </button>
-        </li>
-      ))}
+      {cards.map((card) => {
+        const tooDeep = card.depth > deepest
+        return (
+          <li key={card.id}>
+            <button
+              type="button"
+              disabled={disabled || tooDeep}
+              aria-describedby={tooDeep ? `${card.id}-too-deep` : undefined}
+              onClick={() => onPick(card)}
+              className="flex min-h-11 w-full flex-col items-start justify-center rounded-md px-2 text-left hover:bg-subtle disabled:opacity-60"
+            >
+              <span>
+                {card.number} {card.title}
+              </span>
+              <span className="text-xs text-muted">{card.boardName}</span>
+              {tooDeep && (
+                <span
+                  id={`${card.id}-too-deep`}
+                  aria-hidden="true"
+                  className="text-xs text-muted"
+                >
+                  {TOO_DEEP}
+                </span>
+              )}
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }

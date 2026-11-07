@@ -5,7 +5,11 @@ import {
 } from '@tessera/shared'
 import { useId, useState } from 'react'
 import { ApiError } from '../api/client'
-import { useDeleteCard, useSubtasksForDelete } from '../api/cards'
+import {
+  useCardRelatives,
+  useDeleteCard,
+  useSubtasksForDelete,
+} from '../api/cards'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
@@ -19,28 +23,35 @@ type Choice = 'delete' | 'standalone' | 'move'
 export function DeleteCardDialog({
   card,
   projectCode,
+  returnFocusTo,
   onCancel,
   onDeleted,
 }: {
   card: BoardCard
   projectCode: string
+  returnFocusTo?: HTMLElement | null
   onCancel: () => void
   onDeleted: () => void
 }) {
   const hasSubtasks = card.subtaskProgress.total > 0
   const subtasks = useSubtasksForDelete(card.id, hasSubtasks)
   const remove = useDeleteCard(card.boardId, card.id)
+  // Everything below the card goes with it, so none of it can be a new parent.
+  const below = useCardRelatives(card.boardId, card.id)
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   // The new parent of each subtask that is to move, once chosen.
   const [parents, setParents] = useState<Record<string, RelatedCard>>({})
   // The subtask the picker is open for.
   const [picking, setPicking] = useState<string | null>(null)
+  // The button or radio that opened the picker.
+  const [opener, setOpener] = useState<HTMLElement | null>(null)
 
   function choiceFor(id: string): Choice {
     return choices[id] ?? 'standalone'
   }
 
-  function choose(id: string, choice: Choice) {
+  function choose(id: string, choice: Choice, button: HTMLElement) {
+    setOpener(button)
     setChoices({ ...choices, [id]: choice })
     setPicking(choice === 'move' ? id : null)
   }
@@ -70,6 +81,7 @@ export function DeleteCardDialog({
       confirmLabel="Delete card"
       onConfirm={onConfirm}
       onCancel={onCancel}
+      returnFocusTo={returnFocusTo}
       // Without the subtasks there is nothing to choose for them.
       pending={
         remove.isPending ||
@@ -98,18 +110,27 @@ export function DeleteCardDialog({
                   value={choiceFor(subtask.id)}
                   mayDelete={!nested}
                   parent={parents[subtask.id]}
-                  onChange={(choice) => choose(subtask.id, choice)}
-                  onChoose={() => setPicking(subtask.id)}
+                  onChange={(choice, button) =>
+                    choose(subtask.id, choice, button)
+                  }
+                  onChoose={(button) => {
+                    setOpener(button)
+                    setPicking(subtask.id)
+                  }}
                 />
               ))}
             </fieldset>
           ))}
-        {picked && (
+        {picked && below.data && (
           <ParentPickerDialog
             projectId={card.projectId}
             moving={picked.subtask}
-            alsoLeaveOut={[card.id]}
+            alsoLeaveOut={[
+              card.id,
+              ...below.data.subtasks.map((subtask) => subtask.id),
+            ]}
             modal={false}
+            returnFocusTo={opener}
             onPick={(parent) => {
               setParents({ ...parents, [picked.subtask.id]: parent })
               setPicking(null)
@@ -141,8 +162,8 @@ function SubtaskChoice({
   mayDelete: boolean
   // Where it moves to, once chosen.
   parent: RelatedCard | undefined
-  onChange: (choice: Choice) => void
-  onChoose: () => void
+  onChange: (choice: Choice, button: HTMLElement) => void
+  onChoose: (button: HTMLElement) => void
 }) {
   const group = useId()
   return (
@@ -154,7 +175,7 @@ function SubtaskChoice({
             type="radio"
             name={group}
             checked={value === 'standalone'}
-            onChange={() => onChange('standalone')}
+            onChange={(event) => onChange('standalone', event.currentTarget)}
           />
           Make its own card
         </label>
@@ -166,7 +187,7 @@ function SubtaskChoice({
             name={group}
             checked={value === 'delete'}
             disabled={!mayDelete}
-            onChange={() => onChange('delete')}
+            onChange={(event) => onChange('delete', event.currentTarget)}
           />
           Delete
         </label>
@@ -175,7 +196,7 @@ function SubtaskChoice({
             type="radio"
             name={group}
             checked={value === 'move'}
-            onChange={() => onChange('move')}
+            onChange={(event) => onChange('move', event.currentTarget)}
           />
           Move to another parent
         </label>
@@ -185,7 +206,11 @@ function SubtaskChoice({
           <span>
             {parent ? `Moves under ${parent.number}` : 'No parent yet'}
           </span>
-          <Button variant="link" className="min-h-8" onClick={onChoose}>
+          <Button
+            variant="link"
+            className="min-h-8"
+            onClick={(event) => onChoose(event.currentTarget)}
+          >
             {parent ? 'Change' : 'Choose a parent'}
           </Button>
         </div>

@@ -3,7 +3,8 @@ import { useId, useRef, useState } from 'react'
 
 export interface Action {
   name: string
-  onSelect: () => void
+  // Given the button that opened the menu, for a window to give focus back to.
+  onSelect: (opener: HTMLElement | null) => void
   disabled?: boolean
   // Shown under a turned-off action, and read out with it.
   reason?: string
@@ -26,9 +27,11 @@ export function ActionsMenu({
   // edge, the resizable panels take the press for themselves, so the click
   // that follows opens it instead.
   const pressTaken = useRef(false)
+  const trigger = useRef<HTMLButtonElement>(null)
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger
+        ref={trigger}
         aria-label={label}
         onPointerDown={(event) => {
           pressTaken.current = event.defaultPrevented
@@ -56,7 +59,7 @@ export function ActionsMenu({
               <DropdownMenu.Item
                 key={action.name}
                 disabled={action.disabled}
-                onSelect={action.onSelect}
+                onSelect={() => action.onSelect(trigger.current)}
                 aria-describedby={showReason ? reasonId : undefined}
                 className="cursor-pointer rounded-md px-3 py-2 outline-none data-disabled:cursor-default data-disabled:text-muted data-highlighted:bg-subtle"
               >

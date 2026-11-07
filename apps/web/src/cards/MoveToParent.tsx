@@ -8,9 +8,11 @@ import { ParentPickerDialog } from './ParentPickerDialog'
 export function MoveToParent({
   card,
   onDone,
+  returnFocusTo,
 }: {
   card: Pick<Card, 'id' | 'boardId' | 'projectId'>
   onDone: () => void
+  returnFocusTo?: HTMLElement | null
 }) {
   const setParent = useSetParent()
   return (
@@ -26,6 +28,7 @@ export function MoveToParent({
       onCancel={onDone}
       error={setParent.error}
       pending={setParent.isPending}
+      returnFocusTo={returnFocusTo}
     />
   )
 }

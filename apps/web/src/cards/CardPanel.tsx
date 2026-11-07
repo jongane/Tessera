@@ -125,6 +125,7 @@ function CardDetails({
   const [saveFailed, setSaveFailed] = useState<string>()
   const [unsavedDescription, setUnsavedDescription] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteButton, setDeleteButton] = useState<HTMLElement | null>(null)
   const change = useChangeCard(card.boardId, card.id)
 
   function track(saving: Promise<unknown>) {
@@ -179,7 +180,10 @@ function CardDetails({
         <DeleteButton
           card={card}
           projectId={project.id}
-          onDelete={() => setDeleting(true)}
+          onDelete={(button) => {
+            setDeleteButton(button)
+            setDeleting(true)
+          }}
         />
       </div>
       {unsavedDescription && <DiscardOnLeave />}
@@ -187,6 +191,7 @@ function CardDetails({
         <DeleteCardDialog
           card={card}
           projectCode={project.code}
+          returnFocusTo={deleteButton}
           onCancel={() => setDeleting(false)}
           onDeleted={() => {
             setDeleting(false)
@@ -254,6 +259,7 @@ function ParentActions({
   track: (saving: Promise<unknown>) => void
 }) {
   const [moving, setMoving] = useState(false)
+  const [opener, setOpener] = useState<HTMLElement | null>(null)
   const setParent = useSetParent()
   return (
     <>
@@ -261,7 +267,13 @@ function ParentActions({
         label="Card options"
         className=""
         actions={[
-          { name: 'Move to another parent', onSelect: () => setMoving(true) },
+          {
+            name: 'Move to another parent',
+            onSelect: (button) => {
+              setOpener(button)
+              setMoving(true)
+            },
+          },
           {
             name: 'Make its own card',
             onSelect: () =>
@@ -269,7 +281,13 @@ function ParentActions({
           },
         ]}
       />
-      {moving && <MoveToParent card={card} onDone={() => setMoving(false)} />}
+      {moving && (
+        <MoveToParent
+          card={card}
+          onDone={() => setMoving(false)}
+          returnFocusTo={opener}
+        />
+      )}
     </>
   )
 }
@@ -381,7 +399,7 @@ function DeleteButton({
 }: {
   card: BoardCard
   projectId: string
-  onDelete: () => void
+  onDelete: (button: HTMLElement) => void
 }) {
   const me = useMe()
   const members = useMembers(projectId)
@@ -398,7 +416,7 @@ function DeleteButton({
         className="self-start text-danger"
         disabled={!mayDelete}
         aria-describedby={mayDelete ? undefined : reasonId}
-        onClick={onDelete}
+        onClick={(event) => onDelete(event.currentTarget)}
       >
         Delete card
       </Button>

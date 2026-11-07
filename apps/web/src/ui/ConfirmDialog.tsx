@@ -13,6 +13,7 @@ export function ConfirmDialog({
   onCancel,
   pending = false,
   error,
+  returnFocusTo,
 }: {
   title: string
   children: ReactNode
@@ -21,9 +22,15 @@ export function ConfirmDialog({
   onCancel: () => void
   pending?: boolean
   error?: Error | null
+  returnFocusTo?: HTMLElement | null
 }) {
   return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()} title={title}>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title={title}
+      returnFocusTo={returnFocusTo}
+    >
       {error && <Alert>{error.message}</Alert>}
       <div>{children}</div>
       <div className="flex justify-end gap-2">

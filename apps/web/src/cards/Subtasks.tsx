@@ -102,6 +102,7 @@ function SubtaskRow({
   // How many subtasks of this subtask are open, while asking.
   const [asking, setAsking] = useState<number | null>(null)
   const [moving, setMoving] = useState(false)
+  const [opener, setOpener] = useState<HTMLElement | null>(null)
   // The done column of the subtask's own board, once it is ticked.
   const [offer, setOffer] = useState<string | null>(null)
   const setParent = useSetParent()
@@ -155,7 +156,13 @@ function SubtaskRow({
       <ActionsMenu
         label={`Options for ${subtask.number}`}
         actions={[
-          { name: 'Move to another parent', onSelect: () => setMoving(true) },
+          {
+            name: 'Move to another parent',
+            onSelect: (button) => {
+              setOpener(button)
+              setMoving(true)
+            },
+          },
           {
             name: 'Make its own card',
             onSelect: () =>
@@ -185,7 +192,11 @@ function SubtaskRow({
         />
       )}
       {moving && (
-        <MoveToParent card={subtask} onDone={() => setMoving(false)} />
+        <MoveToParent
+          card={subtask}
+          onDone={() => setMoving(false)}
+          returnFocusTo={opener}
+        />
       )}
     </li>
   )
