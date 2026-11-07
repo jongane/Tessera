@@ -44,13 +44,10 @@ import { Button } from '../ui/Button'
 import { checkForm } from '../ui/form-errors'
 import { TextField } from '../ui/TextField'
 import { ActionsMenu } from './ActionsMenu'
+import { DEEPEST_PARENT, TOO_DEEP } from './depth'
 
 // `track` shows "Couldn't save" if the change fails.
 type Track = (saving: Promise<unknown>) => void
-
-// A subtask can be at most this deep (docs/card-features.md, section 4), so
-// a card this deep can't get subtasks.
-const DEEPEST_PARENT = 4
 
 // One checklist's items, as tick boxes, in order. They can be dragged into
 // another order with a pointer or the keyboard (Space, arrows, Space), or
@@ -162,7 +159,7 @@ export function ChecklistItems({
                   {
                     name: 'Turn into subtask',
                     disabled: card.depth >= DEEPEST_PARENT,
-                    reason: `Subtasks can only go ${DEEPEST_PARENT + 1} levels deep`,
+                    reason: TOO_DEEP,
                     onSelect: () =>
                       turn.mutate({ checklistId: list.id, itemId: item.id }),
                   },

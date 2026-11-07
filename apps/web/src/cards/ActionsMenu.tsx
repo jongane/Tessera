@@ -13,9 +13,12 @@ export interface Action {
 export function ActionsMenu({
   label,
   actions,
+  className = 'ml-auto',
 }: {
   label: string
   actions: Action[]
+  // Where the button sits; at the right of its row unless told otherwise.
+  className?: string
 }) {
   const id = useId()
   const [open, setOpen] = useState(false)
@@ -36,7 +39,7 @@ export function ActionsMenu({
             setOpen(true)
           }
         }}
-        className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
+        className={`${className} flex size-8 shrink-0 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink`}
       >
         <span aria-hidden="true">⋯</span>
       </DropdownMenu.Trigger>
