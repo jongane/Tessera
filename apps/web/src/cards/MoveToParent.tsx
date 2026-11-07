@@ -11,7 +11,7 @@ export function MoveToParent({
   onMoved,
   returnFocusTo,
 }: {
-  card: Pick<Card, 'id' | 'boardId' | 'projectId'>
+  card: Pick<Card, 'id' | 'boardId' | 'projectId' | 'parentId'>
   onDone: () => void
   // Called when the move was saved, before `onDone`.
   onMoved?: () => void
@@ -22,15 +22,16 @@ export function MoveToParent({
     <ParentPickerDialog
       projectId={card.projectId}
       moving={card}
+      alsoLeaveOut={card.parentId ? [card.parentId] : []}
       onPick={(parent) =>
-        setParent.mutate(
-          { cardId: card.id, parentId: parent.id },
-          {
-            onSuccess: () => {
-              onMoved?.()
-              onDone()
-            },
+        // mutateAsync still answers if a reload removed this dialog's row
+        // while saving; a failure shows in `error`.
+        setParent.mutateAsync({ cardId: card.id, parentId: parent.id }).then(
+          () => {
+            onMoved?.()
+            onDone()
           },
+          () => {},
         )
       }
       onCancel={onDone}

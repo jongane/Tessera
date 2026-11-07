@@ -119,19 +119,29 @@ function SubtaskRow({
   // A subtask the person moved away or made its own card takes its row,
   // and the button that had focus, with it: focus goes to the list's
   // heading. A row that goes away for any other reason leaves focus alone.
+  // A reload can remove the row while the request is still saving; then
+  // the success handler focuses the heading itself.
   const movedAway = useRef(false)
+  const mounted = useRef(true)
   const headingRef = useRef(headingId)
   useEffect(() => {
     headingRef.current = headingId
   })
   useEffect(
     () => () => {
+      mounted.current = false
       if (movedAway.current) {
         document.getElementById(headingRef.current)?.focus()
       }
     },
     [],
   )
+  function onMovedAway() {
+    movedAway.current = true
+    if (!mounted.current) {
+      document.getElementById(headingRef.current)?.focus()
+    }
+  }
   const open = subtask.subtaskProgress.total - subtask.subtaskProgress.complete
 
   function change(done: boolean, confirmOpenSubtasks = false) {
@@ -195,9 +205,7 @@ function SubtaskRow({
               track(
                 setParent
                   .mutateAsync({ cardId: subtask.id, parentId: null })
-                  .then(() => {
-                    movedAway.current = true
-                  }),
+                  .then(onMovedAway),
               ),
           },
         ]}
@@ -225,9 +233,7 @@ function SubtaskRow({
         <MoveToParent
           card={subtask}
           onDone={() => setMoving(false)}
-          onMoved={() => {
-            movedAway.current = true
-          }}
+          onMoved={onMovedAway}
           returnFocusTo={opener}
         />
       )}
