@@ -1,6 +1,6 @@
 import type { BoardCard } from '@tessera/shared'
 import { act, screen, waitFor, within } from '@testing-library/react'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import { boardPath, cardPanel, typeInto } from '../test/card-panel'
@@ -950,5 +950,125 @@ describe('Deleting a card with subtasks: the third choice', () => {
         [errors.id]: { action: 'standalone' },
       },
     })
+  })
+})
+
+describe('Subtasks: what the list shows when things go wrong', () => {
+  function twoSubtasks() {
+    return family(
+      login,
+      boardCard('12.1', 'Form', { depth: 1 }),
+      boardCard('12.2', 'Errors', { depth: 1 }),
+    )
+  }
+
+  it('shows the error, not “No subtasks yet”, when the list cannot be loaded', async () => {
+    const { parent } = twoSubtasks()
+    fakeBoard(boardOf(parent))
+    server.use(
+      http.get('/api/cards/:cardId/subtasks', () =>
+        apiError(500, 'Something broke'),
+      ),
+    )
+    renderApp(`${boardPath}?card=${parent.id}`)
+    const section = await subtasksOf(await cardPanel())
+
+    expect(await within(section).findByRole('alert')).toHaveTextContent(
+      'Something broke',
+    )
+    expect(section).not.toHaveTextContent(NO_SUBTASKS)
+  })
+
+  it('names the form’s submit button “Add”, next to “Cancel”', async () => {
+    const { user } = open([login], login.id)
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(
+      within(section).getByRole('button', { name: 'Add subtask' }),
+    )
+
+    expect(
+      within(section).getByRole('button', { name: 'Add' }),
+    ).toHaveAttribute('type', 'submit')
+    expect(
+      within(section).getByRole('button', { name: 'Cancel' }),
+    ).toBeInTheDocument()
+  })
+
+  // The same rule as checklists (PR 7a): a reload that finishes while another
+  // tick is still being saved must not bring back the old state.
+  it('keeps the first tick shown while it is still being saved', async () => {
+    const { parent, children } = twoSubtasks()
+    const [form] = children as [BoardCard, BoardCard]
+    const { user } = open([parent, ...children], parent.id)
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    server.use(
+      http.post(`/api/cards/${form.id}/complete`, async () => {
+        await held
+        return HttpResponse.json({ card: form, doneColumnId: null })
+      }),
+    )
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(
+      within(await row(section, 'WEB-12.1')).getByRole('checkbox'),
+    )
+    await user.click(
+      within(await row(section, 'WEB-12.2')).getByRole('checkbox'),
+    )
+    await waitFor(() => expect(section).toHaveTextContent(OFFER))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    expect(
+      within(await row(section, 'WEB-12.1')).getByRole('checkbox'),
+    ).toBeChecked()
+    release()
+  })
+
+  it('shows the API’s message when “Make its own card” is refused', async () => {
+    const { parent, children } = twoSubtasks()
+    const { user } = open([parent, ...children], parent.id)
+    server.use(
+      http.put('/api/cards/:cardId/parent', () =>
+        apiError(404, 'Card not found'),
+      ),
+    )
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(rowMenu(await row(section, 'WEB-12.1')))
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Make its own card' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Card not found')
+  })
+
+  it('asks “Complete anyway?” when the API says subtasks are still open', async () => {
+    const { parent, children } = twoSubtasks()
+    const [form] = children as [BoardCard, BoardCard]
+    const { user } = open([parent, ...children], parent.id)
+    server.use(
+      http.post(`/api/cards/${form.id}/complete`, () =>
+        HttpResponse.json(
+          {
+            statusCode: 409,
+            message: '1 subtask is still open',
+            openSubtasks: 1,
+          },
+          { status: 409 },
+        ),
+      ),
+    )
+    const section = await subtasksOf(await cardPanel())
+
+    await user.click(
+      within(await row(section, 'WEB-12.1')).getByRole('checkbox'),
+    )
+
+    // Criterion 6.
+    expect(
+      await screen.findByRole('dialog', { name: 'Complete anyway?' }),
+    ).toBeInTheDocument()
   })
 })
