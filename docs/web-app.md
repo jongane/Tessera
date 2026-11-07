@@ -63,6 +63,15 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
   - Each checklist's menu has Rename, Move up, Move down and Delete. Delete asks "Delete 'Testing' and its 6 items?" first.
   - The limits come from the shared rules, so the form and the API give the same answer: a name up to 100 characters, an item up to 500, and a name or item that is empty or only spaces is refused with "This can’t be empty" (the same words as the app's other forms). One that is too long is refused with "Use at most 100 characters" (or 500 for an item). At 100 items "Add item" is turned off and says "A checklist holds up to 100 items". If the "New item" box is open when the list fills, it closes, any half-typed text is cleared, and the keyboard focus moves to that reason only if you were typing in that box. If you were somewhere else (for example editing another item), focus stays where it is, so that edit is not saved early.
   - Adding an 11th or later checklist shows a note: "This card has a lot of checklists. Would a new card be clearer?" Its "Create a card" button opens the board's Add card form in this card's column. The checklist is still added.
+- **Subtasks** sit under the description, with the checklists (agreed 2026-11-04; row and form layout approved from a mock-up on 2026-11-07):
+  - The section heading shows "N of M complete" (direct subtasks only, as [card-features.md](card-features.md) section 4 says). With none, it says "No subtasks yet".
+  - Each row has a tick box, the subtask's number and title as a link (it opens in the panel, or on its own board when it is on another one), its column and board, and its own subtask progress ("1 of 2") when it has subtasks. An "Options for WEB-12.1" menu has "Move to another parent" and "Make its own card".
+  - Ticking a subtask that has open subtasks asks "Complete anyway?" first. After a tick, the row offers "Completed. Move it to Done?" with "Move" and "Keep here" ([card-features.md](card-features.md) section 5).
+  - "Add subtask" asks for a title and a column. The column list is grouped by board, and starts on the parent's column. Any column of any board in the project can be picked. On a card 5 levels deep "Add subtask" is turned off and says "Subtasks can only go 5 levels deep".
+  - "Move to another parent" opens a picker, also named "Move to another parent". It finds a card by its number or by words from its title, in the same project.
+  - A subtask shows a line above its sections: "Subtask of WEB-12 Build sign-in", linking to its parent. A top-level card has no such line.
+  - A subtask's panel header has a "Card options" menu (next to the close button) with "Move to another parent" and "Make its own card". "Delete card" stays a plain button.
+  - In the Delete card dialog, a subtask's third choice is "Move to another parent". Choosing it opens the picker straight away, and the dialog says "Moves under WEB-15" once a parent is picked. Delete stays turned off until every subtask marked to move has a parent.
 - Quick actions such as dragging a card or ticking a checklist item show on screen straight away. If saving fails, the change is undone and a short message says "Couldn't save, try again".
 
 ## 6. Keeping screens up to date
@@ -102,6 +111,6 @@ One pull request at a time, each with its plan approved first:
 6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting, and seeing related cards ([card-features.md](card-features.md) section 7; agreed 2026-11-01).
 7. Card panel extras, split into four pull requests, one after another, each from `main` (agreed 2026-11-03):
    - 7a. Checklists in the card panel (done).
-   - 7b. Subtasks: the parent line, the Subtasks section, adding and moving subtasks, and the third choice in the Delete card dialog. A small API pull request comes first, adding each subtask's number, board name, column name and subtask progress to `GET /cards/:id/subtasks`.
+   - 7b. Subtasks: the parent line, the Subtasks section, adding and moving subtasks, the "Card options" menu on a subtask, and the third choice in the Delete card dialog (done). A small API pull request came first, adding each subtask's number, board name, column name and subtask progress to `GET /cards/:id/subtasks`.
    - 7c. Time and the timer, with the running-timer chip in the top bar.
    - 7d. The Activity tab (Details and Activity tabs in the panel).

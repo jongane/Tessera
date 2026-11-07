@@ -34,11 +34,12 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 
 - A subtask is an ordinary card with a parent card. It has its own column, assignees, estimate, time, checklist and chat.
 - Subtasks can be nested **up to 5 levels** deep.
+- A **new subtask** starts in its parent's column. When adding it, you can pick any column of any board in the project instead. (Agreed 2026-11-03.)
 - A subtask can be on **any board in the same project**, but never in another project.
 - The parent card shows a **list of its subtasks**, and each subtask shows its parent.
 - **Progress** on a parent ("3 of 5 complete") counts its **direct subtasks only**.
 - A parent is **never completed automatically**. Completing a parent while some subtasks are open asks: "3 subtasks are still open. Complete anyway?"
-- **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent. (The card panel offers "move to another parent" once it shows subtasks; agreed 2026-11-01.)
+- **Deleting a parent:** the user chooses what happens to each direct subtask. It can be deleted too, moved to another parent, or made into a card of its own. Deeper subtasks stay with their own parent. (The card panel offers "Move to another parent" for each subtask, in the Delete card dialog and from the subtask's own menu; agreed 2026-11-01.)
   - A direct subtask that has subtasks of its own **cannot be chosen for deletion** until the user has decided what happens to its subtasks. This stops one click deleting a whole branch. (Agreed 2026-10-27.)
 
 ## 5. Completing cards
