@@ -69,10 +69,10 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
   - Ticking a subtask that has open subtasks asks "Complete anyway?" first. After a tick, the row offers "Completed. Move it to Done?" with "Move" and "Keep here" ([card-features.md](card-features.md) section 5).
   - "Add subtask" asks for a title and a column. The column list is grouped by board, and starts on the parent's column. Any column of any board in the project can be picked. On a card 5 levels deep "Add subtask" is turned off and says "Subtasks can only go 5 levels deep".
   - "Move to another parent" opens a picker, also named "Move to another parent". It finds a card by its number or by words from its title, in the same project.
-  - A subtask shows a line above its sections: "Subtask of WEB-12 Build sign-in", linking to its parent. A top-level card has no such line.
+  - A subtask shows a line under the card's title: "Subtask of WEB-12 Build sign-in", linking to its parent. A top-level card has no such line.
   - A subtask's panel header has a "Card options" menu (next to the close button) with "Move to another parent" and "Make its own card". "Delete card" stays a plain button.
   - In the Delete card dialog, a subtask's third choice is "Move to another parent". Choosing it opens the picker straight away, and the dialog says "Moves under WEB-15" once a parent is picked. Delete stays turned off until every subtask marked to move has a parent.
-- Quick actions such as dragging a card or ticking a checklist item show on screen straight away. If saving fails, the change is undone and a short message says "Couldn't save, try again".
+- Quick actions such as dragging a card or ticking a checklist item show on screen straight away. If saving fails, the change is undone and a short message says why. When the server refuses the change (a 4xx answer, for example "Card not found"), the message is the server's own words. For network problems and server errors it says "Couldn't save, try again" (agreed 2026-11-07).
 
 ## 6. Keeping screens up to date
 
