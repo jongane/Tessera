@@ -367,7 +367,7 @@ test('start and stop the timer, and log time by hand', async ({ page }) => {
   const panel = page.getByRole('complementary', { name: /^Card / })
   const time = panel.getByRole('region', { name: 'Time' })
 
-  // The chip in the top bar follows the timer. (Wording proposed.)
+  // The chip in the top bar follows the timer. (Wording agreed 2026-11-07.)
   await time.getByRole('button', { name: 'Start timer' }).click()
   const chip = page.getByRole('group', { name: 'Running timer' })
   await expect(chip).toContainText(/-\d+/)

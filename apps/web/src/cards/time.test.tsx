@@ -22,9 +22,9 @@ import { ana, apiError, server, signedInAs } from '../test/server'
 // chip in the top bar (acceptance criteria 25 to 37, 44 and 45; the
 // project's time zone dates entries; docs/card-features.md, section 6).
 //
-// Wording and screen details marked “(proposed)” are the tester's
-// suggestions where the plan does not fix them; the repository owner
-// confirms them (see the questions in the red-step report).
+// Wording and screen details marked “(agreed 2026-11-07)” were proposed
+// by the tester where the plan did not fix them, and the repository
+// owner approved them (7c answers).
 
 // Wording the owner decided (criteria file, Status line and plan).
 const SAVE_FAILED = 'Couldn’t save, try again'
@@ -39,13 +39,13 @@ const NEEDS_REVIEW = 'Needs review'
 const DELETE_REFUSED =
   'This card has 3h 20m logged. A project admin can delete the time entries first.'
 
-// Wording and details proposed by the tester (proposed).
+// Wording and details proposed by the tester (agreed 2026-11-07).
 const TIME = 'Time' // the section's heading, a region
 const ENTRIES = 'Entries' // a heading with a list of the same name below it
 const START = 'Start timer'
 const STOP = 'Stop timer'
 const CHIP = 'Running timer' // the top-bar chip, a group
-const YES = 'Yes' // the “running on another card” dialog's confirm button
+const YES = 'Stop it and start here' // the “running on another card” dialog's confirm button
 const LOG_TIME = 'Log time' // opens the form
 const SAVE = 'Save' // log and edit forms (with Cancel)
 const OF_WHICH = 'of which 45m on this card'
