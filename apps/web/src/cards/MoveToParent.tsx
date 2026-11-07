@@ -17,8 +17,9 @@ export function MoveToParent({
   onDone: () => void
   // Called when the move was saved, before `onDone`.
   onMoved?: () => void
-  // Called when saving failed after this dialog was removed (a reload took
-  // its row), so the failure can show elsewhere.
+  // Called when saving failed after this dialog closed (cancelled while
+  // saving, or a reload took its row), so the failure can show in the card
+  // panel.
   onLateFailure?: (error: unknown) => void
   returnFocusTo?: HTMLElement | null
 }) {
