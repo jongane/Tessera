@@ -104,19 +104,13 @@ function rowMenu(row: HTMLElement) {
   return buttons[0]!
 }
 
-// The button of the card panel's own "⋯" options menu: a menu button that is
-// neither in a subtask's row nor a checklist's. (Its name is not decided.)
+// The button of the card panel's own options menu, named "Card options"
+// (owner's answer, 2026-11-07). It is not in a subtask's row.
 function cardMenu(panel: HTMLElement) {
-  const buttons = within(panel)
-    .queryAllByRole('button')
-    .filter(
-      (button) =>
-        button.getAttribute('aria-haspopup') === 'menu' &&
-        !button.closest('li') &&
-        !/^Options for /.test(button.getAttribute('aria-label') ?? ''),
-    )
-  expect(buttons, 'one options menu on the card panel').toHaveLength(1)
-  return buttons[0]!
+  const button = within(panel).getByRole('button', { name: 'Card options' })
+  expect(button).toHaveAttribute('aria-haspopup', 'menu')
+  expect(button.closest('li'), 'not in a row').toBe(null)
+  return button
 }
 
 function expectTurnedOff(element: HTMLElement) {
@@ -572,6 +566,30 @@ describe('Adding a subtask', () => {
     expect(api.requests).toEqual([])
   })
 
+  // Escape in the Add subtask form closes the form only, not the panel.
+  it.each(['title box', 'Cancel button'])(
+    'closes the form on Escape from its %s, not the panel',
+    async (where) => {
+      const { user } = open([login], login.id)
+      const panel = await cardPanel()
+      const section = await subtasksOf(panel)
+      await user.click(
+        within(section).getByRole('button', { name: 'Add subtask' }),
+      )
+      const title = within(section).getByRole('textbox', { name: /title/i })
+      if (where === 'title box') title.focus()
+      else within(section).getByRole('button', { name: 'Cancel' }).focus()
+      await user.keyboard('{Escape}')
+
+      expect(
+        within(section).queryByRole('textbox', { name: /title/i }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('complementary', { name: 'Card WEB-12' }),
+      ).toBeInTheDocument()
+    },
+  )
+
   // Criterion 9 and 44.
   it('turns Add subtask off on a card 5 levels deep, and says why', async () => {
     const deep = boardCard('12.1.1.1.1', 'Deep card', { parentId: login.id })
@@ -820,14 +838,9 @@ describe('Changing the parent from the header', () => {
     await within(panel).findByRole('region', { name: 'Subtasks' })
 
     // The menu may be absent, or have other items, but not these two.
-    const menus = within(panel)
-      .queryAllByRole('button')
-      .filter(
-        (button) =>
-          button.getAttribute('aria-haspopup') === 'menu' &&
-          !button.closest('li') &&
-          !/^Options for /.test(button.getAttribute('aria-label') ?? ''),
-      )
+    const menus = within(panel).queryAllByRole('button', {
+      name: 'Card options',
+    })
     for (const menu of menus) {
       await user.click(menu)
       await screen.findByRole('menu')
