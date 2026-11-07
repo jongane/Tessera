@@ -8,10 +8,13 @@ import { ParentPickerDialog } from './ParentPickerDialog'
 export function MoveToParent({
   card,
   onDone,
+  onMoved,
   returnFocusTo,
 }: {
   card: Pick<Card, 'id' | 'boardId' | 'projectId'>
   onDone: () => void
+  // Called when the move was saved, before `onDone`.
+  onMoved?: () => void
   returnFocusTo?: HTMLElement | null
 }) {
   const setParent = useSetParent()
@@ -22,7 +25,12 @@ export function MoveToParent({
       onPick={(parent) =>
         setParent.mutate(
           { cardId: card.id, parentId: parent.id },
-          { onSuccess: onDone },
+          {
+            onSuccess: () => {
+              onMoved?.()
+              onDone()
+            },
+          },
         )
       }
       onCancel={onDone}

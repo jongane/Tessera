@@ -116,17 +116,18 @@ function SubtaskRow({
   // The done column of the subtask's own board, once it is ticked.
   const [offer, setOffer] = useState<string | null>(null)
   const setParent = useSetParent()
-  // A subtask moved away takes its row, and the button that had focus, with
-  // it: focus goes to the list's heading.
-  const gone = useRef({ opener, headingId })
+  // A subtask the person moved away or made its own card takes its row,
+  // and the button that had focus, with it: focus goes to the list's
+  // heading. A row that goes away for any other reason leaves focus alone.
+  const movedAway = useRef(false)
+  const headingRef = useRef(headingId)
   useEffect(() => {
-    gone.current = { opener, headingId }
+    headingRef.current = headingId
   })
   useEffect(
     () => () => {
-      const { opener: button, headingId: id } = gone.current
-      if (button && !button.isConnected) {
-        document.getElementById(id)?.focus()
+      if (movedAway.current) {
+        document.getElementById(headingRef.current)?.focus()
       }
     },
     [],
@@ -192,7 +193,11 @@ function SubtaskRow({
             name: 'Make its own card',
             onSelect: () =>
               track(
-                setParent.mutateAsync({ cardId: subtask.id, parentId: null }),
+                setParent
+                  .mutateAsync({ cardId: subtask.id, parentId: null })
+                  .then(() => {
+                    movedAway.current = true
+                  }),
               ),
           },
         ]}
@@ -220,6 +225,9 @@ function SubtaskRow({
         <MoveToParent
           card={subtask}
           onDone={() => setMoving(false)}
+          onMoved={() => {
+            movedAway.current = true
+          }}
           returnFocusTo={opener}
         />
       )}
