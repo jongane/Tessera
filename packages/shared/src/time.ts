@@ -3,10 +3,22 @@ import { z } from 'zod';
 export const MAX_ENTRY_MINUTES = 24 * 60;
 export const MAX_ESTIMATE_MINUTES = 10_000 * 60;
 
-const minutesField = z.number().int().min(1).max(MAX_ENTRY_MINUTES);
+// What forms show when a time entry is out of bounds; the API says the same.
+export const ENTRY_TOO_SHORT_MESSAGE = 'Log at least 1 minute';
+export const ENTRY_TOO_LONG_MESSAGE = 'Log at most 24 hours at a time';
+export const NOTE_TOO_LONG_MESSAGE = 'Use at most 1000 characters';
+
+const minutesField = z
+  .number()
+  .int()
+  .min(1, { message: ENTRY_TOO_SHORT_MESSAGE })
+  .max(MAX_ENTRY_MINUTES, { message: ENTRY_TOO_LONG_MESSAGE });
 // A day not yet started in the project's time zone is refused by the API.
 const workDateField = z.iso.date();
-const noteField = z.string().trim().max(1000);
+const noteField = z
+  .string()
+  .trim()
+  .max(1000, { message: NOTE_TOO_LONG_MESSAGE });
 
 export const newTimeEntrySchema = z.strictObject({
   minutes: minutesField,
