@@ -87,9 +87,14 @@ export function DeleteCardDialog({
         remove.isPending ||
         subtasks.pending ||
         subtasks.error !== null ||
+        (hasSubtasks && below.isPending) ||
         unplaced
       }
-      error={deleteError(remove.error) ?? subtasks.error}
+      error={
+        deleteError(remove.error) ??
+        subtasks.error ??
+        (hasSubtasks ? below.error : null)
+      }
     >
       <div className="flex flex-col gap-3">
         <p>

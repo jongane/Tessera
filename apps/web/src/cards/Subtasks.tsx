@@ -13,7 +13,6 @@ import {
   useSubtasks,
   useTickSubtask,
 } from '../api/subtasks'
-import { ApiError } from '../api/client'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { checkForm } from '../ui/form-errors'
@@ -21,6 +20,7 @@ import { TextField } from '../ui/TextField'
 import { ActionsMenu } from './ActionsMenu'
 import { CompleteAnywayDialog } from '../boards/CompleteAnywayDialog'
 import { DEEPEST_PARENT, TOO_DEEP } from './depth'
+import { openSubtasksOf } from './open-subtasks'
 import { MoveToParent } from './MoveToParent'
 
 // `track` shows "Couldn't save" if the change fails.
@@ -200,16 +200,6 @@ function SubtaskRow({
       )}
     </li>
   )
-}
-
-// The count in the API's 409 "subtasks are still open", else null.
-function openSubtasksOf(error: unknown): number | null {
-  const count = error instanceof ApiError ? error.details.openSubtasks : null
-  return error instanceof ApiError &&
-    error.status === 409 &&
-    typeof count === 'number'
-    ? count
-    : null
 }
 
 // Opens the subtask in the panel, or its board when it is on another one.

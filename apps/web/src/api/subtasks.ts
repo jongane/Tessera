@@ -49,9 +49,16 @@ function tickKey(cardId: string) {
 
 type ParentCard = Pick<Card, 'id' | 'boardId'>
 
-function useReloadBoards() {
+// Skipped while a tick is still being saved, so it cannot put back what the
+// tick has already shown. The last tick reloads when it has settled.
+// `ownTicks` is how many of the pending ticks belong to the caller.
+function useReloadBoards(ownTicks = 0) {
   const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries({ queryKey: ['boards'] })
+  return () => {
+    if (queryClient.isMutating({ mutationKey: ['subtasks'] }) <= ownTicks) {
+      queryClient.invalidateQueries({ queryKey: ['boards'] })
+    }
+  }
 }
 
 function withDone(
@@ -80,12 +87,9 @@ export interface SubtaskTick {
 export function useTickSubtask(parent: ParentCard) {
   const queryClient = useQueryClient()
   const key = subtasksKey(parent.boardId, parent.id)
-  const reloadBoards = useReloadBoards()
-  const reload = () => {
-    if (queryClient.isMutating({ mutationKey: tickKey(parent.id) }) <= 1) {
-      return reloadBoards()
-    }
-  }
+  // Not waited for, so the tick has ended when the reload finishes and the
+  // regular reload starts again.
+  const reload = useReloadBoards(1)
   return useMutation({
     mutationKey: tickKey(parent.id),
     mutationFn: ({ subtask, done, confirmOpenSubtasks }: SubtaskTick) =>

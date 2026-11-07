@@ -12,6 +12,7 @@ import { useChangeCard, useCompleteCard, useReopenCard } from '../api/cards'
 import { useSetParent } from '../api/subtasks'
 import { useMembers } from '../api/members'
 import { useMoveCard } from '../api/boards'
+import { openSubtasksOf } from './open-subtasks'
 import { CompleteAnywayDialog } from '../boards/CompleteAnywayDialog'
 import { findCard } from '../boards/move-card'
 import { Alert } from '../ui/Alert'
@@ -307,14 +308,22 @@ function CompleteControl({
   const complete = useCompleteCard(card.boardId, card.id)
   const reopen = useReopenCard(card.boardId, card.id)
   const move = useMoveCard(card.boardId)
-  const [asking, setAsking] = useState(false)
+  // How many subtasks are open, while asking.
+  const [asking, setAsking] = useState<number | null>(null)
   const [offer, setOffer] = useState<string | null>(null)
   const open = card.subtaskProgress.total - card.subtaskProgress.complete
   const doneColumn = view.columns.find((column) => column.id === offer)
 
   function completeCard(confirmOpenSubtasks: boolean) {
     const saving = complete.mutateAsync(confirmOpenSubtasks)
-    track(saving)
+    // The API may know of open subtasks the board did not show.
+    track(
+      saving.catch((error: unknown) => {
+        const count = openSubtasksOf(error)
+        if (count === null) throw error
+        setAsking(count)
+      }),
+    )
     saving.then(
       (result) => setOffer(result.doneColumnId),
       () => {},
@@ -326,7 +335,7 @@ function CompleteControl({
     if (!checked) {
       track(reopen.mutateAsync())
     } else if (open > 0) {
-      setAsking(true)
+      setAsking(open)
     } else {
       completeCard(false)
     }
@@ -375,13 +384,13 @@ function CompleteControl({
           </Button>
         </div>
       )}
-      {asking && (
+      {asking !== null && (
         <CompleteAnywayDialog
-          openSubtasks={open}
+          openSubtasks={asking}
           byMoving={false}
-          onCancel={() => setAsking(false)}
+          onCancel={() => setAsking(null)}
           onConfirm={() => {
-            setAsking(false)
+            setAsking(null)
             completeCard(true)
           }}
         />
