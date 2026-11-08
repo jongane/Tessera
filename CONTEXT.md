@@ -46,6 +46,9 @@ _Avoid_: Lead, primary assignee
 A named list of tick-box items on a card, separate from its description.
 _Avoid_: To-do list
 
+**Activity**:
+A card's history: one line for each change made to it, with who made it and when. It is shown in the card panel's Activity tab and can never be edited.
+
 **Time entry**:
 An amount of time a person logged on a card for one day, typed in or saved from the timer. The day is the day in the project's time zone.
 _Avoid_: Timesheet line, log

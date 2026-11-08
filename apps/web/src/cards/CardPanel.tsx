@@ -4,6 +4,7 @@ import type {
   CardChangesBody,
   Project,
 } from '@tessera/shared'
+import * as Tabs from '@radix-ui/react-tabs'
 import { type KeyboardEvent, lazy, Suspense, useState } from 'react'
 import { useBlocker } from 'react-router'
 import { useMe } from '../api/auth'
@@ -27,6 +28,7 @@ import {
 } from './CardFields'
 import { DeleteCardDialog } from './DeleteCardDialog'
 import { Checklists } from './Checklists'
+import { ActivityTab } from './ActivityTab'
 import { ActionsMenu } from './ActionsMenu'
 import { MoveToParent } from './MoveToParent'
 import { ParentLine } from './ParentLine'
@@ -34,6 +36,11 @@ import { AssigneesField, LabelsField } from './PeopleAndLabels'
 import { RelatedElsewhere } from './RelatedElsewhere'
 import { Subtasks } from './Subtasks'
 import { TimeSection } from './TimeSection'
+
+type Section = 'details' | 'activity'
+
+const tabClass =
+  'min-h-11 px-3 font-semibold text-muted aria-selected:border-b-2 aria-selected:border-accent aria-selected:text-ink'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
@@ -134,6 +141,7 @@ function CardDetails({
 }: CardPanelProps & { card: BoardCard; columnId: string; columnName: string }) {
   const [saveFailed, setSaveFailed] = useState<string>()
   const [unsavedDescription, setUnsavedDescription] = useState(false)
+  const [section, setSection] = useState<Section>('details')
   const [deleting, setDeleting] = useState(false)
   const [deleteButton, setDeleteButton] = useState<HTMLElement | null>(null)
   const change = useChangeCard(card.boardId, card.id)
@@ -152,51 +160,96 @@ function CardDetails({
         onClose={onClose}
         track={track}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
-        {saveFailed && <Alert>{saveFailed}</Alert>}
-        <TitleField card={card} save={save} />
-        <ParentLine card={card} />
-        <CompleteControl card={card} view={view} track={track} />
-        {card.chatId && (
-          <Button
-            variant="secondary"
-            className="self-start"
-            onClick={() => onOpenChat(card.chatId!)}
-          >
-            Open chat
-          </Button>
-        )}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <PriorityField card={card} save={save} />
-          <EstimateField card={card} save={save} />
+      {saveFailed && (
+        <div className="px-4 pt-2">
+          <Alert>{saveFailed}</Alert>
         </div>
-        <DueField card={card} timeZone={project.timeZone} save={save} />
-        <AssigneesField card={card} projectId={project.id} track={track} />
-        <LabelsField card={card} projectId={project.id} track={track} />
-        <RelatedElsewhere card={card} />
-        <Suspense fallback={<Loading />}>
-          <DescriptionField
-            description={card.description}
-            onEditingChange={setUnsavedDescription}
-            onSave={(description) => {
-              const saving = change.mutateAsync({ description })
-              track(saving)
-              return saving
+      )}
+      <Tabs.Root
+        value={section}
+        onValueChange={(value) => setSection(value as Section)}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <Tabs.List
+          aria-label="Card sections"
+          className="flex gap-1 border-b border-line bg-surface px-2"
+        >
+          <Tabs.Trigger
+            value="details"
+            className={tabClass}
+            // Radix opens a tab on the mouse going down; the panel's
+            // resizable edges can swallow that press, so a click opens it too.
+            onClick={() => setSection('details')}
+          >
+            Details
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="activity"
+            className={tabClass}
+            // Same as Details: a click opens the tab too.
+            onClick={() => setSection('activity')}
+          >
+            Activity
+          </Tabs.Trigger>
+        </Tabs.List>
+        {/* Kept in the page while Activity is shown, so unsaved text stays. */}
+        <Tabs.Content
+          value="details"
+          forceMount
+          // forceMount never hides it by itself.
+          hidden={section !== 'details'}
+          className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 data-[state=inactive]:hidden"
+        >
+          <TitleField card={card} save={save} />
+          <ParentLine card={card} />
+          <CompleteControl card={card} view={view} track={track} />
+          {card.chatId && (
+            <Button
+              variant="secondary"
+              className="self-start"
+              onClick={() => onOpenChat(card.chatId!)}
+            >
+              Open chat
+            </Button>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PriorityField card={card} save={save} />
+            <EstimateField card={card} save={save} />
+          </div>
+          <DueField card={card} timeZone={project.timeZone} save={save} />
+          <AssigneesField card={card} projectId={project.id} track={track} />
+          <LabelsField card={card} projectId={project.id} track={track} />
+          <RelatedElsewhere card={card} />
+          <Suspense fallback={<Loading />}>
+            <DescriptionField
+              description={card.description}
+              onEditingChange={setUnsavedDescription}
+              onSave={(description) => {
+                const saving = change.mutateAsync({ description })
+                track(saving)
+                return saving
+              }}
+            />
+          </Suspense>
+          <Subtasks card={card} track={track} />
+          <Checklists card={card} track={track} onCreateCard={onCreateCard} />
+          <TimeSection card={card} project={project} track={track} />
+          <DeleteButton
+            card={card}
+            projectId={project.id}
+            onDelete={(button) => {
+              setDeleteButton(button)
+              setDeleting(true)
             }}
           />
-        </Suspense>
-        <Subtasks card={card} track={track} />
-        <Checklists card={card} track={track} onCreateCard={onCreateCard} />
-        <TimeSection card={card} project={project} track={track} />
-        <DeleteButton
-          card={card}
-          projectId={project.id}
-          onDelete={(button) => {
-            setDeleteButton(button)
-            setDeleting(true)
-          }}
-        />
-      </div>
+        </Tabs.Content>
+        <Tabs.Content
+          value="activity"
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
+          <ActivityTab cardId={card.id} project={project} />
+        </Tabs.Content>
+      </Tabs.Root>
       {unsavedDescription && <DiscardOnLeave />}
       {deleting && (
         <DeleteCardDialog

@@ -399,3 +399,58 @@ test('start and stop the timer, and log time by hand', async ({ page }) => {
       .getByRole('list', { name: 'Entries' }),
   ).toContainText('Checked the form')
 })
+
+// Web PR 7d, criterion 46 (its activity part): the lines for what was done
+// in the card panel, in the Activity tab. (Tab and list names agreed 2026-11-08.)
+test('see what was done to a card in the Activity tab', async ({ page }) => {
+  await openNewBoard(page)
+  await addCard(page, 'To do', 'Login page')
+  await card(page, 'To do', 'Login page').click()
+  const panel = page.getByRole('complementary', { name: /^Card / })
+
+  await panel.getByLabel('Priority').selectOption('High')
+  await expect(panel.getByLabel('Priority')).toHaveValue('HIGH')
+  await panel.getByRole('button', { name: 'Add checklist' }).click()
+  await panel.getByLabel('Checklist name').fill('Testing')
+  await panel.getByLabel('Checklist name').press('Enter')
+  const list = panel.getByRole('region', { name: 'Testing' })
+  await list.getByRole('button', { name: 'Add item' }).click()
+  await list.getByLabel('New item').fill('Write tests')
+  await list.getByLabel('New item').press('Enter')
+  await list
+    .getByRole('button', { name: /Write tests/ })
+    .and(page.locator('[aria-haspopup="menu"]'))
+    .click()
+  await page.getByRole('menuitem', { name: 'Turn into subtask' }).click()
+  await expect(list.getByRole('checkbox', { name: 'Write tests' })).toHaveCount(
+    0,
+  )
+  const time = panel.getByRole('region', { name: 'Time' })
+  await time.getByRole('button', { name: 'Log time' }).click()
+  await time.getByLabel('Minutes').fill('30')
+  await time.getByRole('button', { name: 'Save' }).click()
+  await expect(time.getByRole('list', { name: 'Entries' })).toContainText('30m')
+
+  await panel.getByRole('tab', { name: 'Activity' }).click()
+  const lines = panel
+    .getByRole('tabpanel', { name: 'Activity' })
+    .getByRole('list', { name: 'Activity' })
+  // Newest first, each with who and when.
+  await expect(lines.getByRole('listitem')).toHaveText([
+    /Ben\s*logged 30m for \d+ \w{3}\s*(just now|\d+ seconds? ago|\d+ minutes? ago|now)/,
+    /Ben\s*turned .Write tests. from Testing into \w+-1\.1/,
+    /Ben\s*added the checklist .Testing./,
+    /Ben\s*changed the priority from None to High/,
+    /Ben\s*created this card as \w+-1/,
+  ])
+  await expect(lines.locator('time').first()).toHaveAttribute('datetime', /./)
+  await expect(panel.getByRole('button', { name: 'Show older' })).toHaveCount(0)
+  await expectNoAccessibilityProblems(page)
+
+  // Back to Details, and the history is still there after a reload.
+  await panel.getByRole('tab', { name: 'Details' }).click()
+  await expect(panel.getByLabel('Title')).toHaveValue('Login page')
+  await page.reload()
+  await panel.getByRole('tab', { name: 'Activity' }).click()
+  await expect(lines.getByRole('listitem')).toHaveCount(5)
+})
