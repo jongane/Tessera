@@ -111,9 +111,12 @@ export function activitySentence(
   context: SentenceContext,
 ): string {
   const actorId = line.actor?.id ?? null
+  // The API may be newer than this page and send a kind it does not know.
+  const say = (SAYINGS as Partial<Record<string, Say<ActivityKind>>>)[line.kind]
   // TypeScript cannot match a line's kind to its sentence by itself.
-  const say = SAYINGS[line.kind] as Say<ActivityKind>
-  const text = say(line.details as never, context, actorId)
+  const text = say
+    ? say(line.details as never, context, actorId)
+    : 'made a change this page can’t show yet'
   return `${line.actor?.displayName ?? DELETED_ACCOUNT} ${text}`
 }
 

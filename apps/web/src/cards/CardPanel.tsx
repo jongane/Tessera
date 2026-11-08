@@ -39,8 +39,6 @@ import { TimeSection } from './TimeSection'
 
 type Section = 'details' | 'activity'
 
-// Radix opens a tab on the mouse going down; the panel's resizable edges can
-// swallow that press, so a click opens it too.
 const tabClass =
   'min-h-11 px-3 font-semibold text-muted aria-selected:border-b-2 aria-selected:border-accent aria-selected:text-ink'
 
@@ -162,6 +160,11 @@ function CardDetails({
         onClose={onClose}
         track={track}
       />
+      {saveFailed && (
+        <div className="px-4 pt-2">
+          <Alert>{saveFailed}</Alert>
+        </div>
+      )}
       <Tabs.Root
         value={section}
         onValueChange={(value) => setSection(value as Section)}
@@ -174,6 +177,8 @@ function CardDetails({
           <Tabs.Trigger
             value="details"
             className={tabClass}
+            // Radix opens a tab on the mouse going down; the panel's
+            // resizable edges can swallow that press, so a click opens it too.
             onClick={() => setSection('details')}
           >
             Details
@@ -181,6 +186,7 @@ function CardDetails({
           <Tabs.Trigger
             value="activity"
             className={tabClass}
+            // Same as Details: a click opens the tab too.
             onClick={() => setSection('activity')}
           >
             Activity
@@ -194,7 +200,6 @@ function CardDetails({
           hidden={section !== 'details'}
           className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 data-[state=inactive]:hidden"
         >
-          {saveFailed && <Alert>{saveFailed}</Alert>}
           <TitleField card={card} save={save} />
           <ParentLine card={card} />
           <CompleteControl card={card} view={view} track={track} />

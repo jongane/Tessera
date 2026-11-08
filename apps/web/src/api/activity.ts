@@ -1,6 +1,6 @@
 import type { ActivityPage } from '@tessera/shared'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { api } from './client'
 
 // A card's history, for the Activity tab (docs/web-app.md, section 1).
@@ -19,6 +19,21 @@ export function useActivity(cardId: string) {
   const queryClient = useQueryClient()
   const key = activityKey(cardId)
 
+  // Reloading starts again from the newest page, which would drop an older
+  // page that is still on its way. So Show older is asked again afterwards.
+  const latest = useRef<{ loadingOlder: boolean; more: () => unknown }>({
+    loadingOlder: false,
+    more: () => {},
+  })
+  function reloadKeepingOlder() {
+    const { loadingOlder, more } = latest.current
+    void queryClient.invalidateQueries({ queryKey: key }).then(() => {
+      if (loadingOlder) {
+        void more()
+      }
+    })
+  }
+
   useEffect(
     () =>
       queryClient.getMutationCache().subscribe((event) => {
@@ -26,7 +41,7 @@ export function useActivity(cardId: string) {
           event.type === 'updated' &&
           (event.action.type === 'success' || event.action.type === 'error')
         if (finished) {
-          void queryClient.invalidateQueries({ queryKey: key })
+          reloadKeepingOlder()
         }
       }),
     // `key` is rebuilt on every render; the card decides it.
@@ -34,7 +49,7 @@ export function useActivity(cardId: string) {
     [queryClient, cardId],
   )
 
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey: key,
     queryFn: ({ pageParam }) => {
       const before = pageParam ? `&before=${encodeURIComponent(pageParam)}` : ''
@@ -46,4 +61,9 @@ export function useActivity(cardId: string) {
     getNextPageParam: (last) => last.nextBefore ?? undefined,
     gcTime: 0,
   })
+  latest.current = {
+    loadingOlder: query.isFetchingNextPage,
+    more: query.fetchNextPage,
+  }
+  return query
 }

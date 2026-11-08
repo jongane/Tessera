@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 // The running time of a timer as h:mm:ss, from when it started.
 export function runningTime(startedAt: string, now: number): string {
@@ -25,4 +25,14 @@ function thisSecond() {
 // The time now, in milliseconds, drawn again every second while `ticking`.
 export function useNow(ticking: boolean): number {
   return useSyncExternalStore(ticking ? everyHalfSecond : never, thisSecond)
+}
+
+// The time now, drawn again every minute: enough for “3 minutes ago”.
+export function useEveryMinute(): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+  return now
 }

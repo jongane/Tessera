@@ -4,7 +4,7 @@ import { useActivity } from '../api/activity'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
-import { useNow } from './clock'
+import { useEveryMinute } from './clock'
 import { activitySentence } from './activity-sentence'
 
 const LOAD_FAILED = 'Couldn’t load the activity'
@@ -18,7 +18,7 @@ export function ActivityTab({
   project: Project
 }) {
   const activity = useActivity(cardId)
-  const now = useNow(false)
+  const now = useEveryMinute()
   const lines = activity.data?.pages.flatMap((page) => page.items)
 
   if (lines === undefined) {
@@ -97,8 +97,8 @@ function ActivityItem({
           </Button>
           {open && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <TextBefore label="Before" text={line.details.from} />
-              <TextBefore label="After" text={line.details.to} />
+              <SavedText label="Before" text={line.details.from} />
+              <SavedText label="After" text={line.details.to} />
             </div>
           )}
         </>
@@ -108,7 +108,7 @@ function ActivityItem({
 }
 
 // The old or new description, as it was saved (not as formatting).
-function TextBefore({ label, text }: { label: string; text: string | null }) {
+function SavedText({ label, text }: { label: string; text: string | null }) {
   const empty = text === null || text === ''
   return (
     <div role="group" aria-label={label} className="rounded-lg bg-subtle p-2">
