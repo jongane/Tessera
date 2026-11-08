@@ -1,4 +1,4 @@
-import type { Project } from '@tessera/shared'
+import { type Project, projectChangesSchema } from '@tessera/shared'
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useChangeProject } from '../api/projects'
@@ -6,6 +6,7 @@ import { renameProject } from '../boards/last-board'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { Dialog, DialogClose } from '../ui/Dialog'
+import { checkForm } from '../ui/form-errors'
 import { TextField } from '../ui/TextField'
 import { SettingsSection } from './ProjectSettingsPage'
 
@@ -53,6 +54,7 @@ function ChangeCodeDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const [code, setCode] = useState(project.code)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const changeProject = useChangeProject(project.id)
   const navigate = useNavigate()
 
@@ -60,17 +62,20 @@ function ChangeCodeDialog({
   // what is wrong.
   function submit(event: FormEvent) {
     event.preventDefault()
-    changeProject.mutate(
-      { code: code.trim() },
-      {
-        onSuccess: (changed) => {
-          renameProject(project.code, changed.code)
-          // Closed here: the page may not reload if the new code is cached.
-          onOpenChange(false)
-          navigate(`/${changed.code}/settings`, { replace: true })
-        },
+    const checked = checkForm(projectChangesSchema, { code: code.trim() })
+    if (!checked.ok) {
+      setErrors(checked.errors)
+      return
+    }
+    setErrors({})
+    changeProject.mutate(checked.data, {
+      onSuccess: (changed) => {
+        renameProject(project.code, changed.code)
+        // Closed here: the page may not reload if the new code is cached.
+        onOpenChange(false)
+        navigate(`/${changed.code}/settings`, { replace: true })
       },
-    )
+    })
   }
 
   return (
@@ -87,6 +92,7 @@ function ChangeCodeDialog({
           maxLength={6}
           autoComplete="off"
           onChange={(event) => setCode(event.target.value.toUpperCase())}
+          error={errors.code}
           hint="2 to 6 letters, A to Z."
         />
         <div className="flex justify-end gap-2">

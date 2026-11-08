@@ -18,18 +18,23 @@ const NUL_ALLOWED_IN = 'nulAllowedIn';
 export const AllowNulIn = (...fields: string[]) =>
   SetMetadata(NUL_ALLOWED_IN, fields);
 
-// True if a NUL is in the value, in any key or text, at any depth.
+// True if a NUL is in the value, in any key or text, at any depth. It uses
+// its own stack, not recursion, so a deeply nested body cannot overflow the
+// call stack.
 export function holdsNul(value: unknown): boolean {
-  if (typeof value === 'string') {
-    return hasNul(value);
-  }
-  if (Array.isArray(value)) {
-    return value.some(holdsNul);
-  }
-  if (value !== null && typeof value === 'object') {
-    return Object.entries(value).some(
-      ([key, inner]) => hasNul(key) || holdsNul(inner),
-    );
+  const pending = [value];
+  while (pending.length > 0) {
+    const item = pending.pop();
+    if (typeof item === 'string') {
+      if (hasNul(item)) return true;
+    } else if (Array.isArray(item)) {
+      pending.push(...item);
+    } else if (item !== null && typeof item === 'object') {
+      for (const [key, inner] of Object.entries(item)) {
+        if (hasNul(key)) return true;
+        pending.push(inner);
+      }
+    }
   }
   return false;
 }

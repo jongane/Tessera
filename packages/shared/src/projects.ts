@@ -41,7 +41,9 @@ const relationColour = z.enum(RELATION_COLOURS).optional();
 
 export const projectChangesSchema = z.strictObject({
   code: codeField.optional(),
-  timeZone: z.string().refine(isKnownTimeZone, 'Unknown time zone').optional(),
+  timeZone: textWithoutNul()
+    .refine(isKnownTimeZone, 'Unknown time zone')
+    .optional(),
   // Only the relationships given change.
   relationColours: z
     .strictObject({

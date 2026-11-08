@@ -11,5 +11,6 @@ export function configureApp(app: INestApplication): void {
   // Reads the session cookie into request.cookies.
   app.use(cookieParser());
   // Refuses a NUL character anywhere in a request, before the zod rules.
+  // The AuthGuard (APP_GUARD) runs first, so someone not signed in gets 401.
   app.useGlobalGuards(new NulGuard(app.get(Reflector)));
 }
