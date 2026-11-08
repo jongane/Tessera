@@ -180,4 +180,4 @@ Names and item text have the spaces around them dropped. An empty or spaces-only
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `GET /api/cards/:cardId/activity?limit=50&before=...` | Members | The card's history, newest first: `{ items, nextBefore }`. Each line has `kind`, `details`, `actor` and `createdAt`. Pass `nextBefore` as `before` to get the next, older page; it is null on the last page |
+| `GET /api/cards/:cardId/activity?limit=50&before=...` | Members | The card's history, newest first: `{ items, nextBefore }`. Each line has `kind`, `details`, `actor` and `createdAt`. Pass `nextBefore` as `before` to get the next, older page; it is null on the last page. The type of `details` (`ActivityDetails` and its helper types) comes from `@tessera/shared`, so the API and the web app share one definition (agreed 2026-11-08) |
