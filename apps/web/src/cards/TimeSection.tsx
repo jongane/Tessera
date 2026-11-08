@@ -1,6 +1,6 @@
 import { type BoardCard, formatMinutes, type Project } from '@tessera/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { useId, useState } from 'react'
+import { Fragment, type ReactNode, useId, useState } from 'react'
 import { ApiError } from '../api/client'
 import {
   cardQuery,
@@ -56,19 +56,31 @@ function Totals({ card }: { card: BoardCard }) {
     estimateMinutes === null ? null : estimateMinutes - timeSpentMinutes
   return (
     <div className="flex flex-col gap-0.5">
-      <p className="flex flex-wrap gap-x-4">
-        {estimateMinutes !== null && (
-          <Item label="Estimate" value={formatMinutes(estimateMinutes)} />
-        )}
-        <Item label="Time spent" value={formatMinutes(timeSpentMinutes)} />
-        {left !== null &&
-          (left >= 0 ? (
-            <Item label="Left" value={formatMinutes(left)} />
-          ) : (
-            <span className="font-semibold text-danger">
-              {`Over by ${formatMinutes(-left)}`}
-            </span>
-          ))}
+      <p className="flex flex-wrap gap-x-2">
+        <Joined>
+          {[
+            estimateMinutes !== null && (
+              <Item
+                key="estimate"
+                label="Estimate"
+                value={formatMinutes(estimateMinutes)}
+              />
+            ),
+            <Item
+              key="spent"
+              label="Time spent"
+              value={formatMinutes(timeSpentMinutes)}
+            />,
+            left !== null &&
+              (left >= 0 ? (
+                <Item key="left" label="Left" value={formatMinutes(left)} />
+              ) : (
+                <span key="over" className="font-semibold text-danger">
+                  {`Over by ${formatMinutes(-left)}`}
+                </span>
+              )),
+          ]}
+        </Joined>
       </p>
       {hasSubtasks && (
         <p className="flex flex-wrap gap-x-4 text-muted">
@@ -83,6 +95,18 @@ function Totals({ card }: { card: BoardCard }) {
       )}
     </div>
   )
+}
+
+// The items with a "·" between them. The dots are only for the eye.
+function Joined({ children }: { children: ReactNode[] }) {
+  return children
+    .filter((child) => child !== false)
+    .map((child, index) => (
+      <Fragment key={index}>
+        {index > 0 && <span aria-hidden="true">·</span>}
+        {child}
+      </Fragment>
+    ))
 }
 
 function Item({ label, value }: { label: string; value: string }) {

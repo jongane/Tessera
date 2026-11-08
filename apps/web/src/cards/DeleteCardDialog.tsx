@@ -116,7 +116,7 @@ export function DeleteCardDialog({
         <p>
           {`“${card.title}” will be deleted. Its chat is kept, without a card.`}
         </p>
-        {isAdmin && isLoggedTimeRefusal(remove.error) && (
+        {isAdmin && loggedTimeRefusal(remove.error) !== null && (
           <a
             href={`#${entriesHeadingId(card.id)}`}
             className="self-start font-semibold text-accent hover:text-accent-strong hover:underline"
@@ -260,18 +260,22 @@ function SubtaskChoice({
 }
 
 // A card with logged time is refused; say how much, and what to do.
-function isLoggedTimeRefusal(error: Error | null): error is ApiError {
-  return (
+function loggedTimeRefusal(error: Error | null): number | null {
+  if (
     error instanceof ApiError &&
     error.status === 409 &&
     typeof error.details.loggedMinutes === 'number'
-  )
+  ) {
+    return error.details.loggedMinutes
+  }
+  return null
 }
 
 function deleteError(error: Error | null): Error | null {
-  if (isLoggedTimeRefusal(error)) {
+  const logged = loggedTimeRefusal(error)
+  if (logged !== null) {
     return new Error(
-      `This card has ${formatMinutes(error.details.loggedMinutes as number)} logged. ` +
+      `This card has ${formatMinutes(logged)} logged. ` +
         'A project admin can delete the time entries first.',
     )
   }

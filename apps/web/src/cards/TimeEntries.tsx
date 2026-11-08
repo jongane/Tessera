@@ -105,6 +105,7 @@ export function TimeEntries({
     members.data?.find((member) => member.userId === me.data?.id)?.role ===
     'ADMIN'
   const ready = me.data && members.data && entries.data
+  const loadError = entries.error ?? members.error
 
   function closeLog() {
     focusId.current = logButtonId
@@ -125,12 +126,13 @@ export function TimeEntries({
       >
         Entries
       </h4>
-      {entries.error && <Alert>{entries.error.message}</Alert>}
+      {loadError && <Alert>{loadError.message}</Alert>}
       {logging ? (
         <EntryForm
           timeZone={project.timeZone}
           onCancel={closeLog}
           onSave={(body) => log.mutateAsync(body).then(closeLog)}
+          saving={log.isPending}
           track={track}
         />
       ) : (
@@ -147,7 +149,7 @@ export function TimeEntries({
         </Button>
       )}
       {!ready ? (
-        !entries.error && <Loading />
+        !loadError && <Loading />
       ) : entries.data.length === 0 ? (
         <p className="text-muted">No time logged yet</p>
       ) : (
@@ -159,6 +161,7 @@ export function TimeEntries({
                   entry={entry}
                   timeZone={project.timeZone}
                   track={track}
+                  saving={change.isPending}
                   onCancel={() => closeEdit(entry.id)}
                   onSave={(values) => {
                     const changes = changesOf(entry, values)
@@ -175,6 +178,7 @@ export function TimeEntries({
                 key={entry.id}
                 entry={entry}
                 reason={reasonFor(entry, isAdmin, me.data?.id)}
+                confirming={change.isPending}
                 onEdit={() => {
                   setLogging(false)
                   setEditing(entry.id)
@@ -241,12 +245,14 @@ function reasonFor(
 function EntryRow({
   entry,
   reason,
+  confirming,
   onEdit,
   onDelete,
   onConfirm,
 }: {
   entry: TimeEntryWithPerson
   reason: string | null
+  confirming: boolean
   onEdit: () => void
   onDelete: (button: HTMLElement) => void
   onConfirm: () => void
@@ -275,7 +281,7 @@ function EntryRow({
           <Button
             variant="secondary"
             className="min-h-8"
-            disabled={off}
+            disabled={off || confirming}
             aria-describedby={describedBy}
             onClick={onConfirm}
           >
@@ -333,12 +339,14 @@ function EntryForm({
   onSave,
   onCancel,
   track,
+  saving,
 }: {
   entry?: TimeEntryWithPerson
   timeZone: string
   onSave: (values: NewTimeEntryBody) => Promise<unknown>
   onCancel: () => void
   track: Track
+  saving: boolean
 }) {
   const id = useId()
   const split = splitMinutes(entry?.minutes ?? 0)
@@ -452,7 +460,9 @@ function EntryForm({
         onChange={(event) => setNote(event.target.value)}
       />
       <div className="flex gap-2">
-        <Button type="submit">Save</Button>
+        <Button type="submit" disabled={saving}>
+          Save
+        </Button>
         <Button variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
