@@ -58,7 +58,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - **Time entries** hold the person, card, date, duration and an optional note. A timer entry also stores its start and end times.
 - Time can be added with a **start/stop timer** or **typed in by hand**. Stopping a timer creates an ordinary entry.
 - **One running timer per person.** Starting a timer while another is running warns that the first will stop. If the person goes ahead, the first timer stops and its time is saved as an entry.
-- **Editing entries:** a person can edit or delete their own entries for 24 hours. After that only admins can. Every change is recorded in the card's history.
+- **Editing entries:** a person can edit or delete their own entries for 24 hours from when each was logged. After that only admins can. Every change is recorded in the card's history.
 - Everyone in the project can see all time entries.
 - One entry is **1 minute to 24 hours**, and time cannot be logged for a future day. (Agreed 2026-10-28.)
 - A timer that runs past midnight saves its time on the **day it started**, in the project's time zone. (Agreed 2026-10-28; project's time zone agreed 2026-11-03.)
