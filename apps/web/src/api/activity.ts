@@ -21,15 +21,16 @@ export function useActivity(cardId: string) {
 
   // Reloading starts again from the newest page, which would drop an older
   // page that is still on its way. So Show older is asked again afterwards.
-  const latest = useRef<{ loadingOlder: boolean; more: () => unknown }>({
-    loadingOlder: false,
-    more: () => {},
-  })
+  // Whether one is on its way is read from the query itself at this moment,
+  // not from the last drawing of the page, which may be out of date.
+  const fetchNextPage = useRef<() => unknown>(() => {})
   function reloadKeepingOlder() {
-    const { loadingOlder, more } = latest.current
+    const loadingOlder =
+      queryClient.getQueryState(key)?.fetchMeta?.fetchMore?.direction ===
+      'forward'
     void queryClient.invalidateQueries({ queryKey: key }).then(() => {
       if (loadingOlder) {
-        void more()
+        void fetchNextPage.current()
       }
     })
   }
@@ -62,10 +63,7 @@ export function useActivity(cardId: string) {
     gcTime: 0,
   })
   useEffect(() => {
-    latest.current = {
-      loadingOlder: query.isFetchingNextPage,
-      more: query.fetchNextPage,
-    }
+    fetchNextPage.current = query.fetchNextPage
   })
   return query
 }
