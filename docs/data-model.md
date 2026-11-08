@@ -67,7 +67,7 @@ erDiagram
 | Chat | A conversation on a board | id, board_id, card_id (optional), kind |
 | Message | One chat message | id, chat_id, author_id, body, created_at, deleted_at |
 | File | Uploaded file metadata | id, project_id, uploader_id, filename, mime_type, size, storage_key, card_id or message_id |
-| Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, designed with chat) | from_type, from_id, to_type, to_id, link type |
+| Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, comes after the MVP, see [roadmap.md](roadmap.md)) | from_type, from_id, to_type, to_id, link type |
 | ProjectAiConfig | Whether AI is on for a project, and which provider it uses | project_id, enabled, enabled_by, enabled_at, provider, model, encrypted_api_key |
 | AiRequest | Audit log of AI use | id, chat_id, user_id, kind, provider, created_at |
 

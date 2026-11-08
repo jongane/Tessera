@@ -6,7 +6,7 @@ This page shows what is built, what is left for the first version (the MVP), and
 
 ## Where we are
 
-The API and the web app cover accounts, projects, boards, cards with every card feature, and chats as titles linked to cards. Chats cannot hold messages yet, and files and AI are not started.
+The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version except attachments, and chats as titles linked to cards. Chats cannot hold messages yet, and files and AI are not started.
 
 ## The flowchart
 
@@ -18,7 +18,7 @@ flowchart TD
     classDef later fill:#f3f4f6,stroke:#6b7280,color:#111827
     classDef idea fill:#ffffff,stroke:#9ca3af,color:#374151,stroke-dasharray: 4 4
 
-    subgraph Built["Built (PRs #1 to #41)"]
+    subgraph Built["Built (merged PRs up to #41)"]
         F[Foundation: repo, CI, Claude review, sub agents]
         A[API: accounts, projects, boards, cards, chats, card features]
         W[Web app: sign in, board view, chat panel, settings, card panel]
@@ -37,6 +37,7 @@ flowchart TD
         L2[Accounts and setup extras]
         L3[Task table, Gantt chart, milestones, dependencies]
         L4[Search, notifications, watchers]
+        L5[Chat panel windows, smaller items, usability review]
     end
 
     subgraph Ideas["Ideas, not scheduled"]
@@ -45,13 +46,13 @@ flowchart TD
     end
 
     F --> A --> W --> N1 --> N2 --> N3 --> N4 --> R
-    R --> L1 & L2 & L3 & L4
+    R --> L1 & L2 & L3 & L4 & L5
     R -.-> I1 & I2
 
     class F,A,W done
     class N1 next
     class N2,N3,N4,R mvp
-    class L1,L2,L3,L4 later
+    class L1,L2,L3,L4,L5 later
     class I1,I2 idea
 ```
 
@@ -80,7 +81,7 @@ Each step gets its own plan, approved before building, as usual.
 
 | Area | What was built | Pull requests |
 |---|---|---|
-| Foundation | Clean public repo, README, CI (API and Web checks), Claude review check, sub agents, dependency security fixes | #1, #19, #21, #23, #24, #33, #34 |
+| Foundation | README, CI (Shared, API, Web and Browser jobs, started in the initial scaffold), Claude review check, sub agents, dependency security fixes | #1, #19, #21, #23, #24, #33, #34 |
 | Database | PostgreSQL and Prisma; users, projects, members, boards, columns, cards, chats | #2, #3 |
 | Card features (API) | Card numbers, subtasks, completion, estimates, time tracking, assignees, labels, priority, due dates, checklists, Activity history | #4 to #10, #15 |
 | Endpoints | Accounts, sign-in and members; endpoints for everything above | #11, #12, #14 |
