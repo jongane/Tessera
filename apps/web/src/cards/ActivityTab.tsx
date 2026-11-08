@@ -55,7 +55,7 @@ export function ActivityTab({
         <Button
           variant="secondary"
           className="self-start"
-          disabled={activity.isFetchingNextPage}
+          disabled={activity.isFetching}
           onClick={() => void activity.fetchNextPage()}
         >
           Show older

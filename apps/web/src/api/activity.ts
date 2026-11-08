@@ -61,9 +61,11 @@ export function useActivity(cardId: string) {
     getNextPageParam: (last) => last.nextBefore ?? undefined,
     gcTime: 0,
   })
-  latest.current = {
-    loadingOlder: query.isFetchingNextPage,
-    more: query.fetchNextPage,
-  }
+  useEffect(() => {
+    latest.current = {
+      loadingOlder: query.isFetchingNextPage,
+      more: query.fetchNextPage,
+    }
+  })
   return query
 }
