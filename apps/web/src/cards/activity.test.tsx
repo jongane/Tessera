@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
@@ -641,5 +641,220 @@ describe('Accessibility', () => {
     const tab = await screen.findByRole('tabpanel', { name: ACTIVITY })
     await within(tab).findByRole('alert')
     await expectNoAccessibilityProblems(container)
+  })
+})
+
+// Decisions of 2026-11-08 (“7d answers, round 2”), kept from the
+// antagonist's proofs where they showed a break.
+describe('Unknown kinds (agreed 2026-11-08)', () => {
+  it('still shows the panel and the known lines when a line is of a kind this page does not know', async () => {
+    const known = activityLine('MOVED', moved())
+    const unknown = {
+      ...activityLine('COMPLETED', {}),
+      kind: 'CARD_ARCHIVED',
+    } as unknown as typeof known
+    const { tab } = await openActivity([unknown, known])
+
+    await waitFor(() => expect(lines(tab)).toHaveLength(2))
+    expect(lines(tab)[0]).toHaveTextContent(
+      'Ana made a change this page can’t show yet',
+    )
+    expect(lines(tab)[1]).toHaveTextContent(
+      'Ana moved this from To do to In progress',
+    )
+    expect(
+      screen.getByRole('button', { name: 'Close card' }),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('A refusal of a change (agreed 2026-11-08)', () => {
+  // The refusal is panel-wide (7b answers, 2026-11-07 07:41) and shows above
+  // the tabs, so it is seen from either tab.
+  async function refusedJustBeforeActivity() {
+    const activity = fakeActivity([activityLine('MOVED', moved())])
+    server.use(activity.handler)
+    const { user } = openCard()
+    const panel = await cardPanel()
+    server.use(
+      http.patch(`/api/cards/${login.id}`, async () => {
+        await new Promise((r) => setTimeout(r, 50))
+        return apiError(409, 'Someone else changed this card')
+      }),
+    )
+    await user.selectOptions(within(panel).getByLabelText('Priority'), 'HIGH')
+    await user.click(within(panel).getByRole('tab', { name: ACTIVITY }))
+    await within(panel).findByRole('tabpanel', { name: ACTIVITY })
+    return { user, panel }
+  }
+
+  it('is visible while Activity is shown, above the tabs', async () => {
+    const { panel } = await refusedJustBeforeActivity()
+
+    const refusal = await within(panel).findByText(
+      'Someone else changed this card',
+    )
+    expect(refusal).toBeVisible()
+    const tabs = within(panel).getByRole('tablist', { name: TABS })
+    expect(
+      refusal.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('is still visible on Details', async () => {
+    const { user, panel } = await refusedJustBeforeActivity()
+    await within(panel).findByText('Someone else changed this card')
+
+    await user.click(within(panel).getByRole('tab', { name: DETAILS }))
+
+    expect(
+      within(panel).getByText('Someone else changed this card'),
+    ).toBeVisible()
+  })
+})
+
+describe('Show older while a change is saved (agreed 2026-11-08)', () => {
+  it('keeps the older lines when a save finishes while they are loading', async () => {
+    const all = Array.from({ length: 51 }, (_, i) =>
+      activityLine('MOVED', moved(`Column ${i + 1}`)),
+    )
+    const requests: URL[] = []
+    let releaseOlder!: () => void
+    const olderGate = new Promise<void>((r) => (releaseOlder = r))
+    server.use(
+      http.get('/api/cards/:cardId/activity', async ({ request }) => {
+        const url = new URL(request.url)
+        requests.push(url)
+        if (url.searchParams.has('before')) {
+          await olderGate
+          return HttpResponse.json({ items: all.slice(50), nextBefore: null })
+        }
+        return HttpResponse.json({
+          items: all.slice(0, 50),
+          nextBefore: all[49]!.id,
+        })
+      }),
+    )
+    const { user } = openCard()
+    const panel = await cardPanel()
+    let releaseSave!: () => void
+    const saveGate = new Promise<void>((r) => (releaseSave = r))
+    server.use(
+      http.patch(`/api/cards/${login.id}`, async () => {
+        await saveGate
+        return HttpResponse.json({ ...login, priority: 'HIGH' })
+      }),
+    )
+    // A change is still saving when the person opens Activity.
+    await user.selectOptions(within(panel).getByLabelText('Priority'), 'HIGH')
+    await user.click(within(panel).getByRole('tab', { name: ACTIVITY }))
+    const tab = await within(panel).findByRole('tabpanel', { name: ACTIVITY })
+    await user.click(
+      await within(tab).findByRole('button', { name: SHOW_OLDER }),
+    )
+
+    // The save finishes while the older page is on its way.
+    releaseSave()
+    await waitFor(() =>
+      expect(
+        requests.filter((u) => !u.searchParams.has('before')),
+      ).toHaveLength(2),
+    )
+    releaseOlder()
+
+    expect(await within(tab).findByText(/to Column 51/)).toBeInTheDocument()
+    expect(lines(tab).length).toBeGreaterThanOrEqual(51)
+  })
+})
+
+describe('Times keep up while Activity is open (agreed 2026-11-08)', () => {
+  it('changes “just now” to “1 minute ago” after a minute', async () => {
+    const { tab } = await openActivity([
+      activityLine('MOVED', moved(), { createdAt: ago(10_000) }),
+    ])
+    await waitFor(() => expect(lines(tab)).toHaveLength(1))
+    expect(lines(tab)[0]).toHaveTextContent('just now')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+
+    expect(lines(tab)[0]).toHaveTextContent('1 minute ago')
+    expect(lines(tab)[0]).not.toHaveTextContent('just now')
+  })
+
+  it('changes “3 hours ago” to “4 hours ago” after an hour', async () => {
+    const { tab } = await openActivity([
+      activityLine('MOVED', moved(), { createdAt: ago(3 * HOUR) }),
+    ])
+    await waitFor(() => expect(lines(tab)).toHaveLength(1))
+    expect(lines(tab)[0]).toHaveTextContent('3 hours ago')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HOUR)
+    })
+
+    expect(lines(tab)[0]).toHaveTextContent('4 hours ago')
+  })
+})
+
+describe('Approved wording (agreed 2026-11-08)', () => {
+  it('says “just now” for a line under a minute old', async () => {
+    const { tab } = await openActivity([
+      activityLine('MOVED', moved(), { createdAt: ago(20_000) }),
+    ])
+
+    await waitFor(() => expect(lines(tab)).toHaveLength(1))
+    expect(lines(tab)[0]).toHaveTextContent('just now')
+  })
+
+  it('says “Loading…” while the history loads', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    server.use(
+      http.get('/api/cards/:cardId/activity', async () => {
+        await gate
+        return HttpResponse.json({ items: [], nextBefore: null })
+      }),
+    )
+    const { user } = openCard()
+    const panel = await cardPanel()
+
+    await user.click(within(panel).getByRole('tab', { name: ACTIVITY }))
+
+    const tab = await within(panel).findByRole('tabpanel', { name: ACTIVITY })
+    expect(within(tab).getByRole('status')).toHaveTextContent('Loading…')
+    release()
+    expect(await within(tab).findByText(NO_ACTIVITY)).toBeInTheDocument()
+    expect(within(tab).queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('shows a failed Show older above the lines, and the button stays to try again', async () => {
+    const all = Array.from({ length: 60 }, (_, i) =>
+      activityLine('MOVED', moved(`Column ${60 - i}`)),
+    )
+    const { user, tab } = await openActivity(all)
+    await waitFor(() => expect(lines(tab)).toHaveLength(50))
+    // The next request fails once; after that the fake history answers.
+    server.use(
+      http.get(
+        '/api/cards/:cardId/activity',
+        () => apiError(500, 'Something went wrong'),
+        { once: true },
+      ),
+    )
+
+    await user.click(within(tab).getByRole('button', { name: SHOW_OLDER }))
+
+    const alert = await within(tab).findByRole('alert')
+    expect(alert).toHaveTextContent(LOAD_FAILED)
+    const list = within(tab).getByRole('list', { name: ACTIVITY })
+    expect(
+      alert.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    await user.click(within(tab).getByRole('button', { name: SHOW_OLDER }))
+    await waitFor(() => expect(lines(tab)).toHaveLength(60))
+    expect(within(tab).queryByRole('alert')).not.toBeInTheDocument()
   })
 })

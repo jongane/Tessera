@@ -554,3 +554,71 @@ describe('A line whose person was deleted', () => {
     }
   })
 })
+
+// Agreed 2026-11-08: a kind this page does not know (the API is newer than
+// the page) does not break the page.
+describe('A line of a kind this page does not know (agreed 2026-11-08)', () => {
+  function unknownKind(actor: { id: string; displayName: string } | null) {
+    return {
+      ...activityLine('COMPLETED', {}, { actor }),
+      kind: 'CARD_ARCHIVED',
+    } as unknown as ActivityLine
+  }
+
+  it('reads “<name> made a change this page can’t show yet”', () => {
+    expect(activitySentence(unknownKind(jon), context)).toBe(
+      'Jon made a change this page can’t show yet',
+    )
+  })
+
+  it('reads “A deleted account made a change this page can’t show yet” for a deleted person', () => {
+    expect(activitySentence(unknownKind(null), context)).toBe(
+      'A deleted account made a change this page can’t show yet',
+    )
+  })
+})
+
+// Agreed 2026-11-08: a due date in another year shows the year, in the
+// project's time zone.
+describe('A due date in another year (agreed 2026-11-08)', () => {
+  it('shows the year, with the time', () => {
+    const line = activityLine(
+      'DUE_DATE_CHANGED',
+      {
+        from: { at: null, hasTime: false },
+        to: { at: '2025-11-04T17:00:00.000Z', hasTime: true },
+      },
+      { actor: jon },
+    )
+    expect(sentence(line)).toBe(
+      'Jon set the due date to 4 Nov 2025, 17:00 Europe/London',
+    )
+  })
+
+  it('shows the year for a day without a time', () => {
+    const line = activityLine(
+      'DUE_DATE_CHANGED',
+      {
+        from: { at: null, hasTime: false },
+        to: { at: '2025-11-04T00:00:00.000Z', hasTime: false },
+      },
+      { actor: jon },
+    )
+    expect(sentence(line)).toBe('Jon set the due date to 4 Nov 2025')
+  })
+
+  it('decides the year in the project’s zone, not the viewer’s', () => {
+    // 23:30 UTC on 31 Dec 2026 is 2027 in Auckland.
+    const line = activityLine(
+      'DUE_DATE_CHANGED',
+      {
+        from: { at: null, hasTime: false },
+        to: { at: '2026-12-31T23:30:00.000Z', hasTime: true },
+      },
+      { actor: jon },
+    )
+    expect(
+      activitySentence(line, { ...context, timeZone: 'Pacific/Auckland' }),
+    ).toContain('1 Jan 2027')
+  })
+})
