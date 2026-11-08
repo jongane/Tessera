@@ -543,6 +543,65 @@ describe('Paging', () => {
     expect(lines(tab)[1]).toHaveTextContent('changed the priority')
     expect(lines(tab)[61]).toHaveTextContent(/to .Title 1./)
   })
+
+  it('keeps the older lines when Show older is pressed just as a save finishes (agreed 2026-11-08)', async () => {
+    const all = Array.from({ length: 51 }, (_, i) =>
+      activityLine('MOVED', moved(`Column ${i + 1}`)),
+    )
+    server.use(
+      http.get('/api/cards/:cardId/activity', ({ request }) => {
+        const url = new URL(request.url)
+        if (url.searchParams.has('before')) {
+          return HttpResponse.json({ items: all.slice(50), nextBefore: null })
+        }
+        return HttpResponse.json({
+          items: all.slice(0, 50),
+          nextBefore: all[49]!.id,
+        })
+      }),
+    )
+    const { user, queryClient } = openCard()
+    const panel = await cardPanel()
+    // Presses Show older the moment the save's answer arrives, before the
+    // page has drawn again (this listener runs before the Activity tab's).
+    let pressAtSave: (() => void) | undefined
+    queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'success') {
+        pressAtSave?.()
+      }
+    })
+    let releaseSave!: () => void
+    const saveGate = new Promise<void>((r) => (releaseSave = r))
+    server.use(
+      http.patch(`/api/cards/${login.id}`, async () => {
+        await saveGate
+        return HttpResponse.json({ ...login, priority: 'HIGH' })
+      }),
+    )
+    await user.selectOptions(within(panel).getByLabelText('Priority'), 'HIGH')
+    await user.click(within(panel).getByRole('tab', { name: ACTIVITY }))
+    const tab = await within(panel).findByRole('tabpanel', { name: ACTIVITY })
+    const showOlder = await within(tab).findByRole('button', {
+      name: SHOW_OLDER,
+    })
+
+    // The person presses Show older and the save's answer arrives in the same
+    // moment, before the page has drawn again.
+    pressAtSave = () => showOlder.click()
+    await act(async () => {
+      releaseSave()
+      await new Promise((r) => setTimeout(r, 200))
+    })
+
+    // The older page must not be dropped, and Show older must not come back
+    // as if it had never been pressed.
+    await waitFor(() =>
+      expect(
+        within(tab).getByRole('button', { name: SHOW_OLDER }),
+      ).toBeEnabled(),
+    )
+    expect(screen.getByText(/to Column 51/)).toBeInTheDocument()
+  })
 })
 
 describe('Description changes', () => {
