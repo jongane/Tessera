@@ -15,6 +15,7 @@ import {
   newLabelSchema,
   newMemberSchema,
   newProjectSchema,
+  projectChangesSchema,
   newSubtaskSchema,
   newTimeEntrySchema,
   signInSchema,
@@ -24,7 +25,7 @@ import {
 } from './index.js';
 
 // Refusing a NUL character (U+0000) in every text field. PostgreSQL cannot
-// store it, so without this rule the API answers 500. Agreed 2026-11-04
+// store it, so without this rule the API answers 500. Agreed 2026-11-08
 // (plan "refuse NUL characters in text fields", Jon's answers 1 to 4).
 // The message uses the typographic apostrophe, as CHECKLIST_BLANK_MESSAGE does.
 const NUL_MESSAGE = 'This contains a hidden character that can’t be saved';
@@ -293,5 +294,59 @@ describe('a NUL character in an existing password', () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+// A value that breaks the NUL rule and another rule too gets only the NUL
+// message, because the NUL check runs first and stops the others (regression
+// guards: these pass as long as textWithoutNul() stays first and aborts).
+describe('a value that breaks the NUL rule and another rule', () => {
+  const cases: { name: string; parse: TextField['parse']; text: string }[] = [
+    {
+      name: 'a too-short sign-up password',
+      parse: (t) =>
+        signUpSchema.safeParse({
+          email: 'ana@example.com',
+          displayName: 'Ana',
+          password: t,
+        }),
+      text: 'a\u0000',
+    },
+    {
+      name: 'a blank checklist name',
+      parse: (t) => newChecklistSchema.safeParse({ name: t }),
+      text: ' \u0000 ',
+    },
+    {
+      name: 'a too-long board name',
+      parse: (t) => newBoardSchema.safeParse({ name: t }),
+      text: 'x'.repeat(150) + '\u0000',
+    },
+  ];
+
+  it.each(cases)('gets only the NUL message for $name', (c) => {
+    const result = c.parse(c.text);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.message)).toEqual([NUL_MESSAGE]);
+  });
+});
+
+// Criterion 1: the project time zone refuses a NUL, with the NUL message
+// first (not "Unknown time zone").
+describe('a NUL character in a project time zone', () => {
+  it('is refused with only the hidden-character message', () => {
+    const result = projectChangesSchema.safeParse({
+      timeZone: 'Europe/Lon\u0000don',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((i) => i.message)).toEqual([NUL_MESSAGE]);
+  });
+
+  it('still accepts a known time zone', () => {
+    expect(
+      projectChangesSchema.safeParse({ timeZone: 'Europe/London' }).success,
+    ).toBe(true);
   });
 });

@@ -124,4 +124,21 @@ describe("A hidden NUL character in a form", () => {
     expect(await screen.findByText(NUL_MESSAGE)).toBeInTheDocument();
     await waitFor(() => expect(posted).toEqual([]));
   });
+
+  // Regression guard: a short password with a NUL shows only the NUL message.
+  it("shows the hidden-character message, not the length rule, for a short sign-up password", async () => {
+    server.use(signedInAs(null), signUpOpen(true));
+    const { user } = renderApp("/sign-up");
+
+    await user.type(await screen.findByLabelText("Your name"), "Ana");
+    await user.type(screen.getByLabelText("Email"), "ana@example.com");
+    await user.click(screen.getByLabelText("Password"));
+    await user.paste(withNul("a^"));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByText(NUL_MESSAGE)).toBeInTheDocument();
+    expect(
+      screen.queryByText("A password must be at least 10 characters"),
+    ).not.toBeInTheDocument();
+  });
 });
