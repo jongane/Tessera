@@ -1,6 +1,6 @@
 # Data model v0.2 (draft)
 
-Status: draft for review. Covers the MVP only. Task tables, Gantt charts, milestones and dependencies are not modelled yet.
+Status: draft for review. Covers the MVP only, plus the Link table, which is planned ahead and comes after the MVP. Task tables, Gantt charts, milestones and dependencies are not modelled yet.
 
 ## Diagram
 
