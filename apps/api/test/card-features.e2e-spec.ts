@@ -389,6 +389,26 @@ describe('Card features (e2e)', () => {
       }
     });
 
+    // Repository owner, 2026-11-08: the API says the same words as the web
+    // app. The pipe puts the field name in front of every 400 message.
+    it('words the refusal of too little or too much time as the web app does', async () => {
+      const { ana, cardUrl } = await setUp();
+
+      const none = await ana.agent
+        .post(`${cardUrl}/time-entries`)
+        .send({ minutes: 0, workDate: '2026-10-01' })
+        .expect(400);
+      const tooMuch = await ana.agent
+        .post(`${cardUrl}/time-entries`)
+        .send({ minutes: 1441, workDate: '2026-10-01' })
+        .expect(400);
+
+      expect(none.body.message).toBe('minutes: Log at least 1 minute');
+      expect(tooMuch.body.message).toBe(
+        'minutes: Log at most 24 hours at a time',
+      );
+    });
+
     it('starts and stops a timer, asking before stopping one elsewhere', async () => {
       const { ana, cardUrl, toDo } = await setUp();
       const other = (

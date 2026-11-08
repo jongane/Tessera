@@ -191,6 +191,29 @@ describe('Time: estimate, time spent and what is left', () => {
     await expectNoAccessibilityProblems(container)
   })
 
+  // 7c answers, item 1: the Totals line reads “Estimate 2h · Time spent 1h
+  // 15m · Left 45m”, with the “·” separators.
+  it('reads the totals as one line with “·” between them', async () => {
+    const card = boardCard('12', 'Login page', { estimateMinutes: 120 })
+    openCard(card, {
+      time: {
+        entries: {
+          [card.id]: [
+            entry(ana, 45, '2026-11-02'),
+            entry(ben, 30, '2026-11-03'),
+          ],
+        },
+      },
+    })
+    const time = await timeSection(await cardPanel())
+
+    await waitFor(() => expect(time).toHaveTextContent(/Time spent\s*1h 15m/))
+    // Spaces are ignored, as the markup may or may not put any between
+    // the parts; the words, the values and the dots must be there in order.
+    const line = time.textContent!.replace(/\s+/g, '')
+    expect(line).toContain('Estimate2h·Timespent1h15m·Left45m')
+  })
+
   // Criterion 25, owner's answer: the overage is shown instead of what is left.
   it('says “Over by 15m” instead of what is left when more time is spent than estimated', async () => {
     const card = boardCard('12', 'Login page', { estimateMinutes: 60 })
@@ -550,6 +573,38 @@ describe('The running-timer chip in the top bar', () => {
     window.dispatchEvent(new Event('visibilitychange'))
 
     expect(await chip()).toHaveTextContent('WEB-7')
+  })
+})
+
+describe('The running-timer chip: the card’s number changes', () => {
+  // The card was moved under another parent, so its number changed.
+  it('shows the card’s new number after the timer is reloaded', async () => {
+    const card = boardCard('7', 'Old task')
+    let current = card
+    runningOn(card, ago(MINUTE))
+    server.use(
+      http.get(`/api/cards/${card.id}`, () =>
+        HttpResponse.json({ ...current, chat: null }),
+      ),
+    )
+    server.use(
+      signedInAs(ana),
+      http.get('/api/projects', () => HttpResponse.json([])),
+    )
+    renderApp('/projects')
+    expect(await chip()).toHaveTextContent('WEB-7')
+
+    current = { ...card, number: 'WEB-3.1' }
+    window.dispatchEvent(new Event('visibilitychange'))
+
+    await waitFor(() =>
+      expect(screen.getByRole('group', { name: CHIP })).toHaveTextContent(
+        'WEB-3.1',
+      ),
+    )
+    expect(screen.getByRole('group', { name: CHIP })).not.toHaveTextContent(
+      'WEB-7',
+    )
   })
 })
 
@@ -1300,5 +1355,140 @@ describe('Deleting a card that has time logged', () => {
       DELETE_REFUSED,
     )
     expect(within(dialog).queryByRole('link', { name: SEE_ENTRIES })).toBe(null)
+  })
+})
+
+// A request that waits until `release` is called.
+function held() {
+  let release: () => void = () => {}
+  const promise = new Promise<void>((resolve) => (release = resolve))
+  return { promise, release }
+}
+
+async function openLogForm() {
+  const { user, api } = openCard(login)
+  const time = await timeSection(await cardPanel())
+  await user.click(await within(time).findByRole('button', { name: LOG_TIME }))
+  return { user, api, time }
+}
+
+describe('Saving: the button is off while the request runs', () => {
+  it('sends Log time once when Save is pressed twice, and turns Save off meanwhile', async () => {
+    const { user, time } = await openLogForm()
+    const gate = held()
+    let posts = 0
+    server.use(
+      http.post(`/api/cards/${login.id}/time-entries`, async () => {
+        posts += 1
+        await gate.promise
+        return HttpResponse.json(
+          { ...entry(ana, 30, '2026-11-07'), cardId: login.id },
+          { status: 201 },
+        )
+      }),
+    )
+    await typeInto(user, within(time).getByLabelText(MINUTES), '30')
+
+    const save = within(time).getByRole('button', { name: SAVE })
+    await user.click(save)
+    await waitFor(() => expectTurnedOff(save))
+    await user.click(save)
+    gate.release()
+
+    await waitFor(() =>
+      expect(within(time).queryByRole('button', { name: SAVE })).toBe(null),
+    )
+    expect(posts).toBe(1)
+  })
+
+  it('sends an edit once when Save is pressed twice, and turns Save off meanwhile', async () => {
+    const card = boardCard('12', 'Login page')
+    const own = entry(ben, 60, '2026-11-03', {
+      note: 'My work',
+      createdAt: ago(2 * HOUR),
+    })
+    const { user } = openCard(card, {
+      me: ben,
+      time: { entries: { [card.id]: [own] } },
+    })
+    const gate = held()
+    let patches = 0
+    server.use(
+      http.patch('/api/time-entries/:entryId', async () => {
+        patches += 1
+        await gate.promise
+        return HttpResponse.json({ ...own, cardId: card.id, minutes: 45 })
+      }),
+    )
+    const time = await timeSection(await cardPanel())
+    const row = await entryRow(time, 'My work')
+    await user.click(within(row).getByRole('button', { name: 'Edit' }))
+    await replaceText(user, within(time).getByLabelText(MINUTES), '45')
+
+    const save = within(time).getByRole('button', { name: SAVE })
+    await user.click(save)
+    await waitFor(() => expectTurnedOff(save))
+    await user.click(save)
+    gate.release()
+
+    await waitFor(() =>
+      expect(within(time).queryByRole('button', { name: SAVE })).toBe(null),
+    )
+    expect(patches).toBe(1)
+  })
+
+  it('sends Confirm once when it is pressed twice, and turns Confirm off meanwhile', async () => {
+    const card = boardCard('12', 'Login page')
+    const flagged = entry(ben, 24 * 60, '2026-11-02', {
+      note: 'Left running',
+      startedAt: '2026-11-02T09:00:00.000Z',
+      needsReview: true,
+    })
+    const { user } = openCard(card, {
+      time: { entries: { [card.id]: [flagged] } },
+    })
+    const gate = held()
+    let patches = 0
+    server.use(
+      http.patch('/api/time-entries/:entryId', async () => {
+        patches += 1
+        await gate.promise
+        return HttpResponse.json({
+          ...flagged,
+          cardId: card.id,
+          needsReview: false,
+        })
+      }),
+    )
+    const time = await timeSection(await cardPanel())
+    const row = await entryRow(time, 'Left running')
+
+    const confirm = within(row).getByRole('button', { name: 'Confirm' })
+    await user.click(confirm)
+    await waitFor(() => expectTurnedOff(confirm))
+    await user.click(confirm)
+    gate.release()
+
+    await waitFor(() =>
+      expect(within(time).queryByRole('button', { name: 'Confirm' })).toBe(
+        null,
+      ),
+    )
+    expect(patches).toBe(1)
+  })
+})
+
+describe('The entries: when the people cannot be loaded', () => {
+  it('shows the error instead of Loading when the members fail to load', async () => {
+    openCard()
+    server.use(
+      http.get(`/api/projects/${website.id}/members`, () =>
+        apiError(500, 'Broken'),
+      ),
+    )
+    const time = await timeSection(await cardPanel())
+
+    expect(await within(time).findByText('Broken')).toBeInTheDocument()
+    expect(within(time).queryByText('Loading…')).toBe(null)
   })
 })
