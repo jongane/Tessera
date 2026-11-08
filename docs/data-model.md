@@ -49,7 +49,7 @@ erDiagram
     }
 ```
 
-`LINK` connects cards, chats and messages to each other. Each link has a type from a list the project admin keeps. Links get their own design round with chat. It is drawn on its own because it points at more than one kind of thing.
+`LINK` connects cards, chats and messages to each other. Each link has a type from a list the project admin keeps. Links come after the MVP (see [roadmap.md](roadmap.md)). It is drawn on its own because it points at more than one kind of thing.
 
 ## Entities
 
