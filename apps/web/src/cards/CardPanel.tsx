@@ -33,6 +33,7 @@ import { ParentLine } from './ParentLine'
 import { AssigneesField, LabelsField } from './PeopleAndLabels'
 import { RelatedElsewhere } from './RelatedElsewhere'
 import { Subtasks } from './Subtasks'
+import { TimeSection } from './TimeSection'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
@@ -186,6 +187,7 @@ function CardDetails({
         </Suspense>
         <Subtasks card={card} track={track} />
         <Checklists card={card} track={track} onCreateCard={onCreateCard} />
+        <TimeSection card={card} project={project} track={track} />
         <DeleteButton
           card={card}
           projectId={project.id}

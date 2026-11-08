@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Link, Outlet, useNavigate } from 'react-router'
 import { useMe, useSignOut } from '../api/auth'
 import { Logo } from '../ui/Logo'
+import { TimerChip } from './TimerChip'
 
 // The frame around every signed-in page: the Tessera mark and the account
 // menu along the top, and the page below.
@@ -16,7 +17,8 @@ export function AppShell() {
           <Logo />
           Tessera
         </Link>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <TimerChip />
           <AccountMenu />
         </div>
       </header>

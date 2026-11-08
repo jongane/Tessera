@@ -5,11 +5,9 @@ import {
   cardChangesSchema,
   dueFromParts,
   dueParts,
-  formatMinutes,
   splitMinutes,
 } from '@tessera/shared'
 import { type FocusEvent, type KeyboardEvent, useId, useState } from 'react'
-import { useCardTotals } from '../api/cards'
 import { PRIORITY_NAMES } from '../boards/card-text'
 import { checkForm } from '../ui/form-errors'
 import { estimateFrom } from './estimate'
@@ -187,12 +185,11 @@ export function DueField({
 }
 
 // Hours and minutes (docs/card-features.md, section 6). Saved when focus
-// leaves both boxes. A card with subtasks shows the sum of theirs, and its
-// own estimate greyed out as the "original estimate".
+// leaves both boxes. A card with subtasks greys it out as the "original
+// estimate"; the Time section shows the sum of theirs.
 export function EstimateField({ card, save }: { card: BoardCard; save: Save }) {
   const id = useId()
   const hasSubtasks = card.subtaskProgress.total > 0
-  const totals = useCardTotals(card.id, hasSubtasks)
   const saved =
     card.estimateMinutes === null ? null : splitMinutes(card.estimateMinutes)
   const [draft, setDraft] = useState<{ hours: string; minutes: string } | null>(
@@ -223,21 +220,8 @@ export function EstimateField({ card, save }: { card: BoardCard; save: Save }) {
     }
   }
 
-  const rolledUp = totals.data?.estimateMinutes
   return (
     <div className="flex flex-col gap-1.5">
-      {hasSubtasks && (
-        <>
-          <h3 className="font-semibold">Estimate</h3>
-          {totals.data && (
-            <p>
-              {rolledUp === null || rolledUp === undefined
-                ? 'No estimates on its subtasks yet'
-                : `${formatMinutes(rolledUp)} from its subtasks`}
-            </p>
-          )}
-        </>
-      )}
       <fieldset
         onBlur={onBlur}
         aria-describedby={error ? `${id}-error` : undefined}
