@@ -412,6 +412,137 @@ describe('Paging', () => {
       within(tab).getByRole('button', { name: SHOW_OLDER }),
     ).toBeInTheDocument()
   })
+
+  // Show older is off while the history reloads after a save (agreed
+  // 2026-11-08, 7d answers, round 3). A save finishes while Activity is shown
+  // and its reload of the newest page is held until `releaseReload` is called.
+  async function saveFinishesWhileActivityIsShown() {
+    const activity = fakeActivity(manyLines(60))
+    server.use(activity.handler)
+    const { user } = openCard()
+    const panel = await cardPanel()
+    let releaseSave!: () => void
+    const saveGate = new Promise<void>((r) => (releaseSave = r))
+    server.use(
+      http.patch(`/api/cards/${login.id}`, async () => {
+        await saveGate
+        return HttpResponse.json({ ...login, priority: 'HIGH' })
+      }),
+    )
+    await user.selectOptions(within(panel).getByLabelText('Priority'), 'HIGH')
+    await user.click(within(panel).getByRole('tab', { name: ACTIVITY }))
+    const tab = await within(panel).findByRole('tabpanel', { name: ACTIVITY })
+    await waitFor(() => expect(lines(tab)).toHaveLength(50))
+
+    // Holds the newest-page request, then lets the fake API answer it.
+    let reloadHeld = false
+    let releaseReload!: () => void
+    const reloadGate = new Promise<void>((r) => (releaseReload = r))
+    server.use(
+      http.get('/api/cards/:cardId/activity', async ({ request }) => {
+        if (new URL(request.url).searchParams.has('before')) return
+        reloadHeld = true
+        await reloadGate
+      }),
+    )
+    activity.lines.unshift(
+      activityLine('PRIORITY_CHANGED', { from: 'NONE', to: 'HIGH' }),
+    )
+    releaseSave()
+    await waitFor(() => expect(reloadHeld).toBe(true))
+    return { user, tab, activity, releaseReload }
+  }
+
+  it('turns Show older off while the history reloads after a save, and on again after (agreed 2026-11-08)', async () => {
+    const { tab, releaseReload } = await saveFinishesWhileActivityIsShown()
+
+    expect(within(tab).getByRole('button', { name: SHOW_OLDER })).toBeDisabled()
+
+    releaseReload()
+
+    await waitFor(() =>
+      expect(
+        within(tab).getByRole('button', { name: SHOW_OLDER }),
+      ).toBeEnabled(),
+    )
+    expect(lines(tab)[0]).toHaveTextContent('changed the priority')
+  })
+
+  it('loads nothing older when Show older is tried during the reload, and the saved change is not lost (agreed 2026-11-08)', async () => {
+    const { user, tab, activity, releaseReload } =
+      await saveFinishesWhileActivityIsShown()
+
+    await user.click(within(tab).getByRole('button', { name: SHOW_OLDER }))
+    expect(activity.requests.some((u) => u.searchParams.has('before'))).toBe(
+      false,
+    )
+
+    releaseReload()
+    await waitFor(() =>
+      expect(
+        within(tab).getByRole('button', { name: SHOW_OLDER }),
+      ).toBeEnabled(),
+    )
+    expect(lines(tab)[0]).toHaveTextContent('changed the priority')
+
+    await user.click(within(tab).getByRole('button', { name: SHOW_OLDER }))
+
+    await waitFor(() => expect(lines(tab)).toHaveLength(61))
+    expect(lines(tab)[0]).toHaveTextContent('changed the priority')
+    expect(
+      within(tab).queryByRole('button', { name: SHOW_OLDER }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows both newest changes and the older lines when two saves finish while older lines are loading (agreed 2026-11-08)', async () => {
+    const activity = fakeActivity(manyLines(60))
+    server.use(activity.handler)
+    const { user } = openCard()
+    const panel = await cardPanel()
+    const saves: Array<() => void> = []
+    server.use(
+      http.patch(`/api/cards/${login.id}`, async () => {
+        await new Promise<void>((r) => saves.push(r))
+        return HttpResponse.json({ ...login, priority: 'HIGH' })
+      }),
+    )
+    await user.selectOptions(within(panel).getByLabelText('Priority'), 'HIGH')
+    await user.click(within(panel).getByRole('tab', { name: ACTIVITY }))
+    const tab = await within(panel).findByRole('tabpanel', { name: ACTIVITY })
+    await waitFor(() => expect(lines(tab)).toHaveLength(50))
+
+    // The older page is held while both saves finish.
+    let olderHeld = false
+    let releaseOlder!: () => void
+    const olderGate = new Promise<void>((r) => (releaseOlder = r))
+    server.use(
+      http.get('/api/cards/:cardId/activity', async ({ request }) => {
+        if (!new URL(request.url).searchParams.has('before')) return
+        olderHeld = true
+        await olderGate
+      }),
+    )
+    await user.click(within(tab).getByRole('button', { name: SHOW_OLDER }))
+    await waitFor(() => expect(olderHeld).toBe(true))
+
+    await waitFor(() => expect(saves).toHaveLength(1))
+    activity.lines.unshift(
+      activityLine('PRIORITY_CHANGED', { from: 'NONE', to: 'HIGH' }),
+    )
+    saves.shift()!()
+    await user.selectOptions(within(panel).getByLabelText('Priority'), 'LOW')
+    await waitFor(() => expect(saves).toHaveLength(1))
+    activity.lines.unshift(
+      activityLine('PRIORITY_CHANGED', { from: 'HIGH', to: 'LOW' }),
+    )
+    saves.shift()!()
+    releaseOlder()
+
+    await waitFor(() => expect(lines(tab)).toHaveLength(62))
+    expect(lines(tab)[0]).toHaveTextContent('changed the priority')
+    expect(lines(tab)[1]).toHaveTextContent('changed the priority')
+    expect(lines(tab)[61]).toHaveTextContent(/to .Title 1./)
+  })
 })
 
 describe('Description changes', () => {
