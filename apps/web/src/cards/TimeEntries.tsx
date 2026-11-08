@@ -60,11 +60,12 @@ const MONTHS = [
 
 // "2 Nov", with the year when it is not this one. A work date is a day
 // saved as midnight UTC, so it is read in UTC whatever zone the browser is in.
-function dayText(workDate: string) {
+// "This year" is the current year in the project's time zone.
+function dayText(workDate: string, timeZone: string) {
   const day = new Date(workDate)
   const text = `${day.getUTCDate()} ${MONTHS[day.getUTCMonth()]}`
   const year = day.getUTCFullYear()
-  return year === new Date().getUTCFullYear() ? text : `${text} ${year}`
+  return year === Number(today(timeZone).slice(0, 4)) ? text : `${text} ${year}`
 }
 
 // The entries of a card, newest day first, with "Log time" and the buttons
@@ -163,8 +164,8 @@ export function TimeEntries({
                   track={track}
                   saving={change.isPending}
                   onCancel={() => closeEdit(entry.id)}
-                  onSave={(values) => {
-                    const changes = changesOf(entry, values)
+                  onSave={(values, opened) => {
+                    const changes = changesOf(opened ?? entry, values)
                     return Object.keys(changes).length === 0
                       ? Promise.resolve(closeEdit(entry.id))
                       : change
@@ -177,6 +178,7 @@ export function TimeEntries({
               <EntryRow
                 key={entry.id}
                 entry={entry}
+                timeZone={project.timeZone}
                 reason={reasonFor(entry, isAdmin, me.data?.id)}
                 confirming={change.isPending}
                 onEdit={() => {
@@ -216,7 +218,7 @@ export function TimeEntries({
         >
           <p>Are you sure?</p>
           <p className="text-muted">
-            {`${formatMinutes(deleting.entry.minutes)} on ${dayText(deleting.entry.workDate)} will be deleted.`}
+            {`${formatMinutes(deleting.entry.minutes)} on ${dayText(deleting.entry.workDate, project.timeZone)} will be deleted.`}
           </p>
         </ConfirmDialog>
       )}
@@ -244,6 +246,7 @@ function reasonFor(
 
 function EntryRow({
   entry,
+  timeZone,
   reason,
   confirming,
   onEdit,
@@ -251,6 +254,7 @@ function EntryRow({
   onConfirm,
 }: {
   entry: TimeEntryWithPerson
+  timeZone: string
   reason: string | null
   confirming: boolean
   onEdit: () => void
@@ -264,7 +268,7 @@ function EntryRow({
     <li className="flex flex-col gap-1 border-b border-line pb-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="font-semibold">{entry.user.displayName}</span>
-        <span>{dayText(entry.workDate)}</span>
+        <span>{dayText(entry.workDate, timeZone)}</span>
         <span>{formatMinutes(entry.minutes)}</span>
         {entry.startedAt !== null && (
           <span className="rounded bg-subtle px-1.5 text-xs">Timer</span>
@@ -343,12 +347,18 @@ function EntryForm({
 }: {
   entry?: TimeEntryWithPerson
   timeZone: string
-  onSave: (values: NewTimeEntryBody) => Promise<unknown>
+  onSave: (
+    values: NewTimeEntryBody,
+    opened?: TimeEntryWithPerson,
+  ) => Promise<unknown>
   onCancel: () => void
   track: Track
   saving: boolean
 }) {
   const id = useId()
+  // The entry as it was when the form opened: an edit is compared with this,
+  // not with a later reload of the entry.
+  const [opened] = useState(entry)
   const split = splitMinutes(entry?.minutes ?? 0)
   const savedDay = entry?.workDate.slice(0, 10)
   const [hours, setHours] = useState(entry ? String(split.hours) : '')
@@ -383,7 +393,7 @@ function EntryForm({
       return
     }
     setErrors({})
-    track(onSave(checked.data))
+    track(onSave(checked.data, opened))
   }
 
   return (
