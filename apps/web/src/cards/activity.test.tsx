@@ -593,14 +593,14 @@ describe('Paging', () => {
       await new Promise((r) => setTimeout(r, 200))
     })
 
-    // The older page must not be dropped, and Show older must not come back
-    // as if it had never been pressed.
+    // The older page must not be dropped; once it is in, everything has
+    // loaded and Show older is gone.
     await waitFor(() =>
-      expect(
-        within(tab).getByRole('button', { name: SHOW_OLDER }),
-      ).toBeEnabled(),
+      expect(screen.getByText(/to Column 51/)).toBeInTheDocument(),
     )
-    expect(screen.getByText(/to Column 51/)).toBeInTheDocument()
+    expect(
+      within(tab).queryByRole('button', { name: SHOW_OLDER }),
+    ).not.toBeInTheDocument()
   })
 })
 
