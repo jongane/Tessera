@@ -1453,11 +1453,9 @@ describe('Saving: the button is off while the request runs', () => {
       http.patch('/api/time-entries/:entryId', async () => {
         patches += 1
         await gate.promise
-        return HttpResponse.json({
-          ...flagged,
-          cardId: card.id,
-          needsReview: false,
-        })
+        // Nothing returned: the fake API's own handler answers next, and
+        // clears the flag in its store as the real API does.
+        return undefined
       }),
     )
     const time = await timeSection(await cardPanel())
