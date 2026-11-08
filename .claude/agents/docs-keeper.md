@@ -1,6 +1,6 @@
 ---
 name: docs-keeper
-description: Keeps Tessera's docs in step with the code. After a change is built, updates docs/, CONTEXT.md, the ADRs, README and the CLAUDE.md commands so nothing disagrees. Never decides what is right when code and docs differ.
+description: Keeps Tessera's docs in step with the code. After a change is built, updates docs/ (including the roadmap), CONTEXT.md, the ADRs, README and the CLAUDE.md commands so nothing disagrees. Never decides what is right when code and docs differ.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -19,7 +19,8 @@ git diff origin/main...HEAD
 2. **Specs**: the specs in `docs/` (such as `card-features.md`, `web-app.md`, `api.md`, `data-model.md`) describe what the code now does: endpoints, fields, tables, screens, rules.
 3. **Decisions**: a lasting design decision made for this change has an ADR in `docs/adr/`, numbered after the last one. Write it only if the decision itself is recorded in the plan or by the repository owner.
 4. **Commands**: new or changed scripts appear in the commands tables in `CLAUDE.md` and in `README.md`.
-5. **Everything agrees**: when you change a fact, update every file that states it, so no two docs disagree.
+5. **Roadmap**: if the change finishes or starts a step in `docs/roadmap.md`, update it: the flowchart's colours, the MVP progress table, the suggested order and the "Done so far" table. Do not add, remove or reorder roadmap items yourself; that is the repository owner's call, so put it under **Questions**.
+6. **Everything agrees**: when you change a fact, update every file that states it, so no two docs disagree.
 
 ## Who decides
 The docs record the repository owner's decisions. They are not yours to make.

@@ -1,6 +1,6 @@
 # Data model v0.2 (draft)
 
-Status: draft for review. Covers the MVP only. Task tables, Gantt charts, milestones and dependencies are not modelled yet.
+Status: draft for review. Covers the MVP only, plus the Link table, which is planned ahead and comes after the MVP. Task tables, Gantt charts, milestones and dependencies are not modelled yet.
 
 ## Diagram
 
@@ -49,7 +49,7 @@ erDiagram
     }
 ```
 
-`LINK` connects cards, chats and messages to each other. Each link has a type from a list the project admin keeps. Links get their own design round with chat. It is drawn on its own because it points at more than one kind of thing.
+`LINK` connects cards, chats and messages to each other. Each link has a type from a list the project admin keeps. Links come after the MVP (see [roadmap.md](roadmap.md)). It is drawn on its own because it points at more than one kind of thing.
 
 ## Entities
 
@@ -67,7 +67,7 @@ erDiagram
 | Chat | A conversation on a board | id, board_id, card_id (optional), kind |
 | Message | One chat message | id, chat_id, author_id, body, created_at, deleted_at |
 | File | Uploaded file metadata | id, project_id, uploader_id, filename, mime_type, size, storage_key, card_id or message_id |
-| Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, designed with chat) | from_type, from_id, to_type, to_id, link type |
+| Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, comes after the MVP, see [roadmap.md](roadmap.md)) | from_type, from_id, to_type, to_id, link type |
 | ProjectAiConfig | Whether AI is on for a project, and which provider it uses | project_id, enabled, enabled_by, enabled_at, provider, model, encrypted_api_key |
 | AiRequest | Audit log of AI use | id, chat_id, user_id, kind, provider, created_at |
 

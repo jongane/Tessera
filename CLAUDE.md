@@ -48,7 +48,7 @@ The agents live in `.claude/agents/`. Sub agents cannot call each other, so the 
 | 3 | `tester` (red) | Sonnet | Writes a failing test for every acceptance criterion and commits them on their own. |
 | 4 | `builder` | Sonnet | Writes the least code that makes those tests pass. Never edits tests. |
 | 5 | `tester` (verify) | Sonnet | Runs every test, the linter and the build, and reports honestly. |
-| 6 | `docs-keeper` | Sonnet | Brings `docs/`, `CONTEXT.md`, ADRs and the commands tables in step with the code. |
+| 6 | `docs-keeper` | Sonnet | Brings `docs/` (including the roadmap), `CONTEXT.md`, ADRs and the commands tables in step with the code. |
 | 7 | `reviewer` and `antagonist`, together | Opus | Reviewer checks the rules; antagonist attacks the change and proves each break with a failing test. |
 | 8 | main helper | | Sends fixes back through `builder`, `tester` (verify) and, if behaviour changed, `docs-keeper`, then repeats step 7. Opens the pull request once both say `PASS`. |
 
