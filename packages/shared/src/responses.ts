@@ -310,3 +310,102 @@ export interface ApiErrorBody {
   message: string;
   error?: string;
 }
+
+// A card's history (GET /api/cards/:cardId/activity). Names are copied into
+// each line when it is written, so a line reads as it did at the time.
+export interface ActivityPersonRef {
+  id: string;
+  displayName: string;
+}
+
+export interface ActivityCardRef {
+  id: string;
+  numberPath: string;
+  title: string;
+}
+
+export interface ActivityDue {
+  // ISO time, or null for no due date.
+  at: string | null;
+  hasTime: boolean;
+}
+
+export interface ActivityTimeEntry {
+  minutes: number;
+  // YYYY-MM-DD
+  workDate: string;
+  note: string | null;
+}
+
+// What each kind of history line records.
+export interface ActivityDetails {
+  CREATED: { numberPath: string; title: string };
+  TITLE_CHANGED: { from: string; to: string };
+  DESCRIPTION_CHANGED: { from: string | null; to: string | null };
+  PRIORITY_CHANGED: { from: CardPriority; to: CardPriority };
+  DUE_DATE_CHANGED: { from: ActivityDue; to: ActivityDue };
+  ESTIMATE_CHANGED: { from: number | null; to: number | null };
+  MOVED: {
+    from: { columnId: string; name: string };
+    to: { columnId: string; name: string };
+  };
+  COMPLETED: Record<string, never>;
+  REOPENED: Record<string, never>;
+  ASSIGNEE_ADDED: { user: ActivityPersonRef; isOwner: boolean };
+  ASSIGNEE_REMOVED: { user: ActivityPersonRef };
+  OWNER_CHANGED: {
+    from: ActivityPersonRef | null;
+    to: ActivityPersonRef | null;
+  };
+  LABEL_ADDED: { labelId: string; name: string; colour: string };
+  LABEL_REMOVED: { labelId: string; name: string; colour: string };
+  SUBTASK_ADDED: { subtask: ActivityCardRef };
+  // deleted is false when the subtask moved to another parent.
+  SUBTASK_REMOVED: { subtask: ActivityCardRef; deleted: boolean };
+  PARENT_CHANGED: { from: ActivityCardRef | null; to: ActivityCardRef | null };
+  NUMBER_CHANGED: { from: string; to: string };
+  TIME_LOGGED: {
+    entryId: string;
+    user: ActivityPersonRef;
+    fromTimer: boolean;
+  } & ActivityTimeEntry;
+  TIME_ENTRY_EDITED: {
+    entryId: string;
+    user: ActivityPersonRef;
+    from: ActivityTimeEntry;
+    to: ActivityTimeEntry;
+  };
+  TIME_ENTRY_DELETED: {
+    entryId: string;
+    user: ActivityPersonRef;
+  } & ActivityTimeEntry;
+  CHECKLIST_ADDED: { checklistId: string; name: string };
+  CHECKLIST_RENAMED: { checklistId: string; from: string; to: string };
+  CHECKLIST_DELETED: { checklistId: string; name: string };
+  CHECKLIST_ITEM_TO_SUBTASK: {
+    checklistId: string;
+    checklistName: string;
+    subtask: ActivityCardRef;
+  };
+}
+
+export type ActivityKind = keyof ActivityDetails;
+
+// One history line. The kind decides the shape of `details`.
+export type ActivityLine = {
+  [K in ActivityKind]: {
+    id: string;
+    kind: K;
+    details: ActivityDetails[K];
+    // Null once the person has been deleted.
+    actor: ActivityPersonRef | null;
+    createdAt: string;
+  };
+}[ActivityKind];
+
+export interface ActivityPage {
+  // Newest first.
+  items: ActivityLine[];
+  // Pass as `before` to get the next, older page; null on the last page.
+  nextBefore: string | null;
+}
