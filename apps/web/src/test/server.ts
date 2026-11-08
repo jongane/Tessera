@@ -11,6 +11,10 @@ export const server = setupServer(
   // says so (every signed-in screen asks for the timer, for the top-bar chip).
   http.get('/api/timer', () => HttpResponse.json({ timer: null })),
   http.get('/api/cards/:cardId/time-entries', () => HttpResponse.json([])),
+  // No card has any history yet (the Activity tab asks when it is opened).
+  http.get('/api/cards/:cardId/activity', () =>
+    HttpResponse.json({ items: [], nextBefore: null }),
+  ),
   // A card with subtasks asks for its rolled-up totals.
   http.get('/api/cards/:cardId/time-totals', () =>
     HttpResponse.json({
