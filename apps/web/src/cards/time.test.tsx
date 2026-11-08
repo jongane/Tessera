@@ -153,7 +153,7 @@ async function replaceText(
 ) {
   box.focus()
   await user.clear(box)
-  await typeInto(user, box, text)
+  if (text !== '') await typeInto(user, box, text)
 }
 
 describe('Time: estimate, time spent and what is left', () => {
@@ -805,7 +805,7 @@ describe('Changing an entry: your own, within 24 hours', () => {
 
     await waitFor(() =>
       expect(sentTo(api, /time-entries/)).toEqual([
-        { request: `PATCH /api/time-entries/${own.id}`, body: { minutes: 45 } },
+        { request: `PATCH /api/time-entries/${own.id}`, body: { minutes: 105 } },
       ]),
     )
     expect(await entryRow(time, 'My work')).toHaveTextContent('1h 45m')
@@ -1037,7 +1037,7 @@ describe('Changing an entry: a project admin', () => {
     await user.click(within(time).getByRole('button', { name: SAVE }))
     await waitFor(() =>
       expect(sentTo(api, /time-entries/)).toEqual([
-        { request: `PATCH /api/time-entries/${old.id}`, body: { minutes: 15 } },
+        { request: `PATCH /api/time-entries/${old.id}`, body: { minutes: 75 } },
       ]),
     )
 
