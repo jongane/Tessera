@@ -3,7 +3,6 @@ import type {
   BoardView,
   CardChangesBody,
   CardRelatives,
-  CardTotals,
   CardView,
   CompleteCardResult,
   DeleteCardBody,
@@ -300,15 +299,6 @@ export function useDeleteCard(boardId: string, cardId: string) {
       api<void>(`/cards/${cardId}`, { method: 'DELETE', body }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: boardKey(boardId) }),
-  })
-}
-
-// The estimate rolled up from the card's subtasks.
-export function useCardTotals(cardId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: ['cards', cardId, 'time-totals'],
-    queryFn: () => api<CardTotals>(`/cards/${cardId}/time-totals`),
-    enabled,
   })
 }
 

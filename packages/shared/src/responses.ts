@@ -252,6 +252,57 @@ export interface NewChecklist extends Checklist {
   suggestNewCard: boolean;
 }
 
+// One piece of logged time (docs/api.md, "Time"). POST
+// /api/cards/:cardId/time-entries and PATCH /api/time-entries/:entryId
+// answer with one.
+export interface TimeEntry {
+  id: string;
+  projectId: string;
+  cardId: string;
+  userId: string;
+  // The day worked, as midnight UTC of that day ("2026-11-02T00:00:00.000Z").
+  workDate: string;
+  minutes: number;
+  note: string | null;
+  // Set when the timer made the entry.
+  startedAt: string | null;
+  endedAt: string | null;
+  // A timer that ran over 24 hours is flagged until someone confirms it.
+  needsReview: boolean;
+  createdAt: string;
+}
+
+// GET /api/cards/:cardId/time-entries, latest day first.
+export interface TimeEntryWithPerson extends TimeEntry {
+  user: { id: string; displayName: string };
+}
+
+// Someone's running timer.
+export interface RunningTimer {
+  userId: string;
+  projectId: string;
+  cardId: string;
+  startedAt: string;
+  workDate: string;
+}
+
+// GET /api/timer
+export interface TimerState {
+  timer: RunningTimer | null;
+}
+
+// POST /api/cards/:cardId/timer. `savedEntry` is the time saved from a timer
+// that was stopped to start this one.
+export interface StartTimerResult {
+  timer: RunningTimer;
+  savedEntry: TimeEntry | null;
+}
+
+// DELETE /api/timer. `entry` is null when the timer ran under half a minute.
+export interface StopTimerResult {
+  entry: TimeEntry | null;
+}
+
 // The body of every 4xx answer. `message` says what is wrong, in words that
 // can be shown to people.
 export interface ApiErrorBody {

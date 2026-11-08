@@ -13,6 +13,7 @@ import type {
 } from '@tessera/shared'
 import { http, HttpResponse } from 'msw'
 import { checklistHandlers, type FakeChecklist } from './fake-checklists'
+import { type FakeTimeOptions, timeHandlers } from './fake-time'
 import { backlog, boardCard, boardColumn, sprint, website } from './fixtures'
 import { ana, apiError, server, signedInAs } from './server'
 
@@ -82,6 +83,9 @@ export interface FakeBoardOptions {
   // Cards on the Backlog board (see `backlogCard`). They can be found with
   // the card search and listed as subtasks of cards on this board.
   elsewhere?: BoardCard[]
+  // Time entries by card id, and the signed-in person's running timer (see
+  // fake-time.ts). Without it, no time is logged and no timer runs.
+  time?: FakeTimeOptions
 }
 
 // A fake API for one board that remembers changes to its cards, so the
@@ -98,6 +102,7 @@ export function fakeBoard(
     relatives = {},
     checklists = {},
     elsewhere: startElsewhere = [],
+    time = {},
   }: FakeBoardOptions = {},
 ) {
   let view = structuredClone(start)
@@ -352,6 +357,7 @@ export function fakeBoard(
   }
 
   server.use(
+    ...timeHandlers({ me, start: time, record, cardOf: anyCard }),
     ...checklistHandlers({
       start: checklists,
       record,

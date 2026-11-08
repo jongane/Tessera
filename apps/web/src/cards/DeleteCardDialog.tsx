@@ -3,8 +3,10 @@ import {
   formatMinutes,
   type RelatedCard,
 } from '@tessera/shared'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { useMe } from '../api/auth'
 import { ApiError } from '../api/client'
+import { useMembers } from '../api/members'
 import {
   useCardRelatives,
   useDeleteCard,
@@ -14,6 +16,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
 import { ParentPickerDialog } from './ParentPickerDialog'
+import { entriesHeadingId } from './time-ids'
 
 type Choice = 'delete' | 'standalone' | 'move'
 
@@ -45,6 +48,19 @@ export function DeleteCardDialog({
   const [picking, setPicking] = useState<string | null>(null)
   // The button or radio that opened the picker.
   const [opener, setOpener] = useState<HTMLElement | null>(null)
+  const me = useMe()
+  const members = useMembers(card.projectId)
+  const isAdmin =
+    members.data?.find((member) => member.userId === me.data?.id)?.role ===
+    'ADMIN'
+  // Set when going to the time entries: focus is to land on their heading
+  // once the dialog has closed.
+  const [seeingEntries, setSeeingEntries] = useState<HTMLElement | null>(null)
+
+  // Closes after the dialog has been told where to give focus back to.
+  useEffect(() => {
+    if (seeingEntries) onCancel()
+  }, [seeingEntries, onCancel])
 
   function choiceFor(id: string): Choice {
     return choices[id] ?? 'standalone'
@@ -81,7 +97,7 @@ export function DeleteCardDialog({
       confirmLabel="Delete card"
       onConfirm={onConfirm}
       onCancel={onCancel}
-      returnFocusTo={returnFocusTo}
+      returnFocusTo={seeingEntries ?? returnFocusTo}
       // Without the subtasks there is nothing to choose for them.
       pending={
         remove.isPending ||
@@ -100,6 +116,20 @@ export function DeleteCardDialog({
         <p>
           {`“${card.title}” will be deleted. Its chat is kept, without a card.`}
         </p>
+        {isAdmin && loggedTimeRefusal(remove.error) !== null && (
+          <a
+            href={`#${entriesHeadingId(card.id)}`}
+            className="self-start font-semibold text-accent hover:text-accent-strong hover:underline"
+            onClick={(event) => {
+              event.preventDefault()
+              setSeeingEntries(
+                document.getElementById(entriesHeadingId(card.id)),
+              )
+            }}
+          >
+            See the time entries
+          </a>
+        )}
         {hasSubtasks &&
           (subtasks.pending ? (
             <Loading />
@@ -230,14 +260,22 @@ function SubtaskChoice({
 }
 
 // A card with logged time is refused; say how much, and what to do.
-function deleteError(error: Error | null): Error | null {
+function loggedTimeRefusal(error: Error | null): number | null {
   if (
     error instanceof ApiError &&
     error.status === 409 &&
     typeof error.details.loggedMinutes === 'number'
   ) {
+    return error.details.loggedMinutes
+  }
+  return null
+}
+
+function deleteError(error: Error | null): Error | null {
+  const logged = loggedTimeRefusal(error)
+  if (logged !== null) {
     return new Error(
-      `This card has ${formatMinutes(error.details.loggedMinutes)} logged. ` +
+      `This card has ${formatMinutes(logged)} logged. ` +
         'A project admin can delete the time entries first.',
     )
   }

@@ -7,6 +7,10 @@ import { setupServer } from 'msw/node'
 // few below that every open card makes, which answer "nothing yet".
 export const server = setupServer(
   http.get('/api/cards/:cardId/checklists', () => HttpResponse.json([])),
+  // Nobody has a timer running, and no card has time logged, unless a test
+  // says so (every signed-in screen asks for the timer, for the top-bar chip).
+  http.get('/api/timer', () => HttpResponse.json({ timer: null })),
+  http.get('/api/cards/:cardId/time-entries', () => HttpResponse.json([])),
   // A card with subtasks asks for its rolled-up totals.
   http.get('/api/cards/:cardId/time-totals', () =>
     HttpResponse.json({
