@@ -640,12 +640,16 @@ describe('Paging', () => {
       await new Promise((r) => setTimeout(r, 300))
     })
 
-    // The new line plus the 100 already shown; not a third page.
-    await waitFor(() => expect(lines(tab)).toHaveLength(101))
+    // The reload fetches the two pages already shown, so the new line comes
+    // first and 100 lines are shown; a third page is not loaded.
+    await waitFor(() =>
+      expect(lines(tab)[0]).toHaveTextContent('changed the priority'),
+    )
+    await waitFor(() => expect(lines(tab)).toHaveLength(100))
     await act(async () => {
       await new Promise((r) => setTimeout(r, 300))
     })
-    expect(lines(tab)).toHaveLength(101)
+    expect(lines(tab)).toHaveLength(100)
   })
 
   it('does not try the failed older page again by itself when a save finishes (agreed 2026-11-08)', async () => {
