@@ -10,7 +10,9 @@ import { ana, apiError } from './server'
 // The fake API's card history, for the Activity tab's tests. The shapes
 // follow what the real API answers (docs/api.md, "Activity"): newest first,
 // `{ items, nextBefore }`, and `before` takes the previous page's
-// `nextBefore`. Lines are listed newest first, as the API sends them.
+// `nextBefore`. Lines are listed newest first, as the API sends them. The
+// cursor is a line's sequence number as a string (the oldest line is 1), as
+// the real API sends it.
 
 let nextId = 1
 
@@ -49,13 +51,16 @@ export function fakeActivity(lines: ActivityLine[]) {
     requests.push(url)
     const limit = Number(url.searchParams.get('limit') ?? 50)
     const before = url.searchParams.get('before')
-    const start = before ? lines.findIndex((l) => l.id === before) + 1 : 0
-    if (before && start === 0) return apiError(400, 'before: not a valid value')
+    if (before !== null && !/^[0-9]{1,19}$/.test(before))
+      return apiError(400, 'Unknown page cursor')
+    // A line's sequence number is how many lines are at or below it.
+    const start = before === null ? 0 : lines.length - Number(before) + 1
     const items = lines.slice(start, start + limit)
     const more = start + limit < lines.length
+    const last = start + items.length - 1
     return HttpResponse.json({
       items,
-      nextBefore: more ? items[items.length - 1]!.id : null,
+      nextBefore: more ? String(lines.length - last) : null,
     })
   })
   return { lines, requests, handler }
