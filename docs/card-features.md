@@ -71,6 +71,7 @@ Words used here: a **card** is a task or user story. A **subtask** is a card tha
 - An edit to an entry that leaves the date out, or sends back the entry's date unchanged, does not check the date again, so an older entry can still be edited. (Agreed 2026-11-03.)
 - Deleting a card that has a running timer stops the timer without saving it. This can only happen when the card has no logged time. (Agreed 2026-10-28.)
 - A person who has logged time cannot be deleted, so their hours are kept. (Agreed 2026-10-28.)
+- In the web app, time is shown in the card panel's Time section, and a running timer in a chip in the top bar ([web-app.md](web-app.md) sections 3 and 5). An entry flagged for review has a "Confirm" button. (Agreed 2026-11-07.)
 
 ## 7. Seeing related cards
 
