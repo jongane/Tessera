@@ -1490,3 +1490,90 @@ describe('The entries: when the people cannot be loaded', () => {
     expect(within(time).queryByText('Loading…')).toBe(null)
   })
 })
+
+describe('Changing an entry: the form and a reload', () => {
+  // Criterion 34, decided 2026-11-08: Edit sends only the fields the person
+  // changed, compared with the values the form opened with. If the entry
+  // changed elsewhere while the form was open, the person's change is saved
+  // and the other change stays.
+  it('sends only the note when only the note was changed, even after the entries reload with a change made elsewhere', async () => {
+    const card = boardCard('12', 'Login page')
+    const own = mine(ago(2 * HOUR))
+    const { user, api } = openCard(card, {
+      me: ben,
+      time: { entries: { [card.id]: [own] } },
+    })
+    const time = await timeSection(await cardPanel())
+    const row = await entryRow(time, 'My work')
+    await user.click(within(row).getByRole('button', { name: 'Edit' }))
+
+    // Meanwhile the entry was changed to 2h in another tab; coming back to
+    // this tab reloads the entries.
+    server.use(
+      http.get('/api/cards/:cardId/time-entries', () =>
+        HttpResponse.json([{ ...own, cardId: card.id, minutes: 120 }]),
+      ),
+    )
+    window.dispatchEvent(new Event('visibilitychange'))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    await replaceText(user, within(time).getByLabelText(NOTE), 'Changed')
+    await user.click(within(time).getByRole('button', { name: SAVE }))
+
+    await waitFor(() =>
+      expect(sentTo(api, /time-entries/)).toEqual([
+        {
+          request: `PATCH /api/time-entries/${own.id}`,
+          body: { note: 'Changed' },
+        },
+      ]),
+    )
+  })
+})
+
+describe('The entries: which year counts is the project’s zone', () => {
+  // Criterion 31, decided 2026-11-08: whether a work date shows its year is
+  // decided by the current year in the project's time zone, not in UTC.
+  // The browser stays on its own zone, which differs from the project's.
+  it('shows an entry for today without the year on 31 December evening in Los Angeles', async () => {
+    // 31 Dec 2026, 20:00 in Los Angeles; already 1 Jan 2027 in UTC.
+    vi.setSystemTime(new Date('2027-01-01T04:00:00.000Z'))
+    const card = boardCard('12', 'Login page')
+    openCard(card, {
+      project: { ...website, timeZone: 'America/Los_Angeles' },
+      time: {
+        entries: {
+          [card.id]: [entry(ben, 60, '2026-12-31', { note: 'Tonight' })],
+        },
+      },
+    })
+    const time = await timeSection(await cardPanel())
+
+    const row = await entryRow(time, 'Tonight')
+    expect(row).toHaveTextContent('31 Dec')
+    expect(row).not.toHaveTextContent('2026')
+  })
+
+  it('shows an entry for today without the year on 1 January early morning in Auckland', async () => {
+    // 1 Jan 2027, 01:00 in Auckland; still 31 Dec 2026 in UTC.
+    vi.setSystemTime(new Date('2026-12-31T12:00:00.000Z'))
+    const card = boardCard('12', 'Login page')
+    openCard(card, {
+      project: { ...website, timeZone: 'Pacific/Auckland' },
+      time: {
+        entries: {
+          [card.id]: [
+            entry(ben, 60, '2027-01-01', { note: 'New year' }),
+            entry(ben, 60, '2026-12-31', { note: 'Old year' }),
+          ],
+        },
+      },
+    })
+    const time = await timeSection(await cardPanel())
+
+    const today = await entryRow(time, 'New year')
+    expect(today).toHaveTextContent('1 Jan')
+    expect(today).not.toHaveTextContent('2027')
+    expect(await entryRow(time, 'Old year')).toHaveTextContent('31 Dec 2026')
+  })
+})
