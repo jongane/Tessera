@@ -56,6 +56,18 @@ const MINUTES = 'Minutes'
 const DATE = 'Date'
 const NOTE = 'Note'
 
+// Wording the owner approved after the builder proposed it (agreed 2026-11-08).
+const EMPTY = 'No time logged yet'
+const STOP_TIMER_TITLE = 'Stop the running timer?'
+const DELETE_ENTRY_TITLE = 'Delete this time entry?'
+const CHOOSE_A_DAY = 'Choose a day'
+const WHOLE_NUMBERS = 'Use whole numbers'
+const MINUTES_TO_59 = 'Minutes go up to 59'
+const AT_LEAST_1 = 'Log at least 1 minute'
+const AT_MOST_24 = 'Log at most 24 hours at a time'
+const NOTE_LIMIT = 'Use at most 1000 characters'
+const CHIP_FAILED = 'Couldn’t stop, try again'
+
 const NOW = '2026-11-07T10:00:00.000Z'
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -292,6 +304,9 @@ describe('Time: the timer', () => {
     const dialog = await screen.findByRole('dialog')
     // The number comes from the card the timer runs on (GET /cards/:id).
     expect(dialog).toHaveTextContent(RUNNING_ELSEWHERE)
+    expect(
+      screen.getByRole('dialog', { name: STOP_TIMER_TITLE }),
+    ).toBeInTheDocument()
     await expectNoAccessibilityProblems(document.body)
     await user.click(within(dialog).getByRole('button', { name: YES }))
 
@@ -483,6 +498,48 @@ describe('The running-timer chip in the top bar', () => {
     ])
   })
 
+  // Agreed 2026-11-08: shown on the chip for 6 seconds.
+  it('says “Under half a minute, nothing saved” on the chip for 6 seconds', async () => {
+    const short = boardCard('7', 'Old task')
+    runningOn(short, ago(5 * 1000))
+    server.use(
+      signedInAs(ana),
+      http.get('/api/projects', () => HttpResponse.json([])),
+    )
+    const { user } = renderApp('/projects')
+
+    const found = await chip()
+    await user.click(within(found).getByRole('button', { name: STOP }))
+
+    expect(await screen.findByText(UNDER_HALF_MINUTE)).toBeInTheDocument()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(screen.getByText(UNDER_HALF_MINUTE)).toBeInTheDocument()
+    await vi.advanceTimersByTimeAsync(1500)
+    await waitFor(() =>
+      expect(screen.queryByText(UNDER_HALF_MINUTE)).toBe(null),
+    )
+  })
+
+  // Agreed 2026-11-08.
+  it('says “Couldn’t stop, try again” on the chip and keeps it when stopping fails', async () => {
+    const old = boardCard('7', 'Old task')
+    runningOn(old, ago(125 * 1000))
+    server.use(
+      signedInAs(ana),
+      http.get('/api/projects', () => HttpResponse.json([])),
+      http.delete('/api/timer', () => apiError(500, 'Broken')),
+    )
+    const { user } = renderApp('/projects')
+
+    const found = await chip()
+    await user.click(within(found).getByRole('button', { name: STOP }))
+
+    expect(await within(found).findByText(CHIP_FAILED)).toBeInTheDocument()
+    expect(
+      within(found).getByRole('button', { name: STOP }),
+    ).toBeInTheDocument()
+  })
+
   it('looks again when the person comes back to the tab', async () => {
     openCard()
     await cardPanel()
@@ -520,6 +577,53 @@ describe('Log time', () => {
     expect(date).toHaveAttribute('max', '2026-11-08')
     expect(date).toHaveAccessibleDescription(/Pacific\/Auckland/)
     await expectNoAccessibilityProblems(container)
+  })
+
+  // Agreed 2026-11-08.
+  it('says “Days are in <zone>” under Date', async () => {
+    const { time } = await openForm({ ...website, timeZone: 'Europe/Berlin' })
+
+    expect(within(time).getByText('Days are in Europe/Berlin')).toBeVisible()
+  })
+
+  // Agreed 2026-11-08: the form's own messages, worded as the owner approved.
+  it('says “Use whole numbers” and sends nothing when hours or minutes are not numbers', async () => {
+    const { user, api, time } = await openForm()
+
+    await typeInto(user, within(time).getByLabelText(HOURS), 'x')
+    await user.click(within(time).getByRole('button', { name: SAVE }))
+
+    expect(await within(time).findByText(WHOLE_NUMBERS)).toBeInTheDocument()
+    expect(api.requests).toEqual([])
+  })
+
+  it('says “Minutes go up to 59” and sends nothing for 60 minutes', async () => {
+    const { user, api, time } = await openForm()
+
+    await typeInto(user, within(time).getByLabelText(MINUTES), '60')
+    await user.click(within(time).getByRole('button', { name: SAVE }))
+
+    expect(await within(time).findByText(MINUTES_TO_59)).toBeInTheDocument()
+    expect(api.requests).toEqual([])
+  })
+
+  it('says “Choose a day” and sends nothing when the date is empty', async () => {
+    const { user, api, time } = await openForm()
+
+    await typeInto(user, within(time).getByLabelText(MINUTES), '5')
+    fireEvent.change(within(time).getByLabelText(DATE), {
+      target: { value: '' },
+    })
+    await user.click(within(time).getByRole('button', { name: SAVE }))
+
+    expect(await within(time).findByText(CHOOSE_A_DAY)).toBeInTheDocument()
+    expect(api.requests).toEqual([])
+  })
+
+  it('words the shared rules’ errors as the owner approved', async () => {
+    expect(ruleMessage({ minutes: 0 })).toBe(AT_LEAST_1)
+    expect(ruleMessage({ minutes: 24 * 60 + 1 })).toBe(AT_MOST_24)
+    expect(ruleMessage({ minutes: 5, note: 'x'.repeat(1001) })).toBe(NOTE_LIMIT)
   })
 
   it('is still the day before in a zone west of UTC', async () => {
@@ -705,6 +809,46 @@ describe('The entries', () => {
     await expectNoAccessibilityProblems(container)
   })
 
+  // Agreed 2026-11-08.
+  it('says “No time logged yet” when a card has no entries', async () => {
+    openCard(boardCard('12', 'Login page'))
+    const time = await timeSection(await cardPanel())
+
+    expect(await within(time).findByText(EMPTY)).toBeInTheDocument()
+  })
+
+  it('has no empty text once there is an entry', async () => {
+    const card = boardCard('12', 'Login page')
+    openCard(card, {
+      time: { entries: { [card.id]: [entry(ana, 30, '2026-11-02')] } },
+    })
+    const time = await timeSection(await cardPanel())
+
+    await waitFor(() => expect(entryTexts(time)).toHaveLength(1))
+    expect(within(time).queryByText(EMPTY)).toBe(null)
+  })
+
+  // Agreed 2026-11-08: a date of another year shows its year, this year's does not.
+  it('shows the year for a work date from another year only', async () => {
+    const card = boardCard('12', 'Login page')
+    openCard(card, {
+      time: {
+        entries: {
+          [card.id]: [
+            entry(ana, 60, '2025-11-02', { note: 'Last year' }),
+            entry(ana, 60, '2026-11-02', { note: 'This year' }),
+          ],
+        },
+      },
+    })
+    const time = await timeSection(await cardPanel())
+
+    expect(await entryRow(time, 'Last year')).toHaveTextContent('2 Nov 2025')
+    const thisYear = await entryRow(time, 'This year')
+    expect(thisYear).toHaveTextContent('2 Nov')
+    expect(thisYear).not.toHaveTextContent('2026')
+  })
+
   // Criterion 32: a date is a day, not a moment, so no zone moves it.
   it('shows 2 Nov for a day saved as midnight UTC, whatever the browser’s or the project’s zone', async () => {
     vi.stubEnv('TZ', 'America/Los_Angeles')
@@ -805,7 +949,10 @@ describe('Changing an entry: your own, within 24 hours', () => {
 
     await waitFor(() =>
       expect(sentTo(api, /time-entries/)).toEqual([
-        { request: `PATCH /api/time-entries/${own.id}`, body: { minutes: 105 } },
+        {
+          request: `PATCH /api/time-entries/${own.id}`,
+          body: { minutes: 105 },
+        },
       ]),
     )
     expect(await entryRow(time, 'My work')).toHaveTextContent('1h 45m')
@@ -864,6 +1011,25 @@ describe('Changing an entry: your own, within 24 hours', () => {
     expect(api.requests).toEqual([])
   })
 
+  // Agreed 2026-11-08.
+  it('closes the form and sends nothing when Save is pressed on an unchanged edit', async () => {
+    const card = boardCard('12', 'Login page')
+    const { user, api } = openCard(card, {
+      me: ben,
+      time: { entries: { [card.id]: [mine(ago(2 * HOUR))] } },
+    })
+    const time = await timeSection(await cardPanel())
+    const row = await entryRow(time, 'My work')
+
+    await user.click(within(row).getByRole('button', { name: 'Edit' }))
+    await user.click(within(time).getByRole('button', { name: SAVE }))
+
+    await waitFor(() => expect(within(time).queryByLabelText(HOURS)).toBe(null))
+    expect(api.requests).toEqual([])
+    const again = await entryRow(time, 'My work')
+    expect(within(again).getByRole('button', { name: 'Edit' })).toHaveFocus()
+  })
+
   it('can still change it at 23 hours 59 minutes', async () => {
     const card = boardCard('12', 'Login page')
     openCard(card, {
@@ -891,7 +1057,9 @@ describe('Changing an entry: your own, within 24 hours', () => {
     const row = await entryRow(time, 'My work')
 
     await user.click(within(row).getByRole('button', { name: 'Delete' }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await screen.findByRole('dialog', {
+      name: DELETE_ENTRY_TITLE,
+    })
     expect(dialog).toHaveTextContent('Are you sure?')
     await expectNoAccessibilityProblems(document.body)
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
@@ -924,6 +1092,27 @@ describe('Changing an entry: your own, within 24 hours', () => {
     )
     await waitFor(() => expect(within(time).queryByText('My work')).toBe(null))
     expect(time).not.toHaveTextContent(/Time spent\s*1h 30m/)
+  })
+
+  // Agreed 2026-11-08: the deleted row's button is gone, so focus goes to the
+  // Entries heading.
+  it('puts focus on the Entries heading after a deleted entry is confirmed', async () => {
+    const card = boardCard('12', 'Login page')
+    const { user } = openCard(card, {
+      me: ben,
+      time: { entries: { [card.id]: [mine(ago(2 * HOUR))] } },
+    })
+    const panel = await cardPanel()
+    const time = await timeSection(panel)
+    const row = await entryRow(time, 'My work')
+
+    await user.click(within(row).getByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBe(null))
+    await waitFor(() => expect(within(time).queryByText('My work')).toBe(null))
+    expect(within(panel).getByRole('heading', { name: ENTRIES })).toHaveFocus()
   })
 
   // Criterion 36: a refusal from the server still reaches the screen.
@@ -988,6 +1177,8 @@ describe('Changing an entry: when you may not', () => {
       expectTurnedOff(button)
       expect(button).toHaveAccessibleDescription(TOO_OLD)
     }
+    // Agreed 2026-11-08: the reason is also plain text under the row.
+    expect(within(row).getByText(TOO_OLD)).toBeVisible()
     await expectNoAccessibilityProblems(container)
   })
 
@@ -1009,6 +1200,7 @@ describe('Changing an entry: when you may not', () => {
       expectTurnedOff(button)
       expect(button).toHaveAccessibleDescription(NOT_YOURS)
     }
+    expect(within(row).getByText(NOT_YOURS)).toBeVisible()
     // His own is still open to him.
     const own = await entryRow(time, 'My work')
     expectTurnedOn(within(own).getByRole('button', { name: 'Edit' }))
