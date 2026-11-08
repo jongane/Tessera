@@ -602,6 +602,83 @@ describe('Paging', () => {
       within(tab).queryByRole('button', { name: SHOW_OLDER }),
     ).not.toBeInTheDocument()
   })
+
+  // Older lines load only when Show older (or its retry) is pressed (agreed
+  // 2026-11-08, round 4): a save never loads an extra older page and never
+  // retries a failed older page by itself. Opens Activity with a save held.
+  async function openWithHeldSave(count: number) {
+    const activity = fakeActivity(manyLines(count))
+    server.use(activity.handler)
+    const { user } = openCard()
+    const panel = await cardPanel()
+    let releaseSave!: () => void
+    const saveGate = new Promise<void>((r) => (releaseSave = r))
+    server.use(
+      http.patch(`/api/cards/${login.id}`, async () => {
+        await saveGate
+        return HttpResponse.json({ ...login, priority: 'HIGH' })
+      }),
+    )
+    await user.selectOptions(within(panel).getByLabelText('Priority'), 'HIGH')
+    await user.click(within(panel).getByRole('tab', { name: ACTIVITY }))
+    const tab = await within(panel).findByRole('tabpanel', { name: ACTIVITY })
+    await waitFor(() => expect(lines(tab)).toHaveLength(50))
+    return { user, tab, activity, releaseSave }
+  }
+
+  it('loads no older page nobody asked for when a save finishes after Show older finished (agreed 2026-11-08)', async () => {
+    const { user, tab, activity, releaseSave } = await openWithHeldSave(150)
+
+    await user.click(within(tab).getByRole('button', { name: SHOW_OLDER }))
+    await waitFor(() => expect(lines(tab)).toHaveLength(100))
+
+    activity.lines.unshift(
+      activityLine('PRIORITY_CHANGED', { from: 'NONE', to: 'HIGH' }),
+    )
+    await act(async () => {
+      releaseSave()
+      await new Promise((r) => setTimeout(r, 300))
+    })
+
+    // The new line plus the 100 already shown; not a third page.
+    await waitFor(() => expect(lines(tab)).toHaveLength(101))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300))
+    })
+    expect(lines(tab)).toHaveLength(101)
+  })
+
+  it('does not try the failed older page again by itself when a save finishes (agreed 2026-11-08)', async () => {
+    const { user, tab, activity, releaseSave } = await openWithHeldSave(60)
+    server.use(
+      http.get('/api/cards/:cardId/activity', ({ request }) =>
+        new URL(request.url).searchParams.has('before')
+          ? apiError(500, 'Something went wrong')
+          : undefined,
+      ),
+    )
+    await user.click(within(tab).getByRole('button', { name: SHOW_OLDER }))
+    await within(tab).findByRole('alert')
+    server.resetHandlers(activity.handler)
+    const before = activity.requests.length
+
+    await act(async () => {
+      releaseSave()
+      await new Promise((r) => setTimeout(r, 300))
+    })
+
+    await waitFor(() =>
+      expect(activity.requests.length).toBeGreaterThan(before),
+    )
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300))
+    })
+    const olderAsked = activity.requests
+      .slice(before)
+      .filter((u) => u.searchParams.has('before'))
+    expect(olderAsked).toHaveLength(0)
+    expect(lines(tab)).toHaveLength(50)
+  })
 })
 
 describe('Description changes', () => {
