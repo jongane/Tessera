@@ -63,6 +63,8 @@ Focus: the chat-to-card relationship.
 
 ## Planned after the MVP
 
+The main areas are below. [docs/roadmap.md](docs/roadmap.md) holds the full list and the order of the remaining MVP work.
+
 - Task table view
 - Gantt chart view
 - Milestones and task dependencies
