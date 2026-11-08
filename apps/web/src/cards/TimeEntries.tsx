@@ -201,7 +201,11 @@ export function TimeEntries({
           onCancel={() => setDeleting(null)}
           onConfirm={() =>
             remove.mutateAsync(deleting.entry.id).then(
-              () => setDeleting(null),
+              () => {
+                // The deleted row's button is gone, so focus goes to the heading.
+                focusId.current = entriesHeadingId(card.id)
+                setDeleting(null)
+              },
               () => {},
             )
           }
