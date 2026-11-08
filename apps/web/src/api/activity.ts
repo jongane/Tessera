@@ -25,9 +25,12 @@ export function useActivity(cardId: string) {
   // not from the last drawing of the page, which may be out of date.
   const fetchNextPage = useRef<() => unknown>(() => {})
   function reloadKeepingOlder() {
+    // TanStack keeps `fetchMeta` after a fetch ends, so also require that a
+    // fetch is running now.
+    const state = queryClient.getQueryState(key)
     const loadingOlder =
-      queryClient.getQueryState(key)?.fetchMeta?.fetchMore?.direction ===
-      'forward'
+      state?.fetchStatus === 'fetching' &&
+      state.fetchMeta?.fetchMore?.direction === 'forward'
     void queryClient.invalidateQueries({ queryKey: key }).then(() => {
       if (loadingOlder) {
         void fetchNextPage.current()
