@@ -10,6 +10,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { AllowNulIn } from '../common/nul-guard.js';
 import { ZodPipe } from '../common/zod-pipe.js';
 import {
   type ChangePassword,
@@ -42,6 +43,8 @@ export class AuthController {
     return user;
   }
 
+  // An old password may hold a NUL; it just fails to match.
+  @AllowNulIn('password')
   @Public()
   @Post('sign-in')
   @HttpCode(HttpStatus.OK)
@@ -81,6 +84,7 @@ export class AuthController {
     return user;
   }
 
+  @AllowNulIn('currentPassword')
   @Post('password')
   @HttpCode(HttpStatus.NO_CONTENT)
   async changePassword(

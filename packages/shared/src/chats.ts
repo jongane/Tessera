@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { textWithoutNul } from './text.js';
 
 export const newChatSchema = z.strictObject({
-  title: z.string().trim().min(1).max(200),
+  title: textWithoutNul().trim().min(1).max(200),
 });
 
 export const chatLinkSchema = z.strictObject({

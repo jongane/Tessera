@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { textWithoutNul } from './text.js';
 
 // The API's database has the same list; a test there keeps them in step.
 export const LABEL_COLOURS = [
@@ -16,7 +17,7 @@ export const LABEL_COLOURS = [
 
 export type LabelColourName = (typeof LABEL_COLOURS)[number];
 
-const nameField = z.string().trim().min(1).max(50);
+const nameField = textWithoutNul().trim().min(1).max(50);
 const colourField = z.enum(LABEL_COLOURS);
 
 export const newLabelSchema = z.strictObject({

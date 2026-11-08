@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { textWithoutNul } from './text.js';
 
 export const MAX_ENTRY_MINUTES = 24 * 60;
 export const MAX_ESTIMATE_MINUTES = 10_000 * 60;
@@ -15,8 +16,7 @@ const minutesField = z
   .max(MAX_ENTRY_MINUTES, { message: ENTRY_TOO_LONG_MESSAGE });
 // A day not yet started in the project's time zone is refused by the API.
 const workDateField = z.iso.date();
-const noteField = z
-  .string()
+const noteField = textWithoutNul()
   .trim()
   .max(1000, { message: NOTE_TOO_LONG_MESSAGE });
 

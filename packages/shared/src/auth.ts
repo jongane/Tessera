@@ -1,17 +1,16 @@
 import { z } from 'zod';
+import { textWithoutNul } from './text.js';
 
 const MIN_PASSWORD_LENGTH = 10;
 // Long enough for any passphrase, short enough that hashing stays quick.
 const MAX_PASSWORD_LENGTH = 200;
 
-export const emailField = z
-  .string()
+export const emailField = textWithoutNul()
   .trim()
   .toLowerCase()
   .pipe(z.email('Enter a valid email address').max(254));
 
-const passwordField = z
-  .string()
+const passwordField = textWithoutNul()
   .min(
     MIN_PASSWORD_LENGTH,
     `A password must be at least ${MIN_PASSWORD_LENGTH} characters`,
@@ -20,7 +19,7 @@ const passwordField = z
 
 export const signUpSchema = z.strictObject({
   email: emailField,
-  displayName: z.string().trim().min(1).max(100),
+  displayName: textWithoutNul().trim().min(1).max(100),
   password: passwordField,
 });
 
