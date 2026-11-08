@@ -48,7 +48,6 @@ _Avoid_: To-do list
 
 **Activity**:
 A card's history: one line for each change made to it, with who made it and when. It is shown in the card panel's Activity tab and can never be edited.
-_Avoid_: Log, audit trail, history (as a name for the tab)
 
 **Time entry**:
 An amount of time a person logged on a card for one day, typed in or saved from the timer. The day is the day in the project's time zone.
