@@ -1,6 +1,6 @@
 # Roadmap
 
-Status: agreed with the repository owner on 2026-11-08. Update it whenever a pull request finishes a step.
+Status: agreed with the repository owner on 2026-11-08. The `docs-keeper` agent updates it whenever a pull request finishes or starts a step (agreed 2026-11-08).
 
 This page shows what is built, what is left for the first version (the MVP), and what comes after. The MVP scope itself is defined in [PROJECT.md](../PROJECT.md) ("Version 1 (MVP) scope"); this page tracks progress against it and suggests an order. Words follow [CONTEXT.md](../CONTEXT.md).
 

@@ -11,7 +11,7 @@ Why split the work? A Claude that wrote the code tends to believe it is right. G
 | `planner` | Turns a request into a plan with numbered acceptance criteria. Checks it against the specs for contradictions. | Opus | nothing |
 | `tester` | Writes failing tests from the plan ("red"), then runs everything and reports ("verify"). Owns all tests. | Sonnet | tests |
 | `builder` | Writes the least code that makes the tests pass. | Sonnet | code, never tests |
-| `docs-keeper` | Keeps `docs/`, `CONTEXT.md`, ADRs and the commands tables in step with the code. | Sonnet | Markdown only |
+| `docs-keeper` | Keeps `docs/` (including the roadmap), `CONTEXT.md`, ADRs and the commands tables in step with the code. | Sonnet | Markdown only |
 | `reviewer` | Checks the change against the rules in `CLAUDE.md`. Also runs as the "Claude review" GitHub check. | Opus | nothing |
 | `antagonist` | Attacks the change: permission bypasses, bad input, two users at once, data loss, design conflicts. Proves each break with a failing test. | Opus | adds proof tests only |
 
