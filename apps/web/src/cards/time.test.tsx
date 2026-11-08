@@ -1,5 +1,5 @@
 import { newTimeEntrySchema } from '@tessera/shared'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import {
   afterEach,
@@ -1509,13 +1509,24 @@ describe('Changing an entry: the form and a reload', () => {
 
     // Meanwhile the entry was changed to 2h in another tab; coming back to
     // this tab reloads the entries.
+    let reloads = 0
     server.use(
-      http.get('/api/cards/:cardId/time-entries', () =>
-        HttpResponse.json([{ ...own, cardId: card.id, minutes: 120 }]),
-      ),
+      http.get('/api/cards/:cardId/time-entries', () => {
+        reloads += 1
+        return HttpResponse.json([{ ...own, cardId: card.id, minutes: 120 }])
+      }),
     )
+    const answered = new Promise<void>((resolve) => {
+      server.events.on('response:mocked', ({ request }) => {
+        if (request.url.includes('/time-entries')) resolve()
+      })
+    })
     window.dispatchEvent(new Event('visibilitychange'))
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    // Wait for the reload to have been asked for and answered, then let the
+    // screen take the answer in, instead of sleeping for a fixed time.
+    await waitFor(() => expect(reloads).toBe(1))
+    await answered
+    await act(async () => {})
 
     await replaceText(user, within(time).getByLabelText(NOTE), 'Changed')
     await user.click(within(time).getByRole('button', { name: SAVE }))
