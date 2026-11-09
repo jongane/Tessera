@@ -15,3 +15,10 @@ export const messageBodyRequestSchema = z.strictObject({
 });
 
 export type MessageBodyRequest = z.infer<typeof messageBodyRequestSchema>;
+
+// GET /api/chats/:chatId/messages?before=<messageId>
+export const messagePageQuerySchema = z.strictObject({
+  before: z.uuid().optional(),
+});
+
+export type MessagePageQuery = z.infer<typeof messagePageQuerySchema>;
