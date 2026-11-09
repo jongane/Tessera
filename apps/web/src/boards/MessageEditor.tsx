@@ -39,7 +39,7 @@ const BUTTONS: readonly ToolbarButton[] = [
     name: 'Numbered list',
     mark: 'orderedList',
     run: (e) => e.chain().focus().toggleOrderedList().run(),
-    look: '1.',
+    look: <NumberedListIcon />,
   },
 ]
 
@@ -162,5 +162,20 @@ export function MessageEditor({
       <EditorContent editor={editor} />
       {children?.(editor)}
     </div>
+  )
+}
+
+// Three numbered lines. Drawn, as the digit "1." would not be part of the
+// button's name.
+function NumberedListIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+      <rect x="1" y="2" width="3" height="3" />
+      <rect x="1" y="6.5" width="3" height="3" />
+      <rect x="1" y="11" width="3" height="3" />
+      <rect x="6" y="2.5" width="9" height="2" />
+      <rect x="6" y="7" width="9" height="2" />
+      <rect x="6" y="11.5" width="9" height="2" />
+    </svg>
   )
 }

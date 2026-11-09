@@ -1,5 +1,5 @@
 import { type Editor, useEditorState } from '@tiptap/react'
-import { type FormEvent, useId, useState } from 'react'
+import { type FormEvent, type ReactNode, useId, useState } from 'react'
 import { Button } from './Button'
 
 // The formatting toolbar of a rich-text box (Tiptap) and its link form, used
@@ -10,7 +10,9 @@ export interface ToolbarButton {
   // The Tiptap mark or node that shows the button as pressed.
   mark: string
   run: (editor: Editor) => unknown
-  look: string
+  // What the button shows. Text must be part of the name (WCAG 2.5.3), so a
+  // number is drawn as an icon instead.
+  look: ReactNode
 }
 
 const toolButton =
