@@ -137,7 +137,7 @@ test('open a chat, dock it on the left and resize it', async ({ page }) => {
     .getByRole('link', { name: 'General' })
     .click()
   const panel = page.getByRole('complementary', { name: 'Chat: General' })
-  await expect(panel).toContainText('Messages are coming soon')
+  await expect(panel).toContainText('No messages yet')
   await expectNoAccessibilityProblems(page)
 
   await panel.getByRole('button', { name: 'Dock the panel' }).click()

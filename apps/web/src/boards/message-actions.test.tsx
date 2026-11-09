@@ -120,7 +120,7 @@ describe('Editing (criterion 26)', () => {
     await user.keyboard('{Control>}a{/Control}')
     await user.keyboard('Hello world')
     await user.click(
-      within(messageWith('Helo wrld')).getByRole('button', { name: 'Save' }),
+      within(messageOf(editor)).getByRole('button', { name: 'Save' }),
     )
 
     await waitFor(() => expect(api.changes).toHaveLength(1))
@@ -430,12 +430,12 @@ describe('Accessibility of editing and deleting (criterion 33)', () => {
     const editor = within(messageWith('First words')).getByRole('textbox')
     await typeInto(user, editor, ' more')
     await user.click(
-      within(messageWith('First words')).getByRole('button', { name: 'Save' }),
+      within(messageOf(editor)).getByRole('button', { name: 'Save' }),
     )
     await screen.findByRole('alert')
     await expectNoAccessibilityProblems(container)
     await user.click(
-      within(messageWith('First words')).getByRole('button', {
+      within(messageOf(editor)).getByRole('button', {
         name: 'Cancel',
       }),
     )

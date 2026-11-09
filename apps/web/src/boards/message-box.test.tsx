@@ -191,7 +191,8 @@ describe('The message box', () => {
     await typeInto(user, box, 'read the docs')
     await user.keyboard('{Control>}a{/Control}')
     await user.click(panel.getByRole('button', { name: 'Link' }))
-    await user.type(
+    await typeInto(
+      user,
       panel.getByLabelText('Link address'),
       'https://example.com/docs',
     )
@@ -212,7 +213,11 @@ describe('The message box', () => {
     await typeInto(user, box, 'click me')
     await user.keyboard('{Control>}a{/Control}')
     await user.click(panel.getByRole('button', { name: 'Link' }))
-    await user.type(panel.getByLabelText('Link address'), 'javascript:alert(1)')
+    await typeInto(
+      user,
+      panel.getByLabelText('Link address'),
+      'javascript:alert(1)',
+    )
     await user.click(panel.getByRole('button', { name: 'Apply' }))
     await user.click(panel.getByRole('button', { name: 'Send' }))
 
