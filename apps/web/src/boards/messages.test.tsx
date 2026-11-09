@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import {
   ago,
@@ -13,7 +13,7 @@ import {
   NOW,
   openChat,
 } from '../test/chat-panel'
-import { ben } from '../test/fake-board'
+import { ben, member } from '../test/fake-board'
 import { message } from '../test/fake-messages'
 import { currentPath } from '../test/render'
 import {
@@ -372,6 +372,22 @@ describe('Loading and scrolling (criteria 29 and 30)', () => {
     expect(shown(list)[49]).toBe('m120')
     expect(api.gets).toHaveLength(1)
     expect(api.gets[0]!.searchParams.has('before')).toBe(false)
+    await waitFor(() => expect(isAtBottom(list, layout)).toBe(true))
+  })
+
+  // 29 (reviewer finding: the members arrive after the messages)
+  it('still opens scrolled to the bottom when the project members load after the messages', async () => {
+    const { api } = openChat({ messages: many(5) })
+    server.use(
+      http.get('/api/projects/:projectId/members', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        return HttpResponse.json([member(ana, 'ADMIN'), member(ben, 'MEMBER')])
+      }),
+    )
+    const list = await messageList()
+    await within(list).findByText('m005')
+
+    expect(api.gets).toHaveLength(1)
     await waitFor(() => expect(isAtBottom(list, layout)).toBe(true))
   })
 

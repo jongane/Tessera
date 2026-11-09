@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import {
@@ -16,7 +16,7 @@ import {
 } from '../test/chat-panel'
 import { ben } from '../test/fake-board'
 import { message } from '../test/fake-messages'
-import { apiError, server } from '../test/server'
+import { ana, apiError, server } from '../test/server'
 
 // Chat messages PR (plan "chat messages"): editing and deleting a message
 // (acceptance criteria 25 to 28, 31 and 33).
@@ -210,6 +210,60 @@ describe('Editing (criterion 26)', () => {
     ).toBeInTheDocument()
     expect(api.changes).toEqual([])
   })
+})
+
+describe('Reviewer findings', () => {
+  // 26 (reviewer finding): Enter pressed twice while the edit is saving
+  it('sends only one PATCH when Enter is pressed twice while the edit is saving', async () => {
+    const original = message('Helo')
+    const { user } = await open({ messages: [original] })
+    await screen.findByText('Helo')
+    let patches = 0
+    server.use(
+      http.patch('/api/messages/:messageId', async () => {
+        patches += 1
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        return HttpResponse.json({
+          ...original,
+          body: 'Hello',
+          editedAt: new Date().toISOString(),
+        })
+      }),
+    )
+    const editor = await startEditing(user, 'Helo')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.keyboard('Hello')
+
+    await user.keyboard('{Enter}{Enter}')
+    await new Promise((resolve) => setTimeout(resolve, 600))
+
+    expect(patches).toBe(1)
+  })
+
+  // 25 (reviewer finding): a message of a deleted account is nobody's to edit
+  it.each([
+    ['a plain member', ben, false],
+    ['a project admin', ana, true],
+  ])(
+    'never offers Edit on a message whose author is gone, to %s',
+    async (_who, me, hasMenu) => {
+      await open({
+        me,
+        messages: [message('From a gone account', { author: null })],
+      })
+      await screen.findByText('From a gone account')
+
+      const menu = within(messageWith('From a gone account')).queryByRole(
+        'button',
+        { name: 'Message options' },
+      )
+      expect(menu !== null).toBe(hasMenu)
+      expect(
+        screen.queryByRole('menuitem', { name: 'Edit' }),
+      ).not.toBeInTheDocument()
+    },
+  )
 })
 
 describe('Deleting (criterion 27)', () => {

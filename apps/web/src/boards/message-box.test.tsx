@@ -302,6 +302,32 @@ describe('Sending (criterion 23)', () => {
   })
 })
 
+describe('Sending when the first load failed (criterion 23, reviewer finding)', () => {
+  // 23
+  it('keeps a saved message in view, no longer "Sending…", until a reload succeeds', async () => {
+    const { user } = openChat()
+    server.use(
+      http.get('/api/chats/:chatId/messages', () =>
+        apiError(500, 'Something broke'),
+      ),
+    )
+    const box = await within(
+      await screen.findByRole('complementary', { name: /^Chat: / }),
+    ).findByRole('textbox', { name: 'Message' })
+    await within(chatPanel()).findByText(/Couldn.t load the messages/)
+
+    await typeInto(user, box, 'Saved anyway')
+    await user.keyboard('{Enter}')
+
+    expect(
+      await within(chatPanel()).findByText('Saved anyway'),
+    ).toBeInTheDocument()
+    await pause()
+    expect(within(chatPanel()).getByText('Saved anyway')).toBeInTheDocument()
+    expect(chatPanel()).not.toHaveTextContent('Sending…')
+  })
+})
+
 describe('Drafts (criterion 24)', () => {
   // 24
   it('keeps unsent text for each chat while the page is open, and clears it once sent', async () => {
