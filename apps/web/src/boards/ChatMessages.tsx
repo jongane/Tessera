@@ -55,7 +55,10 @@ export default function ChatMessages({
 
   function post(entry: OutgoingMessage) {
     outbox.update(entry, { status: 'sending', error: undefined })
-    saveNew(entry.body, () => outbox.remove(entry)).catch((error: unknown) =>
+    saveNew(entry.body, (shown) =>
+      // Without a loaded list the saved message stays here until a reload.
+      shown ? outbox.remove(entry) : outbox.update(entry, { status: 'saved' }),
+    ).catch((error: unknown) =>
       outbox.update(entry, {
         status: 'failed',
         error: refusalOr(error, COULDNT_SEND),
@@ -93,6 +96,8 @@ export default function ChatMessages({
       },
     })),
   ]
+  // The list appears once the messages and the members are loaded.
+  const listShown = messages.data !== undefined && !members.isPending
   const firstId = rows[0]?.message.id
   const lastRow = rows[rows.length - 1]?.message
 
@@ -111,10 +116,10 @@ export default function ChatMessages({
   useLayoutEffect(() => {
     const list = scroller.current
     const before = seen.current
-    seen.current = { first: firstId, last: lastRow?.id }
     if (!list) {
       return
     }
+    seen.current = { first: firstId, last: lastRow?.id }
     if (before === null) {
       scrollToBottom()
       return
@@ -133,7 +138,7 @@ export default function ChatMessages({
     }
     // scrollToBottom only uses refs and a state setter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstId, lastRow?.id, messages.isPending])
+  }, [firstId, lastRow?.id, listShown])
 
   function loadOlder() {
     const list = scroller.current
@@ -159,6 +164,33 @@ export default function ChatMessages({
     }
   }
 
+  const log = (
+    <div role="log" aria-label="Messages">
+      {rows.length === 0 ? (
+        <p className="text-muted">No messages yet</p>
+      ) : (
+        <ol className="flex flex-col gap-0.5">
+          {rows.map((row, index) => {
+            const { message } = row
+            const mine = me != null && message.author?.id === me.id
+            return (
+              <MessageItem
+                key={message.id}
+                message={message}
+                projectId={projectId}
+                now={now}
+                showHeader={!followsOnFrom(message, rows[index - 1]?.message)}
+                canEdit={mine && !row.outgoing}
+                canDelete={(mine || isAdmin) && !row.outgoing}
+                outgoing={row.outgoing}
+              />
+            )
+          })}
+        </ol>
+      )}
+    </div>
+  )
+
   let body
   if (messages.data === undefined || members.isPending) {
     body = messages.isError ? (
@@ -167,6 +199,7 @@ export default function ChatMessages({
         <Button variant="secondary" onClick={() => void messages.refetch()}>
           Try again
         </Button>
+        {rows.length > 0 && log}
       </div>
     ) : (
       <Loading />
@@ -191,32 +224,7 @@ export default function ChatMessages({
               Show older messages
             </Button>
           )}
-          <div role="log" aria-label="Messages">
-            {rows.length === 0 ? (
-              <p className="text-muted">No messages yet</p>
-            ) : (
-              <ol className="flex flex-col gap-0.5">
-                {rows.map((row, index) => {
-                  const { message } = row
-                  const mine = message.author?.id === me?.id
-                  return (
-                    <MessageItem
-                      key={message.id}
-                      message={message}
-                      projectId={projectId}
-                      now={now}
-                      showHeader={
-                        !followsOnFrom(message, rows[index - 1]?.message)
-                      }
-                      canEdit={mine && !row.outgoing}
-                      canDelete={(mine || isAdmin) && !row.outgoing}
-                      outgoing={row.outgoing}
-                    />
-                  )
-                })}
-              </ol>
-            )}
-          </div>
+          {log}
         </div>
         {newBelow && (
           <Button

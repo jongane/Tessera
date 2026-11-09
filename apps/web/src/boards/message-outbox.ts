@@ -10,7 +10,7 @@ export interface OutgoingMessage {
   body: string
   // When the person sent it.
   createdAt: string
-  status: 'sending' | 'failed'
+  status: 'sending' | 'failed' | 'saved'
   // Why it failed, as the person is told.
   error?: string
 }

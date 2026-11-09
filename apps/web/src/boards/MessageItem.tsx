@@ -19,7 +19,7 @@ import {
 
 // A message that is on its way or could not be sent, shown with the others.
 export interface Outgoing {
-  status: 'sending' | 'failed'
+  status: 'sending' | 'failed' | 'saved'
   error?: string
   onRetry: () => void
 }
@@ -159,6 +159,9 @@ function EditForm({
   const [problem, setProblem] = useState<string>()
 
   function save(markdown: string) {
+    if (edit.isPending) {
+      return
+    }
     const checked = checkMessage(markdown)
     if (!checked.ok) {
       setProblem(checked.reason ?? 'This can’t be empty')

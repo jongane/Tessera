@@ -30,11 +30,14 @@ export function useMessages(chatId: string) {
 }
 
 // Shows a message the server just answered with, until the reload brings it.
+// Returns whether a list was shown to change.
 function updateShown(
   queryClient: QueryClient,
   chatId: string,
   change: (page: MessagePage, index: number) => MessagePage,
-) {
+): boolean {
+  const shown =
+    queryClient.getQueryData<Pages>(messagesKey(chatId)) !== undefined
   queryClient.setQueryData<Pages>(
     messagesKey(chatId),
     (data) =>
@@ -43,6 +46,7 @@ function updateShown(
         pages: data.pages.map((page, index) => change(page, index)),
       },
   )
+  return shown
 }
 
 function reload(queryClient: QueryClient, chatId: string) {
@@ -53,17 +57,17 @@ function reload(queryClient: QueryClient, chatId: string) {
 // message shown as "sending" can be swapped for the saved one in one step.
 export function useSendMessage(chatId: string) {
   const queryClient = useQueryClient()
-  return (body: string, onSaved: () => void) =>
+  return (body: string, onSaved: (shown: boolean) => void) =>
     api<Message>(`/chats/${chatId}/messages`, {
       method: 'POST',
       body: { body } satisfies MessageBodyRequest,
     }).then((saved) => {
-      updateShown(queryClient, chatId, (page, index) =>
+      const shown = updateShown(queryClient, chatId, (page, index) =>
         index === 0 && !page.messages.some((m) => m.id === saved.id)
           ? { ...page, messages: [...page.messages, saved] }
           : page,
       )
-      onSaved()
+      onSaved(shown)
       void reload(queryClient, chatId)
     })
 }
