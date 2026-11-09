@@ -6,7 +6,7 @@ This page shows what is built, what is left for the first version (the MVP), and
 
 ## Where we are
 
-The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version except attachments, and chats as titles linked to cards. Chats cannot hold messages yet, and files and AI are not started.
+The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version except attachments, and chats with messages (sending, editing, deleting; in the chat messages pull request, still open). Chats do not update live yet, and files and AI are not started.
 
 ## The flowchart
 
@@ -63,7 +63,7 @@ Green is done, amber is next, blue is the rest of the MVP, grey is after the MVP
 | MVP item (from PROJECT.md) | Status |
 |---|---|
 | 1. Users and sign-in; a project with members | Done |
-| 2. Boards with kanban cards, a general chat, and multiple chats | Boards, cards and chats are done. Chat messages and live updates are still to build |
+| 2. Boards with kanban cards, a general chat, and multiple chats | Boards, cards, chats and chat messages are done (messages built in the chat messages pull request, agreed 2026-11-09). Live updates are still to build, in their own pull request next |
 | 3. Card and chat linking, the "Create a card?" prompt and retroactive creation | Done |
 | 4. File upload attached to a card or message | Not started (needs MinIO) |
 | 5. AI provider layer with chat summaries and project questions, off by default | Not started |
@@ -73,7 +73,9 @@ Green is done, amber is next, blue is the rest of the MVP, grey is after the MVP
 Each step gets its own plan, approved before building, as usual.
 
 1. **Refuse hidden NUL characters** in every text field. A small clean-up left from web PR 7. Done in #43.
-2. **Chat messages and live updates.** A design round first: messages in a chat, sending and editing, and WebSockets so boards and chats update without the 30-second reload. Messages come before attachments and AI because both depend on them.
+2. **Chat messages and live updates**, in two pull requests (agreed 2026-11-09). Messages come before attachments and AI because both depend on them.
+   - **Chat messages:** built in the first pull request (still open). Sending, editing, deleting, Markdown, card-number and website links. They refresh with the existing 30-second reload.
+   - **Live updates (WebSockets):** next, in their own pull request with its own plan. They cover messages, board cards, the open card panel and the sidebar's chat list, and remove the 30-second reload ([web-app.md](web-app.md) section 6).
 3. **File attachments** on a card or on a message, stored in MinIO, 100 MB per file by default ([card-features.md](card-features.md)).
 4. **AI**: the provider layer (Claude first), turning AI on per project by a project admin, summarising a chat and answering questions about a project.
 
@@ -89,6 +91,7 @@ Each step gets its own plan, approved before building, as usual.
 | API for the web app | Card order, board card summaries, new card from a chat, chat rename, relationship colours, card search, time in the project's time zone, subtask list details | #18, #25, #26, #28, #30, #35, #36, #37 |
 | Web app | Sign in and projects, board view and dockable chat panel, project settings and admin screen, card panel, checklists, subtasks, time and timer, Activity tab | #22, #27, #29, #31, #32, #38 to #41 |
 | Input safety | Hidden NUL characters refused in every text field and anywhere in a request ([api.md](api.md) "Text with a hidden character") | #43 |
+| Chat messages | Messages table, API to send, list, edit and delete messages, and the chat panel's message list and message box (the pull request number is added when it is opened) | this pull request |
 
 ## After the MVP
 

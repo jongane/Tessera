@@ -10,11 +10,12 @@ Words used here follow [CONTEXT.md](../CONTEXT.md). The API the web app talks to
 - The project list, with "New project".
 - The board view: columns, cards, adding a card, dragging cards, and the board's chats in the sidebar.
 - New chats, the "Create a card for this chat?" prompt, and linking or unlinking a chat and a card.
+- Chat messages: reading, sending, editing and deleting messages in a chat, with Markdown, card-number links and website links (section 3; agreed 2026-11-09).
 - The card panel with every card feature the API has: title, description, priority, due date, estimate, assignees and owner, labels, subtasks, checklists, time entries and the timer, completing and reopening, deleting, the Activity tab, and the open card's related cards (outlined on the board, and listed in the panel when they are on other boards; [card-features.md](card-features.md) section 7).
 - Project settings: members (add by email, change role, remove, leave), labels, project code, time zone and the relationship colours ([card-features.md](card-features.md) section 7; admins only, saved straight away). Every member can open it; for people who are not project admins it is read-only, except that they can add a label and leave the project (agreed 2026-10-31). Removing someone, leaving, deleting a label and changing the code ask "Are you sure?" first; role and time zone changes save straight away (agreed 2026-10-31). Renaming a project and changing its description come later, with a small API change.
 - A server admin screen with the sign-up switch, and nothing else for now (no list of accounts; agreed 2026-10-31). Server admins reach it from the account menu.
 
-Not in this release: chat messages (the API has none yet, so the chat panel shows a chat's title and its card, with "Messages are coming soon"), live updates, file attachments and AI features.
+Not in this release: live updates (they come in their own pull request right after messages, section 6), file attachments and AI features. Screenshots in messages (pasting or dropping images) come with file attachments, roadmap step 3 (agreed 2026-11-09). Link previews (a preview card under a web address) are left until after the MVP (agreed 2026-11-09).
 
 ## 2. Screens and addresses
 
@@ -35,6 +36,19 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
 
 - A sidebar on the left lists the project's boards and the board's chats: the general chat first, then the chats not linked to a card. A card's chat is opened from its card. (Agreed 2026-10-31 as a trial.)
 - A chat with no card asks "Create a card for this chat?" in the chat panel. "Create a card" makes a card in the board's first column with the chat's title, and the card takes that chat as its own. "Link to a card" picks a card on the board, found by number or title. Only cards without a chat are offered, because a card has at most one chat. A linked chat can be unlinked from the panel, and both are kept. (Agreed 2026-10-31.)
+- **The chat panel's messages** (agreed 2026-11-09). Under the chat's title and card, the panel shows the chat's messages and, at the bottom, the message box. Every project member can read and post in every chat of the project.
+  - **The list** is a labelled list (named "Messages"), oldest at the top and newest at the bottom. With none it says "No messages yet". Each message shows the author's name, when it was sent and the text as formatted Markdown (bold, italic, code, lists, links). The time uses the same wording as the Activity tab ("just now", "5 minutes ago", and so on); the exact time shows on hover and is read out by screen readers.
+  - **Grouping.** When the same person sends several messages within 5 minutes of their previous one, with nobody else's message in between, only the first shows the name and time. The exact time stays available for screen readers.
+  - **Edited and deleted messages.** An edited message shows "(edited)", and no earlier texts are kept. A deleted message stays in place with its text crossed out and "Deleted by Jon, 5 minutes ago" under it, and everyone can still read it. It has no menu and cannot be edited or deleted again. A delete is final; a password pasted by mistake cannot be fully removed in the MVP.
+  - **Card numbers.** A card number written in a message, such as WEB-12 (an old number works too), becomes a link when the card is in this project. Clicking it opens that card's panel and keeps the chat panel open. A number that does not exist, or a code from another project, stays plain text.
+  - **Website links.** A web address typed or pasted as `https://…` or `www.…` turns into a link by itself, and the toolbar's Link button puts a link on selected words. Links open in a new browser tab with `rel="noopener noreferrer"`. Only http, https and mailto links are made into links, so a `javascript:` link shows as plain text.
+  - **The message box** (labelled "Message") is a small Tiptap editor, like the description, with a toolbar: Bold, Italic, Code, Link, Bulleted list and Numbered list, and a Send button. The text is stored as Markdown. **Enter sends** and **Shift+Enter starts a new line**. Blank text sends nothing. Text over 10,000 characters is refused with "Use at most 10000 characters", using the shared rules, so the box gives the same answer as the API.
+  - **Sending.** A sent message shows straight away, faded and marked "Sending…" for screen readers, until it is saved. If saving fails, it stays in the list with "Couldn’t send" and a "Try again" button that sends it again. When the server refuses the message (a 4xx answer), its own words show instead of "Couldn’t send".
+  - **Drafts.** Text you have typed but not sent is kept for each chat while the page is open. Switching to another chat and back shows it again, and it clears once sent. It is not kept if the page is reloaded.
+  - **Editing and deleting.** Your own messages that are not deleted have a "Message options" menu with Edit and Delete. A project admin's menu on someone else's message has only Delete; a plain member sees no menu on others' messages. Edit replaces the message with an editor holding its text, with Save and Cancel. Enter saves and Escape cancels, as the buttons do (small choices made while building, covered by tests). The length and blank rules apply, and when the edit is over, keyboard focus goes back to "Message options". Delete asks "Delete this message?" with Delete and Cancel; Cancel sends nothing and focus returns to the menu button. A failed edit shows the server's message for a 4xx answer, or "Couldn’t save, try again", and keeps the message as it was. A failed delete closes the dialog and shows the error on the message.
+  - **Loading and scrolling.** A chat opens at the bottom with its latest 50 messages. Scrolling to the top loads the 50 before them and keeps your reading position; a "Show older messages" button at the top does the same for keyboard users, and goes away when there are no older messages. If you have scrolled up and new messages arrive, the list does not jump: a "New messages ↓" button appears, which scrolls to the bottom and then goes away. When you are at the bottom, new messages scroll into view. If the messages cannot be loaded, the panel says "Couldn’t load the messages" with "Try again".
+  - **Reloading.** Until live updates arrive (section 6), the messages reload every 30 seconds while the chat is open, when you come back to the browser tab, and after your own changes.
+  - **Left out of the MVP** (agreed 2026-11-09): unread markers, @mentions (they belong with notifications) and lines in a card's Activity tab for messages in its chat.
 - The board's columns fill the middle.
 - While a timer runs, a **timer chip** sits in the top bar of every signed-in screen. It shows the number of the card the timer runs on (a link to that card), the running time, and a "Stop timer" button (agreed 2026-11-07). Stopping from the chip when the timer ran under half a minute shows "Under half a minute, nothing saved" in the top bar for 6 seconds. If stopping fails, the chip says "Couldn't stop, try again" (agreed 2026-11-08).
 - The **card panel** and the **chat panel** are two separate panels, so you can read a card's chat while editing the card.
@@ -86,9 +100,9 @@ Not in this release: chat messages (the API has none yet, so the chat panel show
 
 ## 6. Keeping screens up to date
 
-- No live updates in this release. A screen reloads its data after your own changes, when you come back to the browser tab, and every 30 seconds while a board is open.
+- No live updates in this release. A screen reloads its data after your own changes, when you come back to the browser tab, and every 30 seconds while a board or a chat is open.
 - Two people changing the same field: the last save wins.
-- Live updates (WebSockets) are built together with chat, because chat needs them anyway.
+- **Live updates (WebSockets) come in their own pull request, right after messages** (agreed 2026-11-09). This replaces the earlier plan to build them together with chat. They cover new, edited and deleted messages, card moves and edits on the board, the open card panel and the sidebar's chat list. The 30-second reload goes away. When the connection drops, a "Reconnecting…" bar shows, and the screen catches up once the connection is back. That pull request gets its own plan first.
 
 ## 7. Look
 
@@ -116,7 +130,7 @@ One pull request at a time, each with its plan approved first:
 2. API: card order within a column, and moving to a position.
 3. Web foundation: addresses, API client, look, sign in and sign up, project list, first Playwright test.
 4. Board view: columns, cards, dragging, chats in the sidebar, new chats and the "Create a card?" prompt, the chat panel and its docking.
-   Then, as its own pull request: rename "thread" to "chat" in the API, database and code (agreed 2026-10-31; done). Messages get their own design round with chat. Threads (replies) and typed links come after the MVP (agreed 2026-11-08, see [roadmap.md](roadmap.md)).
+   Then, as its own pull request: rename "thread" to "chat" in the API, database and code (agreed 2026-10-31; done). Messages are built in roadmap step 2 (agreed 2026-11-09; see [roadmap.md](roadmap.md)). Threads (replies) and typed links come after the MVP (agreed 2026-11-08, see [roadmap.md](roadmap.md)).
 5. Project settings and the server admin screen.
 6. Card panel basics: title, description, priority, due date, estimate, assignees, labels, completing, deleting, and seeing related cards ([card-features.md](card-features.md) section 7; agreed 2026-11-01).
 7. Card panel extras, split into four pull requests, one after another, each from `main` (agreed 2026-11-03):
