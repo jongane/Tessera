@@ -1,13 +1,14 @@
 import { z } from 'zod';
+import { textWithoutNul } from './text.js';
 import { LABEL_COLOURS } from './labels.js';
 
 // The project's own code rules (2 to 6 letters) are checked by the API's
 // ProjectsService, which gives a clearer message.
-const codeField = z.string().max(20);
+const codeField = textWithoutNul().max(20);
 
 export const newProjectSchema = z.strictObject({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().trim().max(2000).optional(),
+  name: textWithoutNul().trim().min(1).max(100),
+  description: textWithoutNul().trim().max(2000).optional(),
   code: codeField,
 });
 
@@ -40,7 +41,9 @@ const relationColour = z.enum(RELATION_COLOURS).optional();
 
 export const projectChangesSchema = z.strictObject({
   code: codeField.optional(),
-  timeZone: z.string().refine(isKnownTimeZone, 'Unknown time zone').optional(),
+  timeZone: textWithoutNul()
+    .refine(isKnownTimeZone, 'Unknown time zone')
+    .optional(),
   // Only the relationships given change.
   relationColours: z
     .strictObject({
@@ -54,7 +57,7 @@ export const projectChangesSchema = z.strictObject({
 });
 
 export const suggestCodeQuerySchema = z.strictObject({
-  name: z.string().trim().min(1).max(100),
+  name: textWithoutNul().trim().min(1).max(100),
 });
 
 export type NewProjectBody = z.infer<typeof newProjectSchema>;

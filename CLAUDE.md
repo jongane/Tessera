@@ -73,6 +73,7 @@ Rules for running them:
 ## Code standards
 - TypeScript strict mode. No `any` without a comment saying why.
 - Validate all input at the API boundary, with the zod rules in `packages/shared`, so the web app can check forms with the same rules.
+- Start every text field in `packages/shared` from `textWithoutNul()`, not `z.string()`. It refuses the invisible NUL character with the app's message; the API refuses one anywhere in a request too (`docs/api.md`). The only exceptions are the sign-in `password` and change-password `currentPassword`, which are marked with `@AllowNulIn` on their endpoints.
 - Database changes go through Prisma migrations (`prisma/migrations`), never by editing tables by hand. Each table change comes with a database test (`*.db-spec.ts`) against a real PostgreSQL.
 - Check permissions on every request: a user only sees projects they belong to.
 - Never commit secrets (API keys, passwords, .env files). Hash passwords.

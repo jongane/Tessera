@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { textWithoutNul } from './text.js';
 
 // The limits on checklists (docs/card-features.md, section 2). The API and
 // the web app's forms both use them, so they give the same answer.
@@ -17,8 +18,7 @@ export const CHECKLIST_FULL_MESSAGE = `A checklist holds up to ${MAX_CHECKLIST_I
 // Trimmed first, so spaces around the text don't count. A custom check
 // rather than `.min(1)`, so forms show this message as it is.
 function trimmedText(max: number) {
-  return z
-    .string()
+  return textWithoutNul()
     .trim()
     .refine((value) => value.length > 0, { message: CHECKLIST_BLANK_MESSAGE })
     .max(max, { message: `Use at most ${max} characters` });

@@ -31,12 +31,20 @@ sequenceDiagram
 | Code | Meaning |
 |---|---|
 | 200 / 201 / 204 | Done (201: something was created, 204: done, nothing to send back) |
-| 400 | The input is wrong; `message` says what. Unknown fields are refused too |
+| 400 | The input is wrong; `message` says what. Unknown fields are refused too, and so is a hidden NUL character (see "Text with a hidden character") |
 | 401 | Not signed in, or the session has ended |
 | 403 | Signed in, but not allowed (for example, not a project admin) |
 | 404 | Not found, or in a project you are not a member of. The two are not told apart, so nobody can find out which projects exist |
 | 409 | Clashes with something, for example the email already has an account |
 | 429 | Too many failed sign-ins; wait and try again |
+
+## Text with a hidden character
+
+A NUL character (code 0, written `\u0000`) is invisible, and PostgreSQL cannot store it, so it is refused everywhere (agreed 2026-11-08, Jon).
+- **Every text field** in the shared rules (`packages/shared`) refuses it with the message "This contains a hidden character that can’t be saved". This message comes before any other for the same field (for example before "too short"), and the web forms show it under the field, because they use the same rules. New text fields start from `textWithoutNul()` (in `packages/shared/src/text.ts`), not plain `z.string()`.
+- **The whole API** also refuses it with 400 and the same message, wherever it is in the request: a body field name or value, a query value (for example the card search `q`) or a part of the URL (for example `by-code/:code`). This check runs before the other input rules, so a field added later that forgets the shared rule still gets a clear 400 and never a 500. It runs after the sign-in check, so someone not signed in gets 401 "Please sign in" instead, which tells a stranger nothing (agreed 2026-11-08, Jon).
+- **Two exceptions.** Sign-in `password` and change-password `currentPassword` may hold one, as before, because they are only compared with the stored hash and never saved as text. A new password (sign-up `password`, change-password `newPassword`) refuses it.
+- Other control characters, and tabs, new lines and emoji, are still accepted.
 
 ## Endpoints
 

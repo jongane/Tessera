@@ -1,5 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
+import { NulGuard } from './common/nul-guard.js';
 
 // Settings shared by main.ts and the end-to-end tests, so the tests run the
 // API exactly as it is served.
@@ -8,4 +10,7 @@ export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
   // Reads the session cookie into request.cookies.
   app.use(cookieParser());
+  // Refuses a NUL character anywhere in a request, before the zod rules.
+  // The AuthGuard (APP_GUARD) runs first, so someone not signed in gets 401.
+  app.useGlobalGuards(new NulGuard(app.get(Reflector)));
 }
