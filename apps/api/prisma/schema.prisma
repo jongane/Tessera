@@ -16,20 +16,22 @@ datasource db {
 }
 
 model User {
-  id            String          @id @default(uuid()) @db.Uuid
-  email         String          @unique
-  displayName   String          @map("display_name")
-  passwordHash  String          @map("password_hash")
+  id              String          @id @default(uuid()) @db.Uuid
+  email           String          @unique
+  displayName     String          @map("display_name")
+  passwordHash    String          @map("password_hash")
   // Can change server-wide settings, such as whether anyone can sign up.
   // The first account made on a new server gets this.
-  isServerAdmin Boolean         @default(false) @map("is_server_admin")
-  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  sessions      Session[]
-  memberships   ProjectMember[]
-  createdCards  Card[]
-  cardActivity  CardActivity[]
-  timeEntries   TimeEntry[]
-  runningTimer  RunningTimer?
+  isServerAdmin   Boolean         @default(false) @map("is_server_admin")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  sessions        Session[]
+  memberships     ProjectMember[]
+  createdCards    Card[]
+  cardActivity    CardActivity[]
+  timeEntries     TimeEntry[]
+  runningTimer    RunningTimer?
+  messages        Message[]       @relation("MessageAuthor")
+  deletedMessages Message[]       @relation("MessageDeletedBy")
 
   @@map("users")
 }
@@ -233,17 +235,18 @@ enum ChatKind {
 // - a general chat has no card (check constraint written by hand in the
 //   migration, as Prisma cannot describe one).
 model Chat {
-  id        String   @id @default(uuid()) @db.Uuid
-  boardId   String   @map("board_id") @db.Uuid
-  cardId    String?  @unique @map("card_id") @db.Uuid
-  kind      ChatKind @default(TOPIC)
+  id        String    @id @default(uuid()) @db.Uuid
+  boardId   String    @map("board_id") @db.Uuid
+  cardId    String?   @unique @map("card_id") @db.Uuid
+  kind      ChatKind  @default(TOPIC)
   title     String
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  board     Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  messages  Message[]
   // Points at (card, board) so the card must be on the chat's board.
   // NoAction: a card cannot be deleted while a chat is linked to it;
   // CardsService.deleteCard unlinks the chat first so it is kept.
-  card      Card?    @relation(fields: [cardId, boardId], references: [id, boardId], onDelete: NoAction)
+  card      Card?     @relation(fields: [cardId, boardId], references: [id, boardId], onDelete: NoAction)
 
   // Needed by Prisma for the one-to-one link to Card. card_id is already
   // unique on its own, so this adds no new rule.
@@ -251,6 +254,31 @@ model Chat {
   @@unique([boardId], map: "chats_one_general_per_board", where: raw("kind = 'GENERAL'"))
   @@index([boardId])
   @@map("chats")
+}
+
+// One message in a chat (CONTEXT.md: Message). The body is Markdown.
+// Database rules (see docs/data-model.md):
+// - deleting the chat deletes its messages,
+// - deleting an account keeps its messages and empties author_id and
+//   deleted_by_id,
+// - deleted_by_id needs deleted_at (check constraint written by hand in the
+//   migration, as Prisma cannot describe one). A delete keeps the body.
+model Message {
+  id          String    @id @default(uuid()) @db.Uuid
+  chatId      String    @map("chat_id") @db.Uuid
+  authorId    String?   @map("author_id") @db.Uuid
+  body        String
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  editedAt    DateTime? @map("edited_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+  chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  author      User?     @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  deletedBy   User?     @relation("MessageDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  // Pages of a chat's messages, in the order they are shown.
+  @@index([chatId, createdAt, id])
+  @@map("messages")
 }
 
 // Numbers a card used to have, so they still lead to it. A subtask's number
