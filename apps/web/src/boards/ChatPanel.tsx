@@ -1,7 +1,13 @@
 import type { Chat } from '@tessera/shared'
-import type { ReactNode } from 'react'
+import { lazy, type ReactNode, Suspense } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { Loading } from '../ui/Loading'
+import type { MessageOutbox } from './message-outbox'
 import type { Dock } from './panel-layout'
+
+// The message list and box bring the rich-text editor with them, so they load
+// only when a chat is opened.
+const ChatMessages = lazy(() => import('./ChatMessages'))
 
 const DOCKS: { value: Dock; label: string }[] = [
   { value: 'right', label: 'Right' },
@@ -9,17 +15,22 @@ const DOCKS: { value: Dock; label: string }[] = [
   { value: 'bottom', label: 'Bottom' },
 ]
 
-// One chat: its title and, from `cardPart`, its card. Messages come in a
-// later pull request (docs/web-app.md, section 1). The panel does not know where it sits, so
-// it can later float or open in its own window (section 3).
+// One chat: its title, its card (from `cardPart`) and its messages. The panel
+// does not know where it sits, so it can later float or open in its own
+// window (docs/web-app.md, section 3).
 export function ChatPanel({
   chat,
+  projectId,
+  outbox,
   cardPart,
   dock,
   onDock,
   onClose,
 }: {
   chat: Chat
+  projectId: string
+  // Unsent text and messages on their way, kept while the board is open.
+  outbox: MessageOutbox
   cardPart: ReactNode
   dock: Dock
   onDock: (dock: Dock) => void
@@ -31,9 +42,7 @@ export function ChatPanel({
       className="flex h-full min-h-0 flex-col bg-surface"
     >
       <div className="flex items-center gap-1 border-b border-line px-3 py-2">
-        <h2 className="min-w-0 flex-1 truncate font-semibold">
-          {chat.title}
-        </h2>
+        <h2 className="min-w-0 flex-1 truncate font-semibold">{chat.title}</h2>
         <DockMenu dock={dock} onDock={onDock} />
         <button
           type="button"
@@ -44,10 +53,12 @@ export function ChatPanel({
           <span aria-hidden="true">✕</span>
         </button>
       </div>
-      <div className="flex flex-col gap-3 overflow-y-auto p-3">
+      <div className="flex max-h-48 shrink-0 flex-col gap-3 overflow-y-auto p-3 empty:hidden">
         {cardPart}
-        <p className="text-muted">Messages are coming soon.</p>
       </div>
+      <Suspense fallback={<Loading />}>
+        <ChatMessages chat={chat} projectId={projectId} outbox={outbox} />
+      </Suspense>
     </aside>
   )
 }

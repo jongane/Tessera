@@ -25,6 +25,7 @@ import { findCard } from './move-card'
 import { NewChatDialog } from './NewChatDialog'
 import { ChatCard } from './ChatCard'
 import { ChatPanel } from './ChatPanel'
+import { MessageOutbox } from './message-outbox'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
@@ -86,6 +87,8 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
       : undefined
   const openChat = chats.data?.find((chat) => chat.id === openChatId)
   const [creatingChat, setCreatingChat] = useState(false)
+  // Unsent messages and drafts of every chat, kept while the board is open.
+  const [outbox] = useState(() => new MessageOutbox())
   const moveCard = useMoveCard(boardId)
   const [saveFailed, setSaveFailed] = useState(false)
   // "Create a card" in the card panel opens this column's Add card form.
@@ -208,6 +211,8 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
                   <ChatPanel
                     key={openChat.id}
                     chat={openChat}
+                    projectId={project.id}
+                    outbox={outbox}
                     cardPart={
                       <ChatCard
                         view={view}

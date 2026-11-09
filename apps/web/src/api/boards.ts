@@ -72,14 +72,19 @@ export function useMoveCard(boardId: string) {
   })
 }
 
-// A card found by its number, such as WEB-12. Old numbers and project codes
-// work too; `number` is always the current one.
-export function useCardByNumber(reference: string) {
-  return useQuery({
-    queryKey: ['cards', 'by-number', reference.toUpperCase()],
+// How to look up a card by its number, such as WEB-12. Old numbers and
+// project codes work too; `number` is always the current one.
+export function cardByNumberQuery(reference: string) {
+  return {
+    queryKey: ['cards', 'by-number', reference.toUpperCase()] as const,
     queryFn: () =>
       api<Card & { number: string }>(
         `/cards/by-number/${encodeURIComponent(reference)}`,
       ),
-  })
+  }
+}
+
+// A card found by its number, such as WEB-12.
+export function useCardByNumber(reference: string) {
+  return useQuery(cardByNumberQuery(reference))
 }
