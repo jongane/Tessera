@@ -87,7 +87,12 @@ describe('Chats on a board', () => {
     expect(
       within(panel).getByRole('heading', { name: 'Release plan' }),
     ).toBeInTheDocument()
-    expect(panel).toHaveTextContent('Messages are coming soon')
+    // Criterion 13: the chat's messages, not "coming soon".
+    expect(
+      await within(panel).findByRole('log', { name: 'Messages' }),
+    ).toBeInTheDocument()
+    expect(await within(panel).findByText('No messages yet')).toBeVisible()
+    expect(panel).not.toHaveTextContent('Messages are coming soon')
     expect(currentPath(router)).toBe(`${boardPath}?chat=${releasePlan.id}`)
     expect(screen.getByRole('link', { name: 'Release plan' })).toHaveAttribute(
       'aria-current',

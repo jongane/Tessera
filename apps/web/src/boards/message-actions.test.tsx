@@ -1,0 +1,448 @@
+import { screen, waitFor, within } from '@testing-library/react'
+import { http } from 'msw'
+import { describe, expect, it } from 'vitest'
+import { expectNoAccessibilityProblems } from '../test/a11y'
+import {
+  ago,
+  chatPanel,
+  general,
+  messageList,
+  messageOf,
+  messageWith,
+  MINUTE,
+  openChat,
+  openMenu,
+  typeInto,
+} from '../test/chat-panel'
+import { ben } from '../test/fake-board'
+import { message } from '../test/fake-messages'
+import { apiError, server } from '../test/server'
+
+// Chat messages PR (plan "chat messages"): editing and deleting a message
+// (acceptance criteria 25 to 28, 31 and 33).
+
+const COULDNT_SAVE = /Couldn.t save, try again/
+
+// Opens the board and waits for the messages.
+async function open(options: Parameters<typeof openChat>[0]) {
+  const app = openChat(options)
+  await messageList()
+  return app
+}
+
+function optionsOf(text: string) {
+  return within(messageWith(text)).getByRole('button', {
+    name: 'Message options',
+  })
+}
+
+async function startEditing(
+  user: Awaited<ReturnType<typeof open>>['user'],
+  text: string,
+) {
+  await openMenu(user, optionsOf(text))
+  await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+  return within(messageWith(text)).findByRole('textbox')
+}
+
+describe('Who sees the message menu (criterion 25)', () => {
+  // 25
+  it('gives your own message a "Message options" menu with Edit and Delete', async () => {
+    const { user } = await open({ messages: [message('Mine')] })
+    await screen.findByText('Mine')
+
+    await openMenu(user, optionsOf('Mine'))
+
+    expect(await screen.findByRole('menuitem', { name: 'Edit' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
+  })
+
+  // 25
+  it('gives a project admin only Delete on someone else’s message', async () => {
+    // Ana is the project's admin.
+    const { user } = await open({
+      messages: [message('Ben’s words', { author: ben })],
+    })
+    await screen.findByText('Ben’s words')
+
+    await openMenu(user, optionsOf('Ben’s words'))
+
+    expect(
+      await screen.findByRole('menuitem', { name: 'Delete' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('menuitem', { name: 'Edit' }),
+    ).not.toBeInTheDocument()
+  })
+
+  // 25
+  it('gives a plain member no menu on someone else’s message, but one on their own', async () => {
+    // Ben is a plain member.
+    await open({
+      me: ben,
+      messages: [
+        message('Ana’s words', { createdAt: ago(10 * MINUTE) }),
+        message('Ben’s words', { author: ben, createdAt: ago(1 * MINUTE) }),
+      ],
+    })
+    await screen.findByText('Ben’s words')
+
+    expect(
+      within(messageWith('Ana’s words')).queryByRole('button', {
+        name: 'Message options',
+      }),
+    ).not.toBeInTheDocument()
+    expect(optionsOf('Ben’s words')).toBeInTheDocument()
+  })
+})
+
+describe('Editing (criterion 26)', () => {
+  // 26
+  it('replaces the message with an editor holding its text, with Save and Cancel', async () => {
+    const { user } = await open({ messages: [message('Helo **wrld**')] })
+    await screen.findByText('Helo')
+
+    const editor = await startEditing(user, 'Helo')
+
+    expect(editor).toHaveTextContent('Helo wrld')
+    const item = messageWith('Helo')
+    expect(within(item).getByRole('button', { name: 'Save' })).toBeVisible()
+    expect(within(item).getByRole('button', { name: 'Cancel' })).toBeVisible()
+  })
+
+  // 26
+  it('Save sends PATCH and shows the new text with "(edited)"', async () => {
+    const { user, api } = await open({ messages: [message('Helo wrld')] })
+    await screen.findByText('Helo wrld')
+
+    const editor = await startEditing(user, 'Helo wrld')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.keyboard('Hello world')
+    await user.click(
+      within(messageWith('Helo wrld')).getByRole('button', { name: 'Save' }),
+    )
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    expect(api.changes[0]).toEqual({
+      request: `PATCH /api/messages/${api.messagesOf(general.id)[0]!.id}`,
+      body: { body: 'Hello world' },
+    })
+    const item = await waitFor(() => {
+      const found = messageWith('Hello world')
+      expect(found).toHaveTextContent('(edited)')
+      return found
+    })
+    expect(within(item).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByText('Helo wrld')).not.toBeInTheDocument()
+  })
+
+  // 26
+  it('Cancel restores the message and sends nothing', async () => {
+    const { user, api } = await open({ messages: [message('Original words')] })
+    await screen.findByText('Original words')
+    const editor = await startEditing(user, 'Original words')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.keyboard('Something else')
+
+    await user.click(
+      within(messageWith('Something else')).getByRole('button', {
+        name: 'Cancel',
+      }),
+    )
+
+    expect(await screen.findByText('Original words')).toBeInTheDocument()
+    expect(screen.queryByText('Something else')).not.toBeInTheDocument()
+    expect(messageWith('Original words')).not.toHaveTextContent('(edited)')
+    expect(api.changes).toEqual([])
+  })
+
+  // 26
+  it('Escape restores the message and sends nothing', async () => {
+    const { user, api } = await open({ messages: [message('Original words')] })
+    await screen.findByText('Original words')
+    const editor = await startEditing(user, 'Original words')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.keyboard('Something else')
+
+    await user.keyboard('{Escape}')
+
+    expect(await screen.findByText('Original words')).toBeInTheDocument()
+    expect(screen.queryByText('Something else')).not.toBeInTheDocument()
+    expect(api.changes).toEqual([])
+  })
+
+  // 26
+  it('applies the blank rule: blank text is not saved', async () => {
+    const { user, api } = await open({ messages: [message('Some words')] })
+    await screen.findByText('Some words')
+    const editor = await startEditing(user, 'Some words')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}{Backspace}')
+
+    await user.click(
+      within(messageOf(editor)).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(api.changes).toEqual([])
+    expect(within(chatPanel()).getAllByRole('textbox').length).toBeGreaterThan(
+      1,
+    )
+  })
+
+  // 26
+  it('applies the length rule: over 10,000 characters shows "Use at most 10000 characters" and is not saved', async () => {
+    const { user, api } = await open({ messages: [message('Some words')] })
+    await screen.findByText('Some words')
+    const editor = await startEditing(user, 'Some words')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.paste('x'.repeat(10_001))
+
+    await user.click(
+      within(messageOf(editor)).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(
+      await within(chatPanel()).findByText('Use at most 10000 characters'),
+    ).toBeInTheDocument()
+    expect(api.changes).toEqual([])
+  })
+})
+
+describe('Deleting (criterion 27)', () => {
+  // 27
+  it('asks "Delete this message?"; confirming sends DELETE and shows the message crossed out', async () => {
+    const { user, api } = await open({ messages: [message('Oops')] })
+    await screen.findByText('Oops')
+
+    await openMenu(user, optionsOf('Oops'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete this message?',
+    })
+    expect(api.changes).toEqual([])
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    expect(api.changes[0]!.request).toMatch(/^DELETE \/api\/messages\//)
+    await waitFor(() =>
+      expect(messageWith('Oops').querySelector('del')).toHaveTextContent(
+        'Oops',
+      ),
+    )
+    expect(messageWith('Oops')).toHaveTextContent('Deleted by Ana')
+    expect(
+      screen.queryByRole('dialog', { name: 'Delete this message?' }),
+    ).not.toBeInTheDocument()
+  })
+
+  // 27
+  it('lets a project admin delete someone else’s message', async () => {
+    const { user, api } = await open({
+      messages: [message('Ben’s words', { author: ben })],
+    })
+    await screen.findByText('Ben’s words')
+
+    await openMenu(user, optionsOf('Ben’s words'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete this message?',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    await waitFor(() =>
+      expect(messageWith('Ben’s words')).toHaveTextContent('Deleted by Ana'),
+    )
+  })
+
+  // 27
+  it('Cancel sends nothing and returns the focus to the menu button', async () => {
+    const { user, api } = await open({ messages: [message('Keep me')] })
+    await screen.findByText('Keep me')
+    const button = optionsOf('Keep me')
+
+    await openMenu(user, button)
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete this message?',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Delete this message?' }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(api.changes).toEqual([])
+    expect(messageWith('Keep me').querySelector('del')).toBeNull()
+    expect(optionsOf('Keep me')).toHaveFocus()
+  })
+})
+
+describe('When an edit or a delete fails (criterion 28)', () => {
+  // 28
+  it('shows the server’s message for a 4xx on an edit, and keeps the message as it was', async () => {
+    const { user, api } = await open({ messages: [message('Helo')] })
+    await screen.findByText('Helo')
+    server.use(
+      http.patch('/api/messages/:messageId', () =>
+        apiError(409, 'This message was deleted'),
+      ),
+    )
+    const editor = await startEditing(user, 'Helo')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.keyboard('Hello')
+    await user.click(
+      within(messageWith('Hello')).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This message was deleted',
+    )
+    expect(api.messagesOf(general.id)[0]).toMatchObject({
+      body: 'Helo',
+      editedAt: null,
+    })
+    expect(chatPanel()).not.toHaveTextContent('(edited)')
+  })
+
+  // 28
+  it('says "Couldn’t save, try again" when an edit fails otherwise', async () => {
+    const { user } = await open({ messages: [message('Helo')] })
+    await screen.findByText('Helo')
+    server.use(
+      http.patch('/api/messages/:messageId', () =>
+        apiError(500, 'Something broke'),
+      ),
+    )
+    const editor = await startEditing(user, 'Helo')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.keyboard('Hello')
+    await user.click(
+      within(messageWith('Hello')).getByRole('button', { name: 'Save' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(COULDNT_SAVE)
+    expect(chatPanel()).not.toHaveTextContent('(edited)')
+  })
+
+  // 28
+  it('shows the server’s message for a 4xx on a delete, and keeps the message as it was', async () => {
+    const { user } = await open({ messages: [message('Stay')] })
+    await screen.findByText('Stay')
+    server.use(
+      http.delete('/api/messages/:messageId', () =>
+        apiError(403, 'Only the author or a project admin can delete this'),
+      ),
+    )
+
+    await openMenu(user, optionsOf('Stay'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete this message?',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Only the author or a project admin can delete this',
+    )
+    expect(messageWith('Stay').querySelector('del')).toBeNull()
+  })
+
+  // 28
+  it('says "Couldn’t save, try again" when a delete fails otherwise', async () => {
+    const { user } = await open({ messages: [message('Stay')] })
+    await screen.findByText('Stay')
+    server.use(
+      http.delete('/api/messages/:messageId', () =>
+        apiError(500, 'Something broke'),
+      ),
+    )
+
+    await openMenu(user, optionsOf('Stay'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete this message?',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(COULDNT_SAVE)
+    expect(messageWith('Stay').querySelector('del')).toBeNull()
+  })
+})
+
+describe('Reloading after your own change (criterion 31)', () => {
+  // 31
+  it('reloads the messages after an edit and after a delete', async () => {
+    const { user, api } = await open({ messages: [message('Helo')] })
+    await screen.findByText('Helo')
+    let loads = api.gets.length
+
+    const editor = await startEditing(user, 'Helo')
+    editor.focus()
+    await user.keyboard('{Control>}a{/Control}')
+    await user.keyboard('Hello')
+    await user.click(
+      within(messageWith('Hello')).getByRole('button', { name: 'Save' }),
+    )
+    await waitFor(() => expect(api.gets.length).toBeGreaterThan(loads))
+    await waitFor(() =>
+      expect(messageWith('Hello')).toHaveTextContent('(edited)'),
+    )
+    loads = api.gets.length
+
+    await openMenu(user, optionsOf('Hello'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete this message?',
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(api.gets.length).toBeGreaterThan(loads))
+  })
+})
+
+describe('Accessibility of editing and deleting (criterion 33)', () => {
+  // 33
+  it('has no accessibility problems with the menu open, an edit open, the confirmation open or an error shown', async () => {
+    const { user, container } = await open({
+      messages: [
+        message('First words', { createdAt: ago(10 * MINUTE) }),
+        message('Ben’s words', { author: ben, createdAt: ago(5 * MINUTE) }),
+      ],
+    })
+    await screen.findByText('Ben’s words')
+
+    await openMenu(user, optionsOf('First words'))
+    await screen.findByRole('menuitem', { name: 'Edit' })
+    await expectNoAccessibilityProblems(container)
+    await user.click(screen.getByRole('menuitem', { name: 'Edit' }))
+    await within(messageWith('First words')).findByRole('textbox')
+    await expectNoAccessibilityProblems(container)
+    server.use(
+      http.patch('/api/messages/:messageId', () => apiError(500, 'Broke')),
+    )
+    const editor = within(messageWith('First words')).getByRole('textbox')
+    await typeInto(user, editor, ' more')
+    await user.click(
+      within(messageWith('First words')).getByRole('button', { name: 'Save' }),
+    )
+    await screen.findByRole('alert')
+    await expectNoAccessibilityProblems(container)
+    await user.click(
+      within(messageWith('First words')).getByRole('button', {
+        name: 'Cancel',
+      }),
+    )
+
+    await openMenu(user, optionsOf('Ben’s words'))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    await screen.findByRole('dialog', { name: 'Delete this message?' })
+    await expectNoAccessibilityProblems(container)
+  })
+})

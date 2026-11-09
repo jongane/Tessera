@@ -15,6 +15,10 @@ export const server = setupServer(
   http.get('/api/cards/:cardId/activity', () =>
     HttpResponse.json({ items: [], nextBefore: null }),
   ),
+  // No chat has any messages yet (an open chat asks for them).
+  http.get('/api/chats/:chatId/messages', () =>
+    HttpResponse.json({ messages: [], hasOlder: false }),
+  ),
   // A card with subtasks asks for its rolled-up totals.
   http.get('/api/cards/:cardId/time-totals', () =>
     HttpResponse.json({
