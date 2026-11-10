@@ -6,7 +6,10 @@ import type { Editor } from '@tiptap/react'
 // written, with exactly what Markdown needs to read it back as typed:
 // - the characters Tiptap already escapes (\ ` * _ [ ] ~);
 // - "&" before something that reads as an entity (a typed "&lt;");
-// - "<" that would open an autolink (a typed "<https://example.org>");
+// - an address between < and > (a typed "<https://example.org>"), which would
+//   be read as a link without the brackets, and addresses left as typed;
+// - four spaces at the start of a line (code), and a line that looks like the dashes of
+//   a table;
 // - at the start of a line: "#", ">", "-", "+", "1." and "1)" (a heading, a
 //   quote, a list), and a line of "-" or "=" (a divider or heading underline).
 // Code (inline, and code blocks) is never touched: Markdown takes it literally.
@@ -19,7 +22,14 @@ type Writer = {
 }
 
 const ENTITY = /&(?=#?\w+;)/g
-const AUTOLINK = /<(?=[^\s<>]*[:@][^\s<>]*>)/g
+// What reads as a link by itself: an address between < and >, a web address
+// and an email address. Their text is not escaped (a "\_" would be part of the
+// link), and the ">" after an address in < > is written as an entity, or the
+// link would take the ">" along.
+const ADDRESS =
+  /<([^\s<>`]*[:@][^\s<>`]*)>|(?:https?:\/\/|www\.)[^\s<>`*~[\]\\]+|(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g
+const SEPARATOR =
+  /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/
 const LINE_STARTS: [RegExp, string][] = [
   [/^( {0,3})(#{1,6})(?=[ \t]|$)/, '$1\\$2'],
   [/^( {0,3})>/, '$1\\>'],
@@ -29,6 +39,15 @@ const LINE_STARTS: [RegExp, string][] = [
 ]
 
 function escapeLineStart(line: string): string {
+  // Four spaces or more at the start of a line make code: the first one is
+  // written as a character.
+  if (line.startsWith('    ')) {
+    return `&#32;${line.slice(1)}`
+  }
+  // A line of dashes between pipes is a table's header line.
+  if (line.includes('|') && SEPARATOR.test(line)) {
+    return line.replace('|', '\\|')
+  }
   for (const [pattern, replacement] of LINE_STARTS) {
     if (pattern.test(line)) return line.replace(pattern, replacement)
   }
@@ -47,6 +66,22 @@ function isCode(writer: Writer, node: Node, parent?: Parent): boolean {
   )
 }
 
+function escapeInline(writer: Writer, text: string): string {
+  const plain = (part: string) =>
+    writer.escapeMarkdownSyntax(part).replace(ENTITY, '&amp;')
+  let result = ''
+  let from = 0
+  for (const found of text.matchAll(ADDRESS)) {
+    result += plain(text.slice(from, found.index))
+    result +=
+      found[1] === undefined
+        ? found[0].replace(ENTITY, '&amp;')
+        : `\\<${found[1].replace(ENTITY, '&amp;')}&gt;`
+    from = found.index + found[0].length
+  }
+  return result + plain(text.slice(from))
+}
+
 const written = new WeakSet<object>()
 
 function typedTextWriter(editor: Editor): Writer {
@@ -56,11 +91,7 @@ function typedTextWriter(editor: Editor): Writer {
   // This is the editor's own writer, not Tiptap's shared one.
   writer.encodeTextForMarkdown = (text, node, parent) => {
     if (isCode(writer, node, parent)) return text
-    const lines = writer
-      .escapeMarkdownSyntax(text)
-      .replace(ENTITY, '&amp;')
-      .replace(AUTOLINK, '\\<')
-      .split('\n')
+    const lines = escapeInline(writer, text).split('\n')
     const first = startsLine(node, parent)
     return lines
       .map((line, i) => (i > 0 || first ? escapeLineStart(line) : line))
@@ -70,7 +101,7 @@ function typedTextWriter(editor: Editor): Writer {
 }
 
 export function markdownOf(editor: Editor): string {
-  if (editor.isEmpty) return ''
+  if (editor.isEmpty || editor.state.doc.textContent.trim() === '') return ''
   const writer = typedTextWriter(editor) as unknown as {
     serialize(json: unknown): string
   }
