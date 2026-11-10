@@ -16,10 +16,11 @@ export const MESSAGE_MAX_LEVELS = 10;
 // text is decided quickly and cannot overflow the stack.
 export function nestingLevels(markdown: string): number {
   let deepest = 0;
-  // The indents of the list items above, each one nested in the one before.
-  const open: number[] = [];
-  // The fence that opened the code block we are in, as its character and length.
-  let fence: { char: string; length: number } | null = null;
+  // The list items above, each one nested in the one before: the column of
+  // the mark, and of the text after it.
+  const open: { indent: number; content: number }[] = [];
+  // The code block we are in, if any.
+  let fence: Fence | null = null;
   let afterBlank = true;
   let inIndentedCode = false;
   for (const raw of markdown.split('\n')) {
@@ -27,21 +28,23 @@ export function nestingLevels(markdown: string): number {
     const lineIndent = spacesAt(line, 0);
     const blank = lineIndent === line.length;
     if (fence) {
-      if (closesFence(line, lineIndent, fence)) {
-        fence = null;
+      if (blank && !fence.inQuote) {
+        continue;
       }
-      continue;
+      const at = stripContainers(line, fence.containers);
+      if (at >= 0) {
+        if (closesFence(line, at, fence)) {
+          fence = null;
+        }
+        continue;
+      }
+      // The quote or list item the code block was in has ended, and with it
+      // the code block: this line is read as any other.
+      fence = null;
     }
     if (blank) {
       afterBlank = true;
       continue;
-    }
-    if (lineIndent <= 3) {
-      fence = opensFence(line, lineIndent);
-      if (fence) {
-        afterBlank = false;
-        continue;
-      }
     }
     if (
       lineIndent >= 4 &&
@@ -55,6 +58,9 @@ export function nestingLevels(markdown: string): number {
     inIndentedCode = false;
     afterBlank = false;
 
+    // The quote and list marks at the start of the line, in order, each with
+    // the column after it (for a list mark, after its spaces).
+    const marked: { quote: boolean; after: number }[] = [];
     let quotes = 0;
     let marks = 0;
     let indent = lineIndent;
@@ -65,6 +71,7 @@ export function nestingLevels(markdown: string): number {
       if (char === '>') {
         quotes += 1;
         at += 1;
+        marked.push({ quote: true, after: at });
         indent = spacesAt(line, at);
         at += indent;
       } else if (isListMark(line, at)) {
@@ -76,30 +83,72 @@ export function nestingLevels(markdown: string): number {
         }
         marks += 1;
         at += listMarkLength(line, at);
-        at += spacesAt(line, at);
+        const spaces = spacesAt(line, at);
+        at += spaces;
+        // With five spaces or more, the text is indented code in the item.
+        marked.push({ quote: false, after: spaces > 4 ? at - spaces + 1 : at });
       } else {
         break;
       }
     }
+    let enclosing: { indent: number; content: number } | undefined;
+    // Quotes together with list items above: the columns of both are mixed
+    // up, so no code block is recognised there (what is in it counts).
+    let unclear = false;
     if (marks === 0) {
       if (quotes === 0 && lineIndent === 0) {
         open.length = 0;
       }
       // Text indented under the list items above counts as inside them.
       let inside = 0;
-      while (inside < open.length && open[inside]! < indent) {
+      while (inside < open.length && open[inside]!.indent < indent) {
         inside += 1;
       }
       deepest = Math.max(deepest, quotes + inside);
-      continue;
+      if (quotes === 0) {
+        for (let i = inside - 1; i >= 0; i -= 1) {
+          if (open[i]!.content <= indent) {
+            enclosing = open[i];
+            break;
+          }
+        }
+      } else {
+        unclear = inside > 0;
+      }
+    } else {
+      while (open.length > 0 && open[open.length - 1]!.indent >= listIndent) {
+        open.pop();
+      }
+      deepest = Math.max(deepest, quotes + open.length + marks);
+      if (quotes === 0) {
+        enclosing = open[open.length - 1];
+      } else {
+        unclear = open.length > 0;
+      }
     }
-    while (open.length > 0 && open[open.length - 1]! >= listIndent) {
-      open.pop();
+    if (!unclear) {
+      fence = fenceOpenedBy(line, marked, enclosing, lineIndent);
     }
-    deepest = Math.max(deepest, quotes + open.length + marks);
-    open.push(listIndent);
+    if (marks > 0) {
+      open.push({
+        indent: listIndent,
+        content: marked[marked.length - 1]!.after,
+      });
+    }
   }
   return deepest;
+}
+
+const QUOTE = 'quote';
+// What a line in a code block must start with to still be in the quote or
+// list item the code block is in: a quote mark, or this many spaces.
+type Container = typeof QUOTE | number;
+
+interface Fence {
+  char: string;
+  length: number;
+  containers: Container[];
+  inQuote: boolean;
 }
 
 function spacesAt(line: string, from: number): number {
@@ -110,7 +159,65 @@ function spacesAt(line: string, from: number): number {
   return at - from;
 }
 
-// "```" or "~~~" (three or more), up to three spaces in.
+// The code block that this line opens, in the quotes and list items that its
+// marks (and the list item it is under) put it in.
+function fenceOpenedBy(
+  line: string,
+  marked: { quote: boolean; after: number }[],
+  enclosing: { content: number } | undefined,
+  lineIndent: number,
+): Fence | null {
+  const containers: Container[] = [];
+  let column = 0;
+  if (enclosing) {
+    column = Math.min(enclosing.content, lineIndent);
+    containers.push(column);
+  }
+  for (const mark of marked) {
+    containers.push(mark.quote ? QUOTE : mark.after - column);
+    column = mark.after;
+  }
+  // One space after a quote mark belongs to the quote.
+  if (marked.length > 0 && marked[marked.length - 1]!.quote) {
+    column += line[column] === ' ' ? 1 : 0;
+  }
+  const indent = spacesAt(line, column);
+  if (indent > 3) {
+    return null;
+  }
+  const opened = opensFence(line, column + indent);
+  return (
+    opened && { ...opened, containers, inQuote: containers.includes(QUOTE) }
+  );
+}
+
+// Where the text of a line in a code block starts, once the quote marks and
+// the indent of the quotes and list items it is in are taken off; or -1 if
+// the line is not in them (so they, and the code block, have ended).
+function stripContainers(line: string, containers: Container[]): number {
+  let at = 0;
+  for (const container of containers) {
+    if (container === QUOTE) {
+      const spaces = spacesAt(line, at);
+      if (spaces > 3 || line[at + spaces] !== '>') {
+        return -1;
+      }
+      at += spaces + 1;
+    } else {
+      if (spacesAt(line, at) < container) {
+        return -1;
+      }
+      at += container;
+    }
+  }
+  if (containers[containers.length - 1] === QUOTE && line[at] === ' ') {
+    at += 1;
+  }
+  return at;
+}
+
+// "```" or "~~~" (three or more), up to three spaces in. The text after a
+// backtick fence cannot hold a backtick: "```a```" is code in a line.
 function opensFence(line: string, at: number) {
   const char = line[at];
   if (char !== '`' && char !== '~') {
@@ -120,15 +227,19 @@ function opensFence(line: string, at: number) {
   while (line[end] === char) {
     end += 1;
   }
-  return end - at >= 3 ? { char, length: end - at } : null;
+  if (end - at < 3 || (char === '`' && line.indexOf('`', end) >= 0)) {
+    return null;
+  }
+  return { char, length: end - at };
 }
 
 function closesFence(
   line: string,
-  at: number,
+  from: number,
   fence: { char: string; length: number },
 ): boolean {
-  if (at > 3 || line[at] !== fence.char) {
+  const at = from + spacesAt(line, from);
+  if (at - from > 3 || line[at] !== fence.char) {
     return false;
   }
   let end = at;
