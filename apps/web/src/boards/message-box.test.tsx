@@ -103,6 +103,23 @@ describe('The message box', () => {
     await waitFor(() => expect(box).toHaveTextContent(''))
   })
 
+  // 21 (found while testing 37): what is typed is what is sent and shown
+  it('sends > < & as typed, and shows them as typed, never as &gt; &lt; &amp;', async () => {
+    const { user, box, api } = await openBox()
+
+    await typeInto(user, box, 'a > b & c < d')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    const sent = (api.changes[0]!.body as { body: string }).body
+    expect(sent).not.toMatch(/&(gt|lt|amp);/)
+    expect(sent).toContain('>')
+    expect(sent).toContain('&')
+    const list = await messageList()
+    expect(await within(list).findByText('a > b & c < d')).toBeInTheDocument()
+    expect(list).not.toHaveTextContent(/&(gt|lt|amp);/)
+  })
+
   // 21
   it('sends nothing for blank text, with Enter or with Send', async () => {
     const { user, box, api } = await openBox()
