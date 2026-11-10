@@ -32,6 +32,8 @@ async function editAndSave(
   await openMenu(user, button)
   await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
   const editor = await within(messageWith(shown)).findByRole('textbox')
+  // The editor takes the focus once it is ready; typing sooner is lost.
+  await waitFor(() => expect(editor).toHaveFocus())
   // The editor opens holding the text as it was typed.
   expect(editor.textContent).toBe(shown)
   await user.keyboard(extra)
@@ -61,9 +63,11 @@ describe('Typed text is kept as typed in a message (criterion 43)', () => {
         await within(list).findByText(`${text} more again`),
       ).toBeInTheDocument()
 
-      expect(list).not.toHaveTextContent(/&(gt|lt|amp);(?!div)/)
       await waitFor(() => expect(api.changes).toHaveLength(3))
       if (text !== ENTITY_CASE) {
+        // (The literal entity's own text holds "&gt;", and the exact text
+        // was already found above.)
+        expect(list).not.toHaveTextContent(/&(gt|lt|amp);/)
         // Stored as typed.
         const bodies = api.changes.map((c) => (c.body as { body: string }).body)
         expect(bodies.map(withoutEscapes)).toEqual([

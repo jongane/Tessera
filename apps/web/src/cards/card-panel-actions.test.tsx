@@ -628,22 +628,24 @@ describe('The description keeps typed HTML-like text (criterion 43)', () => {
       const panel = await cardPanel()
 
       await user.click(
-        within(panel).getByRole('button', { name: 'Edit description' }),
+        await within(panel).findByRole('button', { name: 'Edit description' }),
       )
-      await typeInto(
-        user,
-        await within(panel).findByRole('textbox', { name: 'Description' }),
-        text,
-      )
+      const first = await within(panel).findByRole('textbox', {
+        name: 'Description',
+      })
+      // The editor takes the focus once it is ready; typing sooner is lost.
+      await waitFor(() => expect(first).toHaveFocus())
+      await typeInto(user, first, text)
       await user.click(within(panel).getByRole('button', { name: 'Save' }))
       expect(await within(panel).findByText(text)).toBeInTheDocument()
 
       await user.click(
-        within(panel).getByRole('button', { name: 'Edit description' }),
+        await within(panel).findByRole('button', { name: 'Edit description' }),
       )
       const editor = await within(panel).findByRole('textbox', {
         name: 'Description',
       })
+      await waitFor(() => expect(editor).toHaveFocus())
       // The editor opens holding the text as it was typed.
       expect(editor.textContent).toBe(text)
       await user.keyboard(' more')
@@ -651,8 +653,10 @@ describe('The description keeps typed HTML-like text (criterion 43)', () => {
       expect(await within(panel).findByText(`${text} more`)).toBeInTheDocument()
 
       await waitFor(() => expect(api.requests).toHaveLength(2))
-      expect(panel).not.toHaveTextContent(/&(gt|lt|amp);(?!div)/)
       if (text !== ENTITY_CASE) {
+        // (The literal entity's own text holds "&gt;", and the exact text
+        // was already found above.)
+        expect(panel).not.toHaveTextContent(/&(gt|lt|amp);/)
         const saved = api.requests.map(
           (r) => (r.body as { description: string }).description,
         )
