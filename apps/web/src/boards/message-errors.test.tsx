@@ -5,6 +5,7 @@ import {
   messageList,
   messageWith,
   MINUTE,
+  NOW,
   openChat,
 } from '../test/chat-panel'
 import { ben } from '../test/fake-board'
