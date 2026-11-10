@@ -687,6 +687,28 @@ describe('A message that cannot be drawn (criterion 35)', () => {
   })
 })
 
+describe('A message that takes long to draw (criterion 35)', () => {
+  // 35 (antagonist proof, round 2): a body the API accepts must not freeze
+  // the page for everyone. Blank lines between two words made the table check
+  // take seconds (9,998 lines fit in 10,000 characters).
+  it('draws a message made of many blank lines quickly', async () => {
+    const started = performance.now()
+    openChat({
+      messages: [
+        message('Hello before', { createdAt: ago(10 * MINUTE) }),
+        message('a' + '\n'.repeat(2500) + 'b', {
+          author: ben,
+          createdAt: ago(MINUTE),
+        }),
+      ],
+    })
+    const list = await messageList()
+    await within(list).findByText('Hello before')
+
+    expect(performance.now() - started).toBeLessThan(2000)
+  })
+})
+
 describe('Markdown the toolbar cannot make (criterion 36)', () => {
   // The words of each body must be on the screen, whatever else is shown.
   const bodies: [string, string, string[]][] = [

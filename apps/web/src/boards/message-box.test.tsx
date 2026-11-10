@@ -349,6 +349,37 @@ describe('Sending when the first load failed (criterion 23, reviewer finding)', 
     expect(within(chatPanel()).getByText('Saved anyway')).toBeInTheDocument()
     expect(chatPanel()).not.toHaveTextContent('Sending…')
   })
+
+  // 23
+  it('shows the message exactly once when a reload succeeds afterwards', async () => {
+    const { user, api } = openChat()
+    let failing = true
+    server.use(
+      http.get('/api/chats/:chatId/messages', () =>
+        failing
+          ? apiError(500, 'Something broke')
+          : HttpResponse.json({
+              messages: api.messagesOf(general.id),
+              hasOlder: false,
+            }),
+      ),
+    )
+    const box = await within(
+      await screen.findByRole('complementary', { name: /^Chat: / }),
+    ).findByRole('textbox', { name: 'Message' })
+    await within(chatPanel()).findByText(/Couldn.t load the messages/)
+    await typeInto(user, box, 'Saved anyway')
+    await user.keyboard('{Enter}')
+    await within(chatPanel()).findByText('Saved anyway')
+
+    failing = false
+    window.dispatchEvent(new Event('visibilitychange'))
+
+    await within(chatPanel()).findByRole('log', { name: 'Messages' })
+    await pause()
+    expect(within(chatPanel()).getAllByText('Saved anyway')).toHaveLength(1)
+    expect(chatPanel()).not.toHaveTextContent(/Couldn.t load the messages/)
+  })
 })
 
 const UUID =
