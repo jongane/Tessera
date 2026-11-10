@@ -1,6 +1,6 @@
 import { MarkdownManager } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
-import { Markdown } from '../ui/markdown'
+import { Markdown, tiptapReader } from '../ui/markdown'
 import { isSafeLink } from './message-text'
 
 // The message box's formatting: what the box can hold (no headings, quotes,
@@ -64,7 +64,7 @@ interface Token {
   items?: Token[]
 }
 
-const reader = new MarkdownManager({ extensions: [] })
+const lexer = new MarkdownManager({ extensions: [], marked: tiptapReader })
 
 export function canHoldInMessageBox(markdown: string): boolean {
   const held = (tokens: Token[] | undefined): boolean =>
@@ -76,7 +76,7 @@ export function canHoldInMessageBox(markdown: string): boolean {
         held(token.items),
     )
   try {
-    return held(reader.instance.lexer(markdown) as Token[])
+    return held(lexer.instance.lexer(markdown) as Token[])
   } catch {
     // Too deep to read.
     return false
