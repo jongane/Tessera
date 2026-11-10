@@ -643,9 +643,9 @@ describe('Text typed at the start of a line stays as typed (criterion 43)', () =
 })
 
 describe('More text typed at the start of a line (criterion 43)', () => {
-  // 43 (R2): these look like the start of a numbered list, but were typed as
-  // text.
-  it.each(['1) one', '10. ten'])(
+  // 43 (R2): this looks like the start of a numbered list, but no typing
+  // shortcut matches it, so it was typed as text.
+  it.each(['1) one'])(
     'shows "%s" as typed, and the edit box opens holding it',
     async (text) => {
       const { user, box, api } = await openBox()
@@ -670,6 +670,39 @@ describe('More text typed at the start of a line (criterion 43)', () => {
       expect(held).toBe(text)
     },
   )
+
+  // 47 (Jon, 2026-11-10): typing shortcuts stay, so "10. " at the start of a
+  // line starts a numbered list, as in the card description.
+  it('starts a numbered list when "10. " is typed at the start of a line', async () => {
+    const { user, box, api } = await openBox()
+
+    await typeInto(user, box, '10. ten')
+    await user.keyboard('{Enter}')
+    const list = await messageList()
+
+    const shown = await within(list).findByText('ten')
+    expect(shown.closest('li')).not.toBeNull()
+    const ordered = shown.closest('ol')!
+    expect(ordered).not.toBeNull()
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    // The list keeps its start number if the editor does: the number the
+    // Markdown starts with is the one drawn.
+    const sent = (api.changes[0]!.body as { body: string }).body
+    expect(sent).toMatch(/^(1|10)\. ten$/)
+    expect(ordered.getAttribute('start') ?? '1').toBe(sent.split('.')[0])
+    expect(list).not.toHaveTextContent('10. ten')
+
+    const item = messageWith('ten')
+    await openMenu(
+      user,
+      within(item).getByRole('button', { name: 'Message options' }),
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+    const editor = await within(item).findByRole('textbox')
+    const held =
+      editor instanceof HTMLTextAreaElement ? editor.value : editor.textContent
+    expect(held).toContain('ten')
+  })
 
   // 43 (reviewer): a ">" typed at the start of a list item stays a ">"
   it('keeps a > typed at the start of a list item, through editing', async () => {
