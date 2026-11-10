@@ -1,6 +1,6 @@
 import { messageBodyRequestSchema, type Message } from '@tessera/shared'
-import type { Editor } from '@tiptap/react'
 import { ApiError } from '../api/client'
+export { markdownOf } from '../ui/markdown-of'
 import { FORMER_MEMBER } from '../ui/former-member'
 import { checkForm } from '../ui/form-errors'
 
@@ -55,19 +55,6 @@ export function isSafeLink(href: string | undefined): boolean {
 // A card number such as WEB-12 or WEB-12.1, written in capitals, in a text.
 export const CARD_NUMBER_IN_TEXT =
   /(?<![A-Za-z0-9-])[A-Z]{2,6}-[1-9][0-9]*(?:\.[1-9][0-9]*)*(?![A-Za-z0-9-])/g
-
-// The editor writes > < & as &gt; &lt; &amp;. A message keeps them as typed.
-function unescapeEntities(markdown: string): string {
-  const characters = { amp: '&', lt: '<', gt: '>' }
-  return markdown.replace(
-    /&(amp|lt|gt);/g,
-    (_, name: keyof typeof characters) => characters[name],
-  )
-}
-
-export function markdownOf(editor: Editor): string {
-  return editor.isEmpty ? '' : unescapeEntities(editor.getMarkdown()).trim()
-}
 
 // The text to send, or why it cannot be sent. Blank text has no reason: there
 // is nothing to send.

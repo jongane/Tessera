@@ -6,6 +6,7 @@ import { useEffect, useId, useState } from 'react'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { EditorToolbar, type ToolbarButton } from '../ui/editor-toolbar'
+import { markdownOf } from '../ui/markdown-of'
 import { checkForm } from '../ui/form-errors'
 
 // The card's description: rich text with a formatting toolbar (Tiptap),
@@ -187,10 +188,6 @@ function DescriptionEditor({
       )}
     </div>
   )
-}
-
-function markdownOf(editor: Editor): string {
-  return editor.isEmpty ? '' : editor.getMarkdown().trim()
 }
 
 const BUTTONS: readonly ToolbarButton[] = [
