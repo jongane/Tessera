@@ -1,4 +1,4 @@
-import { Editor, type JSONContent } from '@tiptap/react'
+import { MarkdownManager } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '../ui/markdown'
 import { isSafeLink } from './message-text'
@@ -36,21 +36,49 @@ export function messageExtensions() {
   ]
 }
 
-// Whether the message box can hold this Markdown whole. It cannot hold a
-// heading, a table or an image, which it would leave out: those are edited as
-// plain text instead.
+// Whether the message box can hold this Markdown whole: everything in it is a
+// paragraph, a list, bold, italic, code in a line, a link or a line break. It
+// cannot hold a heading, a quote, a code block, a divider, a table, an image,
+// a task list or a footnote, which it would leave out or write differently:
+// those are edited as plain text instead. (The Markdown is read the way the
+// box reads it, rather than written back and compared, as the box writes
+// text with escapes, so a body it wrote itself is not written back the same.)
+const HELD = new Set([
+  'space',
+  'paragraph',
+  'text',
+  'list',
+  'list_item',
+  'strong',
+  'em',
+  'codespan',
+  'link',
+  'br',
+  'escape',
+])
+
+interface Token {
+  type: string
+  task?: boolean
+  tokens?: Token[]
+  items?: Token[]
+}
+
+const reader = new MarkdownManager({ extensions: [] })
+
 export function canHoldInMessageBox(markdown: string): boolean {
-  const reader = new Editor({ extensions: messageExtensions() })
+  const held = (tokens: Token[] | undefined): boolean =>
+    (tokens ?? []).every(
+      (token) =>
+        HELD.has(token.type) &&
+        !token.task &&
+        held(token.tokens) &&
+        held(token.items),
+    )
   try {
-    const { nodes, marks } = reader.schema
-    const holds = (node: JSONContent): boolean =>
-      (node.type === undefined || node.type in nodes) &&
-      (node.marks ?? []).every((mark) => mark.type in marks) &&
-      (node.content ?? []).every(holds)
-    return holds(reader.markdown!.parse(markdown))
+    return held(reader.instance.lexer(markdown) as Token[])
   } catch {
+    // Too deep to read.
     return false
-  } finally {
-    reader.destroy()
   }
 }
