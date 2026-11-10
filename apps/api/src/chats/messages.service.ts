@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '../generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
 
@@ -81,16 +81,46 @@ export class MessagesService {
     };
   }
 
+  // With an `id`, sending the same message again (same author, same chat)
+  // gives the saved message back and saves nothing new; the id of another
+  // person's or another chat's message is refused.
   async sendMessage(
     userId: string,
     chatId: string,
     body: string,
-  ): Promise<MessageView> {
+    id?: string,
+  ): Promise<{ message: MessageView; created: boolean }> {
     await this.findVisibleChat(userId, chatId);
-    const row = await this.prisma.message.create({
-      data: { chatId, authorId: userId, body },
+    try {
+      const row = await this.prisma.message.create({
+        data: { id, chatId, authorId: userId, body },
+        include: withPeople,
+      });
+      return { message: toView(row), created: true };
+    } catch (error) {
+      // The id is taken, maybe a moment ago by this very message.
+      if (id === undefined || !isUniqueViolation(error)) {
+        throw error;
+      }
+      return {
+        message: await this.findSent(userId, chatId, id),
+        created: false,
+      };
+    }
+  }
+
+  private async findSent(
+    userId: string,
+    chatId: string,
+    id: string,
+  ): Promise<MessageView> {
+    const row = await this.prisma.message.findUnique({
+      where: { id },
       include: withPeople,
     });
+    if (!row || row.chatId !== chatId || row.author?.id !== userId) {
+      throw new ConflictException('This message id is already used');
+    }
     return toView(row);
   }
 
@@ -177,3 +207,10 @@ export class MessagesService {
 }
 
 const DELETED_MESSAGE = 'This message was deleted';
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}

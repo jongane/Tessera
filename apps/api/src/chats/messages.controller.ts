@@ -7,11 +7,15 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   type MessageBodyRequest,
   type MessagePageQuery,
   messageBodyRequestSchema,
+  newMessageSchema,
+  type NewMessageBody,
   messagePageQuerySchema,
 } from '@tessera/shared';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
@@ -38,12 +42,21 @@ export class MessagesController {
   }
 
   @Post('chats/:chatId/messages')
-  send(
+  async send(
     @CurrentUser() user: SignedInUser,
     @Param('chatId', IdParam) chatId: string,
-    @Body(new ZodPipe(messageBodyRequestSchema)) body: MessageBodyRequest,
+    @Body(new ZodPipe(newMessageSchema)) body: NewMessageBody,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<MessageView> {
-    return this.messages.sendMessage(user.id, chatId, body.body);
+    const { message, created } = await this.messages.sendMessage(
+      user.id,
+      chatId,
+      body.body,
+      body.id,
+    );
+    // Sending the same message again answers with the one already saved.
+    response.status(created ? 201 : 200);
+    return message;
   }
 
   @Patch('messages/:messageId')
