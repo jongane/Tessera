@@ -610,4 +610,21 @@ describe('Chat messages (e2e)', () => {
       );
     });
   });
+
+  // Antagonist proof, round 3 (R4).
+  describe('nesting after inline code (criterion 44)', () => {
+    // 44
+    it('refuses 4000 quotes after a line of inline code written with three backticks', async () => {
+      const { ana, messagesUrl } = await setUp();
+
+      const response = await ana.agent
+        .post(messagesUrl)
+        .send({ body: '```a```\n' + '>'.repeat(4000) + 'x' });
+
+      expect(response.status).toBe(400);
+      expect(String(response.body.message)).toContain(
+        'Use at most 10 levels of lists and quotes',
+      );
+    });
+  });
 });

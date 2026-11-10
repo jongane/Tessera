@@ -8,6 +8,7 @@ import {
   messageList,
   messageWith,
   openChat,
+  openMenu,
   typeInto,
 } from '../test/chat-panel'
 import { message } from '../test/fake-messages'
@@ -616,5 +617,118 @@ describe('Text kept as typed in the message box (criteria 42 and 43)', () => {
 
     await waitFor(() => expect(api.changes).toHaveLength(1))
     expect((api.changes[0]!.body as { body: string }).body).toBe('`&lt;br&gt;`')
+  })
+})
+
+// Antagonist proof, round 3 (R2), and more typed line starts.
+describe('Text typed at the start of a line stays as typed (criterion 43)', () => {
+  // 43 (R2). The message box has no headings, so "# " is typed text.
+  it('shows "# not a heading" as typed, and the edit box opens holding it', async () => {
+    const { user, box } = await openBox()
+
+    await typeInto(user, box, '# not a heading')
+    await user.keyboard('{Enter}')
+    const list = await messageList()
+
+    expect(await within(list).findByText('# not a heading')).toBeInTheDocument()
+    const item = messageWith('# not a heading')
+    await openMenu(
+      user,
+      within(item).getByRole('button', { name: 'Message options' }),
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+    const editor = await within(item).findByRole('textbox')
+    expect(editor.textContent).toBe('# not a heading')
+  })
+})
+
+describe('More text typed at the start of a line (criterion 43)', () => {
+  // 43 (R2): these look like the start of a numbered list, but were typed as
+  // text.
+  it.each(['1) one', '10. ten'])(
+    'shows "%s" as typed, and the edit box opens holding it',
+    async (text) => {
+      const { user, box, api } = await openBox()
+
+      await typeInto(user, box, text)
+      await user.keyboard('{Enter}')
+      const list = await messageList()
+
+      expect(await within(list).findByText(text)).toBeInTheDocument()
+      await waitFor(() => expect(api.changes).toHaveLength(1))
+      const item = messageWith(text)
+      await openMenu(
+        user,
+        within(item).getByRole('button', { name: 'Message options' }),
+      )
+      await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+      const editor = await within(item).findByRole('textbox')
+      const held =
+        editor instanceof HTMLTextAreaElement
+          ? editor.value
+          : editor.textContent
+      expect(held).toBe(text)
+    },
+  )
+
+  // 43 (reviewer): a ">" typed at the start of a list item stays a ">"
+  it('keeps a > typed at the start of a list item, through editing', async () => {
+    const { user, box, api } = await openBox()
+
+    await user.click(
+      within(chatPanel()).getByRole('button', { name: 'Bulleted list' }),
+    )
+    await typeInto(user, box, '> in a list item')
+    await user.keyboard('{Enter}')
+    const list = await messageList()
+
+    const shown = await within(list).findByText('> in a list item')
+    expect(shown.closest('li')).not.toBeNull()
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    const item = messageWith('> in a list item')
+    await openMenu(
+      user,
+      within(item).getByRole('button', { name: 'Message options' }),
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+    const editor = await within(item).findByRole('textbox')
+    await waitFor(() => expect(editor).toHaveFocus())
+    expect(editor.textContent).toBe('> in a list item')
+    await user.keyboard(' more')
+    await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+    expect(
+      await within(list).findByText('> in a list item more'),
+    ).toBeInTheDocument()
+    expect(list).not.toHaveTextContent(/&(gt|lt|amp);/)
+  })
+})
+
+describe('A reload that brings a message back before its POST answer (criterion 23)', () => {
+  // 23 (reviewer)
+  it('lists the message once, while it is still sending and after', async () => {
+    const { user, box, api } = await openBox()
+    const release = api.hold()
+
+    await typeInto(user, box, 'Racing words')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    const id = (api.changes[0]!.body as { id: string }).id
+    // The server has saved it, but its answer has not arrived yet; a reload
+    // finds it.
+    api.arrive(
+      general.id,
+      message('Racing words', { id, createdAt: new Date().toISOString() }),
+    )
+    const loads = api.gets.length
+    window.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(api.gets.length).toBeGreaterThan(loads))
+    await pause()
+
+    expect(within(chatPanel()).getAllByText('Racing words')).toHaveLength(1)
+    release()
+    await pause()
+    expect(within(chatPanel()).getAllByText('Racing words')).toHaveLength(1)
+    expect(chatPanel()).not.toHaveTextContent('Sending…')
   })
 })

@@ -257,3 +257,36 @@ describe('messageBodySchema: more nesting cases (criterion 44)', () => {
     expect(performance.now() - started).toBeLessThan(500);
   });
 });
+
+// Criterion 44, fence rules. Antagonist proofs, round 3 (R4, R5).
+describe('messageBodySchema: code fences (criterion 44)', () => {
+  const verdict = (body: string) => {
+    const result = messageBodySchema.safeParse(body);
+    return result.success ? 'accepted' : result.error.issues[0]?.message;
+  };
+
+  // 44 (R4). "```a```" is inline code, not a fence (a backtick fence's info text
+  // cannot hold a backtick), so the quotes after it are read as quotes.
+  it('refuses 11 quotes after a line of inline code written with three backticks', () => {
+    expect(verdict('```a```\n' + '> '.repeat(11) + 'x')).toBe(TOO_DEEP);
+  });
+
+  // 44 (R5). Nothing inside a code block counts, also when the block is in a
+  // quote.
+  it('accepts list marks inside a code block in a quote', () => {
+    expect(verdict('> ```\n> ' + '- '.repeat(11) + 'x\n> ```')).toBe(
+      'accepted',
+    );
+  });
+
+  // 44 (R5). ... or in a nested list item.
+  it('accepts quote marks inside a code block in a nested list', () => {
+    expect(
+      verdict(
+        '- Steps\n  - Run this:\n    ```\n    ' +
+          '> '.repeat(11) +
+          'x\n    ```',
+      ),
+    ).toBe('accepted');
+  });
+});

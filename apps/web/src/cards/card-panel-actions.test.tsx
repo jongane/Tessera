@@ -668,3 +668,111 @@ describe('The description keeps typed HTML-like text (criterion 43)', () => {
     },
   )
 })
+
+// Antagonist proof, round 3 (R3).
+describe('A code block in the description keeps its text (criterion 43)', () => {
+  // 43 (R3)
+  it('saves and shows &lt; &gt; &amp; typed in a code block as typed', async () => {
+    const { user, api } = openCard()
+    const panel = await cardPanel()
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await waitFor(() => expect(editor).toHaveFocus())
+
+    // "``` " starts a code block.
+    await typeInto(
+      user,
+      editor,
+      '``` &lt;div&gt;{Enter}&gt; quoted{Enter}a &amp; b',
+    )
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.requests).toHaveLength(1))
+    expect((api.requests[0]!.body as { description: string }).description).toBe(
+      '```\n&lt;div&gt;\n&gt; quoted\na &amp; b\n```',
+    )
+  })
+})
+
+describe('A code block in the description, round trip (criterion 43)', () => {
+  // 43 (R3)
+  it('shows the code block as typed, and keeps it through reopening and saving again', async () => {
+    const { user, api } = openCard()
+    const panel = await cardPanel()
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Edit description' }),
+    )
+    const first = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await waitFor(() => expect(first).toHaveFocus())
+    await typeInto(
+      user,
+      first,
+      '``` &lt;div&gt;{Enter}&gt; quoted{Enter}a &amp; b',
+    )
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+    const typed = '&lt;div&gt;\n&gt; quoted\na &amp; b'
+    await waitFor(() =>
+      expect(panel.querySelector('pre')?.textContent).toBe(typed),
+    )
+
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await waitFor(() => expect(editor).toHaveFocus())
+    expect(editor.textContent).toBe(typed)
+    await user.keyboard(' x')
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.requests).toHaveLength(2))
+    expect((api.requests[1]!.body as { description: string }).description).toBe(
+      '```\n&lt;div&gt;\n&gt; quoted\na &amp; b x\n```',
+    )
+  })
+})
+
+describe('A > in a quote or a list item of the description (criterion 43)', () => {
+  // 43 (reviewer): a ">" written as a character, in a quote and in a list
+  // item (Markdown writes it "\\>"), stays a ">" through saving.
+  it('keeps a > character in a quote and in a list item, through reopening and saving', async () => {
+    const { user, api } = openCard(
+      boardCard('12', 'Login page', {
+        description:
+          '> quote line\n>\n> \\> typed greater-than\n\n- \\> in a list item',
+      }),
+    )
+    const panel = await cardPanel()
+    expect(
+      await within(panel).findByText('> typed greater-than'),
+    ).toBeInTheDocument()
+    expect(within(panel).getByText('> in a list item')).toBeInTheDocument()
+
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await waitFor(() => expect(editor).toHaveFocus())
+    expect(editor.textContent).toContain('> typed greater-than')
+    expect(editor.textContent).toContain('> in a list item')
+    await user.keyboard(' more')
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.requests).toHaveLength(1))
+    const saved = (api.requests[0]!.body as { description: string }).description
+    expect(saved).not.toMatch(/&(gt|lt|amp);/)
+    expect(
+      await within(panel).findByText('> in a list item more'),
+    ).toBeInTheDocument()
+    expect(within(panel).getByText('> typed greater-than')).toBeInTheDocument()
+  })
+})

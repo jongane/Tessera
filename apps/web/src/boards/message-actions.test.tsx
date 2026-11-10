@@ -519,3 +519,26 @@ describe('Editing an odd body', () => {
     ).toBeInTheDocument()
   })
 })
+
+// Antagonist proof, round 3 (R1).
+describe('The edit box keeps the whole text (criteria 43 and 45)', () => {
+  // 43, 45: a heading (which the rich edit box cannot hold) must not empty the
+  // box, or Save throws the whole message away. Either the rich box holds all
+  // the text, or the plain-text fallback opens holding it.
+  it('opens a message with a heading in it holding all its text', async () => {
+    const body = 'intro\n\n## Part two\n\nmore'
+    const { user } = await open({ messages: [message(body)] })
+    const item = within(await messageList()).getAllByRole('listitem')[0]!
+
+    await openMenu(
+      user,
+      within(item).getByRole('button', { name: 'Message options' }),
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+    const editor = await within(item).findByRole('textbox')
+
+    const text =
+      editor instanceof HTMLTextAreaElement ? editor.value : editor.textContent
+    expect(text ?? '').toMatch(/intro.*Part two.*more/s)
+  })
+})
