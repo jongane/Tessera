@@ -83,8 +83,9 @@ erDiagram
 8. A column that still has cards cannot be deleted. A card that still has a chat cannot be deleted directly; deleting a card through the API unlinks its chat first, so the chat is kept.
 9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and chats, and a chat's messages go with the chat (agreed 2026-11-09).
 10. `deleted_by_id` needs `deleted_at`: a message cannot name who deleted it without saying when. The reverse is allowed, because the deleter's account may be deleted later, which empties `deleted_by_id` and keeps `deleted_at` (agreed 2026-11-09).
-11. Deleting an account keeps its messages: `author_id` (and `deleted_by_id`, where it names that account) is set to null (agreed 2026-11-09). How the web app names such an author is not decided yet.
-12. A chat's messages are listed in the order (`created_at`, `id`), so two messages with the same time keep a fixed order. An index on (`chat_id`, `created_at`, `id`) keeps loading a page of messages fast.
+11. Deleting an account keeps its messages: `author_id` (and `deleted_by_id`, where it names that account) is set to null (agreed 2026-11-09). The web app shows such an author, and such a deleter, as "Former member" (agreed 2026-11-10).
+12. A message's `id` may be chosen by the sender (a UUID), so that sending the same message again never saves it twice. See "Messages" in [api.md](api.md) (agreed 2026-11-10).
+13. A chat's messages are listed in the order (`created_at`, `id`), so two messages with the same time keep a fixed order. An index on (`chat_id`, `created_at`, `id`) keeps loading a page of messages fast.
 
 Rules 1, 2 (the "at most one general chat" part) and 7 to 9 (the board part) are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general chat is the job of `BoardsService.createBoard`, which creates it with the board.
 
