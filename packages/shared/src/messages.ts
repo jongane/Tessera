@@ -65,6 +65,10 @@ export function nestingLevels(markdown: string): number {
     let marks = 0;
     let indent = lineIndent;
     let listIndent = -1;
+    // Each list mark's column and its text's column, from the start of the
+    // quote it is in (or the line).
+    const items: { indent: number; content: number }[] = [];
+    let frame = 0;
     let at = lineIndent;
     for (;;) {
       const char = line[at];
@@ -72,21 +76,25 @@ export function nestingLevels(markdown: string): number {
         quotes += 1;
         at += 1;
         marked.push({ quote: true, after: at });
+        frame = at;
         indent = spacesAt(line, at);
         at += indent;
       } else if (isListMark(line, at)) {
         if (marks === 0 && isDivider(line, at)) {
           break;
         }
+        const markAt = at - frame;
         if (listIndent < 0) {
-          listIndent = indent;
+          listIndent = markAt;
         }
         marks += 1;
         at += listMarkLength(line, at);
         const spaces = spacesAt(line, at);
         at += spaces;
         // With five spaces or more, the text is indented code in the item.
-        marked.push({ quote: false, after: spaces > 4 ? at - spaces + 1 : at });
+        const after = spaces > 4 ? at - spaces + 1 : at;
+        marked.push({ quote: false, after });
+        items.push({ indent: markAt, content: after - frame });
       } else {
         break;
       }
@@ -129,12 +137,8 @@ export function nestingLevels(markdown: string): number {
     if (!unclear) {
       fence = fenceOpenedBy(line, marked, enclosing, lineIndent);
     }
-    if (marks > 0) {
-      open.push({
-        indent: listIndent,
-        content: marked[marked.length - 1]!.after,
-      });
-    }
+    // Each mark opens a list item inside the one before it.
+    open.push(...items);
   }
   return deepest;
 }
