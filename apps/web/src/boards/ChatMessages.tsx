@@ -81,9 +81,11 @@ export default function ChatMessages({
       .reverse()
       .flatMap((page) => page.messages)
       .map((message) => ({ message })),
-    // A saved message is already in the list once a reload has brought it.
+    // A message the list already has (a reload brought it, before or after
+    // its POST answer) is shown once, from the list. Only a failed one, which
+    // the person may retry, stays as its own row.
     ...outgoing
-      .filter((entry) => !(entry.status === 'saved' && shownIds.has(entry.id)))
+      .filter((entry) => entry.status === 'failed' || !shownIds.has(entry.id))
       .map((entry) => ({
         message: {
           id: entry.id,
