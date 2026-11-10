@@ -577,3 +577,44 @@ describe('Accessibility of the message box (criterion 33)', () => {
     await expectNoAccessibilityProblems(container)
   })
 })
+
+// Antagonist proofs, round 2 (criteria 42 and 43).
+describe('Text kept as typed in the message box (criteria 42 and 43)', () => {
+  // 43
+  it('shows a typed HTML tag as written, not as nothing', async () => {
+    const { user, box } = await openBox()
+
+    await typeInto(user, box, 'Wrap it in a <div> first')
+    await user.keyboard('{Enter}')
+
+    expect(
+      await within(await messageList()).findByText('Wrap it in a <div> first'),
+    ).toBeInTheDocument()
+  })
+
+  // 43
+  it('shows typed &lt; and &gt; as typed', async () => {
+    const { user, box } = await openBox()
+
+    await typeInto(user, box, 'Escape it as &lt;div&gt; in HTML')
+    await user.keyboard('{Enter}')
+
+    expect(
+      await within(await messageList()).findByText(
+        'Escape it as &lt;div&gt; in HTML',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  // 43
+  it('saves typed &lt;br&gt; in code as typed', async () => {
+    const { user, box, api } = await openBox()
+
+    await user.click(within(chatPanel()).getByRole('button', { name: 'Code' }))
+    await typeInto(user, box, '&lt;br&gt;')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    expect((api.changes[0]!.body as { body: string }).body).toBe('`&lt;br&gt;`')
+  })
+})

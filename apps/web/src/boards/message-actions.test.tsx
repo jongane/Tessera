@@ -500,3 +500,22 @@ describe('Accessibility of editing and deleting (criterion 33)', () => {
     await expectNoAccessibilityProblems(container)
   })
 })
+
+// Antagonist proof, round 2 (criteria 35 and 44).
+describe('Editing an odd body', () => {
+  // 35, 44: ">>>…x" (no spaces) used to pass the API's nesting rule, and the
+  // edit box read it outside the message's safety net.
+  it('keeps the chat working when the author edits a deeply quoted message', async () => {
+    const body = '>'.repeat(3000) + 'x'
+    const { user } = await open({
+      messages: [message('Hello before'), message(body)],
+    })
+
+    await openMenu(user, optionsOf(body))
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+
+    expect(
+      await within(await messageList()).findByText('Hello before'),
+    ).toBeInTheDocument()
+  })
+})

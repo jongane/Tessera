@@ -13,6 +13,7 @@ import { ben, label, member } from '../test/fake-board'
 import { boardCard, boardColumn, boardView, website } from '../test/fixtures'
 import { currentPath } from '../test/render'
 import { ana, server } from '../test/server'
+import { TYPED_TEXTS, withoutEscapes } from '../test/typed-text'
 
 describe('Labels on a card', () => {
   const frontend = label('Frontend', 'BLUE')
@@ -591,4 +592,75 @@ describe('Deleting a card: focus', () => {
     await waitFor(() => expect(dialog).not.toBeInTheDocument())
     expect(button).toHaveFocus()
   })
+})
+
+// Antagonist proof, round 2 (criterion 43).
+describe('The description keeps text as typed (criteria 42 and 43)', () => {
+  // 43
+  it('shows a typed HTML tag as written after saving', async () => {
+    const { user } = openCard()
+    const panel = await cardPanel()
+
+    await user.click(
+      within(panel).getByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await typeInto(user, editor, 'Wrap it in a <div> first')
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+
+    expect(
+      await within(panel).findByText('Wrap it in a <div> first'),
+    ).toBeInTheDocument()
+  })
+})
+
+// Criterion 43: text that looks like HTML stays as typed through saving,
+// reopening the editor and saving again.
+describe('The description keeps typed HTML-like text (criterion 43)', () => {
+  const ENTITY_CASE = 'a literal &lt;div&gt; here'
+
+  it.each(TYPED_TEXTS)(
+    'keeps %s through saving, reopening and saving again',
+    async (_name, text) => {
+      const { user, api } = openCard()
+      const panel = await cardPanel()
+
+      await user.click(
+        within(panel).getByRole('button', { name: 'Edit description' }),
+      )
+      await typeInto(
+        user,
+        await within(panel).findByRole('textbox', { name: 'Description' }),
+        text,
+      )
+      await user.click(within(panel).getByRole('button', { name: 'Save' }))
+      expect(await within(panel).findByText(text)).toBeInTheDocument()
+
+      await user.click(
+        within(panel).getByRole('button', { name: 'Edit description' }),
+      )
+      const editor = await within(panel).findByRole('textbox', {
+        name: 'Description',
+      })
+      // The editor opens holding the text as it was typed.
+      expect(editor.textContent).toBe(text)
+      await user.keyboard(' more')
+      await user.click(within(panel).getByRole('button', { name: 'Save' }))
+      expect(await within(panel).findByText(`${text} more`)).toBeInTheDocument()
+
+      await waitFor(() => expect(api.requests).toHaveLength(2))
+      expect(panel).not.toHaveTextContent(/&(gt|lt|amp);(?!div)/)
+      if (text !== ENTITY_CASE) {
+        const saved = api.requests.map(
+          (r) => (r.body as { description: string }).description,
+        )
+        expect(saved.map(withoutEscapes)).toEqual([text, `${text} more`])
+        for (const description of saved) {
+          expect(description).not.toMatch(/&(gt|lt|amp);/)
+        }
+      }
+    },
+  )
 })

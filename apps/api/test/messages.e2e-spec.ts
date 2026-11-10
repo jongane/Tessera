@@ -580,4 +580,34 @@ describe('Chat messages (e2e)', () => {
         .expect(400);
     });
   });
+
+  // Antagonist proof, round 2.
+  describe('nesting written without spaces (criterion 44)', () => {
+    // 44
+    it('accepts 10 quotes without spaces, a divider and quote marks in a code block', async () => {
+      const { ana, messagesUrl } = await setUp();
+
+      for (const body of [
+        '>'.repeat(10) + 'x',
+        'Above\n\n- - - - - - - - - - - -\n\nBelow',
+        '```\n' + '> '.repeat(11) + 'x\n```',
+      ]) {
+        await ana.agent.post(messagesUrl).send({ body }).expect(201);
+      }
+    });
+
+    // 44
+    it('refuses 11 quotes written as ">>>>>>>>>>>x" with 400', async () => {
+      const { ana, messagesUrl } = await setUp();
+
+      const response = await ana.agent
+        .post(messagesUrl)
+        .send({ body: '>'.repeat(11) + 'x' });
+
+      expect(response.status).toBe(400);
+      expect(String(response.body.message)).toContain(
+        'Use at most 10 levels of lists and quotes',
+      );
+    });
+  });
 });

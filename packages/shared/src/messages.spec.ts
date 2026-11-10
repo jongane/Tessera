@@ -154,3 +154,106 @@ describe('Message', () => {
     expect(deletedOfAGoneAccount.author).toBeNull();
   });
 });
+
+// Criterion 44 (agreed 2026-11-10): the nesting limit counts the way the
+// message is read. Antagonist proofs, round 2, kept as regression tests.
+describe('messageBodySchema: nesting counted as read (criterion 44)', () => {
+  const tooDeep = (body: string) => {
+    const result = messageBodySchema.safeParse(body);
+    return result.success ? 'accepted' : result.error.issues[0]?.message;
+  };
+
+  // 44. CommonMark: ">>>x" is three quotes; no space is needed after ">".
+  it('refuses 11 quotes written without spaces', () => {
+    expect(tooDeep('>'.repeat(11) + 'x')).toBe(TOO_DEEP);
+  });
+
+  // 44. One quote holding a list nested 11 levels by indenting.
+  it('refuses a list nested by indenting inside a quote', () => {
+    const body = Array.from(
+      { length: 11 },
+      (_, i) => `> ${'  '.repeat(i)}- level ${i + 1}`,
+    ).join('\n');
+    expect(tooDeep(body)).toBe(TOO_DEEP);
+  });
+
+  // 44. Text in a code block is not a list or a quote.
+  it('accepts quote marks inside a code block', () => {
+    expect(tooDeep('```\n' + '> '.repeat(11) + 'x\n```')).toBe('accepted');
+  });
+
+  // 44. "- - - ..." on its own line is a horizontal rule, not nested lists.
+  it('accepts a horizontal rule written with spaced dashes', () => {
+    expect(tooDeep('Above\n\n- - - - - - - - - - - -\n\nBelow')).toBe(
+      'accepted',
+    );
+  });
+});
+
+describe('messageBodySchema: more nesting cases (criterion 44)', () => {
+  const tooDeep = (body: string) => {
+    const result = messageBodySchema.safeParse(body);
+    return result.success ? 'accepted' : result.error.issues[0]?.message;
+  };
+
+  // 44
+  it('counts quotes written with and without spaces the same way', () => {
+    expect(tooDeep('>'.repeat(10) + 'x')).toBe('accepted');
+    expect(tooDeep('> > > > > > > > > > > x')).toBe(TOO_DEEP);
+    expect(tooDeep('>> > >> > >>>>> x')).toBe(TOO_DEEP);
+  });
+
+  // 44
+  it('accepts quote marks inside an indented code block', () => {
+    expect(tooDeep('Intro\n\n    ' + '> '.repeat(11) + 'x')).toBe('accepted');
+  });
+
+  // 44
+  it('accepts a divider written with asterisks, and underscores', () => {
+    expect(tooDeep('Above\n\n***\n\nBelow')).toBe('accepted');
+    expect(tooDeep('Above\n\n* * * * * * * * * * * *\n\nBelow')).toBe(
+      'accepted',
+    );
+    expect(tooDeep('Above\n\n_ _ _ _ _ _ _ _ _ _ _ _\n\nBelow')).toBe(
+      'accepted',
+    );
+  });
+
+  // 44
+  it('accepts quote marks inside a tilde-fenced code block', () => {
+    expect(tooDeep('~~~\n' + '> '.repeat(11) + 'x\n~~~')).toBe('accepted');
+  });
+
+  // 44: linear time and no recursion, so a hostile body is decided quickly
+  // and never throws (even one far over the length limit).
+  it.each([
+    ['quotes', '>'.repeat(100_000) + 'x'],
+    ['spaced quotes', '> '.repeat(50_000) + 'x'],
+    ['lists', '- '.repeat(50_000) + 'x'],
+    ['blank lines', 'a' + '\n'.repeat(100_000) + 'b'],
+    [
+      'indentation',
+      Array.from({ length: 2_000 }, (_, i) => ' '.repeat(i % 60) + '- x').join(
+        '\n',
+      ),
+    ],
+    ['backticks', '`'.repeat(100_000)],
+  ])(
+    'decides a 100,000-character body of %s quickly, without throwing',
+    (_name, body) => {
+      const started = performance.now();
+
+      expect(() => messageBodySchema.safeParse(body)).not.toThrow();
+
+      expect(performance.now() - started).toBeLessThan(500);
+    },
+  );
+
+  // 44: still decided within the length limit
+  it('refuses 5,000 spaced quotes with the nesting message, quickly', () => {
+    const started = performance.now();
+
+    expect(tooDeep('> '.repeat(4_999) + 'x')).toBe(TOO_DEEP);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});

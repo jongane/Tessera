@@ -1038,6 +1038,29 @@ describe('Show older while a change is saved (agreed 2026-11-08)', () => {
   })
 })
 
+describe('Typed text in “Show changes” (criterion 43)', () => {
+  // 43
+  it('shows the old and new description as typed, never as HTML entities', async () => {
+    const { user, tab } = await openActivity([
+      activityLine('DESCRIPTION_CHANGED', {
+        from: 'use <div> here',
+        to: 'if a<b and c>d, x <b>bold</b> y & a literal &lt;div&gt;',
+      }),
+    ])
+    await waitFor(() => expect(lines(tab)).toHaveLength(1))
+    const line = lines(tab)[0]!
+
+    await user.click(within(line).getByRole('button', { name: SHOW_CHANGES }))
+
+    expect(within(line).getByRole('group', { name: BEFORE })).toHaveTextContent(
+      'use <div> here',
+    )
+    expect(within(line).getByRole('group', { name: AFTER })).toHaveTextContent(
+      'if a<b and c>d, x <b>bold</b> y & a literal &lt;div&gt;',
+    )
+  })
+})
+
 describe('Times keep up while Activity is open (agreed 2026-11-08)', () => {
   it('changes “just now” to “1 minute ago” after a minute', async () => {
     const { tab } = await openActivity([
