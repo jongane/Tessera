@@ -1,4 +1,4 @@
-import { Markdown } from '@tiptap/markdown'
+import { Markdown } from '../ui/markdown'
 import { Editor, type JSONContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { useQueries } from '@tanstack/react-query'

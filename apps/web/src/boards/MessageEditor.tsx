@@ -1,4 +1,4 @@
-import { Markdown } from '@tiptap/markdown'
+import { Markdown } from '../ui/markdown'
 import { type Editor, EditorContent, Extension, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { type ReactNode, useEffect, useState } from 'react'

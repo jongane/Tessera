@@ -1,4 +1,4 @@
-import { Markdown } from '@tiptap/markdown'
+import { Markdown } from '../ui/markdown'
 import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { cardChangesSchema } from '@tessera/shared'
@@ -103,7 +103,7 @@ function ReadOnlyDescription({ markdown }: { markdown: string }) {
   })
   // Shows a newer description after a reload.
   useEffect(() => {
-    if (editor && editor.getMarkdown() !== markdown) {
+    if (editor && markdownOf(editor) !== markdown) {
       editor.commands.setContent(markdown, { contentType: 'markdown' })
     }
   }, [editor, markdown])

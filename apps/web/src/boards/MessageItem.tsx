@@ -1,5 +1,5 @@
 import type { Message } from '@tessera/shared'
-import { useEffect, useRef, useState } from 'react'
+import { Component, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDeleteMessage, useEditMessage } from '../api/messages'
 import { ActionsMenu } from '../cards/ActionsMenu'
 import { Alert } from '../ui/Alert'
@@ -153,13 +153,8 @@ export function MessageItem({
   )
 }
 
-function EditForm({
-  message,
-  onDone,
-}: {
-  message: Message
-  onDone: () => void
-}) {
+// Saves an edit, with the same rules whichever box it was written in.
+function useSaveEdit(message: Message, onDone: () => void) {
   const edit = useEditMessage(message.chatId)
   const [problem, setProblem] = useState<string>()
 
@@ -182,6 +177,91 @@ function EditForm({
     }
   }
 
+  return { save, problem, setProblem, saving: edit.isPending }
+}
+
+// The rich edit box. If it cannot open the message's body, the person edits
+// it as plain text instead (the chat carries on either way).
+function EditForm({
+  message,
+  onDone,
+}: {
+  message: Message
+  onDone: () => void
+}) {
+  return (
+    <EditBoundary
+      fallback={<PlainEditForm message={message} onDone={onDone} />}
+    >
+      <RichEditForm message={message} onDone={onDone} />
+    </EditBoundary>
+  )
+}
+
+class EditBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
+
+function PlainEditForm({
+  message,
+  onDone,
+}: {
+  message: Message
+  onDone: () => void
+}) {
+  const { save, problem, setProblem, saving } = useSaveEdit(message, onDone)
+  const [text, setText] = useState(message.body)
+  return (
+    <div className="flex flex-col gap-2">
+      <textarea
+        aria-label="Message"
+        value={text}
+        rows={4}
+        autoFocus
+        onChange={(event) => {
+          setText(event.target.value)
+          setProblem(undefined)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            onDone()
+          }
+        }}
+        className="min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2"
+      />
+      {problem && <Alert>{problem}</Alert>}
+      <div className="flex gap-2">
+        <Button disabled={saving} onClick={() => save(text.trim())}>
+          Save
+        </Button>
+        <Button variant="secondary" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function RichEditForm({
+  message,
+  onDone,
+}: {
+  message: Message
+  onDone: () => void
+}) {
+  const { save, problem, setProblem, saving } = useSaveEdit(message, onDone)
   return (
     <MessageEditor
       label="Edit message"
@@ -195,10 +275,7 @@ function EditForm({
         <>
           {problem && <Alert>{problem}</Alert>}
           <div className="flex gap-2">
-            <Button
-              disabled={edit.isPending}
-              onClick={() => save(markdownOf(editor))}
-            >
+            <Button disabled={saving} onClick={() => save(markdownOf(editor))}>
               Save
             </Button>
             <Button variant="secondary" onClick={onDone}>
