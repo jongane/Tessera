@@ -28,10 +28,14 @@ vi.mock('./message-markdown', async (importOriginal) => {
 })
 
 beforeEach(() => {
+  // A fixed clock, so “5 minutes ago” is the same every time.
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.setSystemTime(new Date(NOW))
   // React logs every error that reaches a boundary.
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 

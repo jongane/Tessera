@@ -64,7 +64,7 @@ describe('The message box', () => {
     await waitFor(() => expect(api.changes).toHaveLength(1))
     expect(api.changes[0]).toEqual({
       request: `POST /api/chats/${general.id}/messages`,
-      body: { body: '**Ship it**' },
+      body: { body: '**Ship it**', id: expect.stringMatching(UUID) },
     })
     await waitFor(() => expect(box).toHaveTextContent(''))
     expect(
@@ -99,7 +99,10 @@ describe('The message box', () => {
     await user.click(within(chatPanel()).getByRole('button', { name: 'Send' }))
 
     await waitFor(() => expect(api.changes).toHaveLength(1))
-    expect(api.changes[0]!.body).toEqual({ body: 'Hello team' })
+    expect(api.changes[0]!.body).toEqual({
+      body: 'Hello team',
+      id: expect.stringMatching(UUID),
+    })
     await waitFor(() => expect(box).toHaveTextContent(''))
   })
 
@@ -288,7 +291,10 @@ describe('Sending (criterion 23)', () => {
     await user.click(within(item).getByRole('button', { name: 'Try again' }))
 
     await waitFor(() => expect(api.changes).toHaveLength(1))
-    expect(api.changes[0]!.body).toEqual({ body: 'Please arrive' })
+    expect(api.changes[0]!.body).toEqual({
+      body: 'Please arrive',
+      id: expect.stringMatching(UUID),
+    })
     await waitFor(() =>
       expect(messageWith('Please arrive')).not.toHaveTextContent(COULDNT_SEND),
     )
@@ -466,7 +472,10 @@ describe('Drafts (criterion 24)', () => {
     again.focus()
     await user.keyboard('{Enter}')
     await waitFor(() => expect(api.changes).toHaveLength(1))
-    expect(api.changes[0]!.body).toEqual({ body: 'Unsent words' })
+    expect(api.changes[0]!.body).toEqual({
+      body: 'Unsent words',
+      id: expect.stringMatching(UUID),
+    })
 
     await user.click(screen.getByRole('link', { name: 'Release plan' }))
     await screen.findByRole('complementary', { name: 'Chat: Release plan' })
