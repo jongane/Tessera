@@ -73,28 +73,34 @@ export default function ChatMessages({
 
   const isAdmin =
     members.data?.find((member) => member.userId === me?.id)?.role === 'ADMIN'
+  const shownIds = new Set(
+    messages.data?.pages.flatMap((page) => page.messages.map((m) => m.id)),
+  )
   const rows: Row[] = [
     ...[...(messages.data?.pages ?? [])]
       .reverse()
       .flatMap((page) => page.messages)
       .map((message) => ({ message })),
-    ...outgoing.map((entry) => ({
-      message: {
-        id: entry.id,
-        chatId: entry.chatId,
-        body: entry.body,
-        createdAt: entry.createdAt,
-        editedAt: null,
-        deletedAt: null,
-        author: me && { id: me.id, displayName: me.displayName },
-        deletedBy: null,
-      },
-      outgoing: {
-        status: entry.status,
-        error: entry.error,
-        onRetry: () => post(entry),
-      },
-    })),
+    // A saved message is already in the list once a reload has brought it.
+    ...outgoing
+      .filter((entry) => !(entry.status === 'saved' && shownIds.has(entry.id)))
+      .map((entry) => ({
+        message: {
+          id: entry.id,
+          chatId: entry.chatId,
+          body: entry.body,
+          createdAt: entry.createdAt,
+          editedAt: null,
+          deletedAt: null,
+          author: me && { id: me.id, displayName: me.displayName },
+          deletedBy: null,
+        },
+        outgoing: {
+          status: entry.status,
+          error: entry.error,
+          onRetry: () => post(entry),
+        },
+      })),
   ]
   // The list appears once the messages and the members are loaded.
   const listShown = messages.data !== undefined && !members.isPending

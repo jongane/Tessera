@@ -28,7 +28,14 @@ function hasMark(node: JSONContent, type: string) {
 const MAX_CARD_NUMBERS = 20
 
 // A table has no toolbar button, and the Markdown reader drops it.
-const TABLE_SEPARATOR = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/m
+const TABLE_SEPARATOR =
+  /^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(\|[ \t]*:?-{3,}:?[ \t]*)+\|?[ \t]*$/
+
+// Whether a line of the text is a table's separator row. Read line by line,
+// so a long text cannot make the pattern slow.
+function hasTable(markdown: string): boolean {
+  return markdown.split('\n').some((line) => TABLE_SEPARATOR.test(line))
+}
 
 // All the text of `node` and its children.
 function textOf(node: JSONContent): string {
@@ -68,8 +75,7 @@ export function MessageBody({
   // table) or leaves empty: the text is shown as it was written.
   const tooDeep = nestingLevels(markdown) > MESSAGE_MAX_LEVELS
   const doc = tooDeep ? EMPTY_DOC : parse(markdown)
-  const asWritten =
-    tooDeep || TABLE_SEPARATOR.test(markdown) || textOf(doc).trim() === ''
+  const asWritten = tooDeep || hasTable(markdown) || textOf(doc).trim() === ''
   const numbers = asWritten
     ? []
     : [...cardNumbersIn(doc)].slice(0, MAX_CARD_NUMBERS)
