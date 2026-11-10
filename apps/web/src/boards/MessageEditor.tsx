@@ -1,9 +1,8 @@
-import { Markdown } from '../ui/markdown'
 import { type Editor, EditorContent, Extension, useEditor } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
 import { type ReactNode, useEffect, useState } from 'react'
 import { EditorToolbar, type ToolbarButton } from '../ui/editor-toolbar'
-import { isSafeLink, markdownOf } from './message-text'
+import { messageExtensions } from './message-extensions'
+import { markdownOf } from './message-text'
 
 // The rich-text box for writing or editing a message (Tiptap), stored as
 // Markdown, like the card description but with a smaller set of formatting
@@ -106,35 +105,7 @@ export function MessageEditor({
     keys.setHandlers({ onEnter, onEscape })
   })
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: false,
-        blockquote: false,
-        codeBlock: false,
-        horizontalRule: false,
-        strike: false,
-        underline: false,
-        link: {
-          openOnClick: false,
-          autolink: true,
-          defaultProtocol: 'https',
-          // A typed www.example.org gets https:// in front, so check it so.
-          isAllowedUri: (url, { defaultProtocol }) =>
-            isSafeLink(
-              /^[a-z][a-z0-9+.-]*:/i.test(url)
-                ? url
-                : `${defaultProtocol}://${url}`,
-            ),
-          HTMLAttributes: {
-            class: 'text-accent underline',
-            target: '_blank',
-            rel: 'noopener noreferrer',
-          },
-        },
-      }),
-      Markdown,
-      keys.extension,
-    ],
+    extensions: [...messageExtensions(), keys.extension],
     content: initial,
     contentType: 'markdown',
     autofocus: autofocus ? 'end' : false,

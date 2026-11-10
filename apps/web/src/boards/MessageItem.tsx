@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { exactTime } from '../ui/time-text'
 import { When } from '../ui/When'
 import { MessageEditor } from './MessageEditor'
+import { canHoldInMessageBox } from './message-extensions'
 import { MessageBoundary } from './MessageBoundary'
 import { MessageBody } from './message-markdown'
 import {
@@ -180,8 +181,9 @@ function useSaveEdit(message: Message, onDone: () => void) {
   return { save, problem, setProblem, saving: edit.isPending }
 }
 
-// The rich edit box. If it cannot open the message's body, the person edits
-// it as plain text instead (the chat carries on either way).
+// The rich edit box. If it cannot hold the message's body whole (a heading,
+// say), found out before it opens, or fails to open it, the person edits the
+// body as plain text instead (the chat carries on either way).
 function EditForm({
   message,
   onDone,
@@ -189,12 +191,14 @@ function EditForm({
   message: Message
   onDone: () => void
 }) {
-  return (
-    <EditBoundary
-      fallback={<PlainEditForm message={message} onDone={onDone} />}
-    >
+  const [rich] = useState(() => canHoldInMessageBox(message.body))
+  const plain = <PlainEditForm message={message} onDone={onDone} />
+  return rich ? (
+    <EditBoundary fallback={plain}>
       <RichEditForm message={message} onDone={onDone} />
     </EditBoundary>
+  ) : (
+    plain
   )
 }
 
