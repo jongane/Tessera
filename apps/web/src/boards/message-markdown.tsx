@@ -5,6 +5,7 @@ import { useQueries } from '@tanstack/react-query'
 import { Fragment, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { cardByNumberQuery } from '../api/boards'
+import { MESSAGE_MAX_LEVELS, nestingLevels } from '@tessera/shared'
 import { CARD_NUMBER_IN_TEXT, isSafeLink } from './message-text'
 
 // A message's Markdown, shown as formatted text. It is read with the same
@@ -21,6 +22,20 @@ function parse(markdown: string): JSONContent {
 
 function hasMark(node: JSONContent, type: string) {
   return node.marks?.some((mark) => mark.type === type) ?? false
+}
+
+// At most this many different card numbers of a message are looked up.
+const MAX_CARD_NUMBERS = 20
+
+// A table has no toolbar button, and the Markdown reader drops it.
+const TABLE_SEPARATOR = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/m
+
+// All the text of `node` and its children.
+function textOf(node: JSONContent): string {
+  return (
+    (node.text ?? '') +
+    (node.content ?? []).map((child) => textOf(child)).join('')
+  )
 }
 
 // The card numbers written in the text of `node` and its children, outside
@@ -49,8 +64,15 @@ export function MessageBody({
   markdown: string
   projectId: string
 }) {
-  const doc = parse(markdown)
-  const numbers = [...cardNumbersIn(doc)]
+  // Nested too deeply to draw safely, or something the reader drops (a
+  // table) or leaves empty: the text is shown as it was written.
+  const tooDeep = nestingLevels(markdown) > MESSAGE_MAX_LEVELS
+  const doc = tooDeep ? EMPTY_DOC : parse(markdown)
+  const asWritten =
+    tooDeep || TABLE_SEPARATOR.test(markdown) || textOf(doc).trim() === ''
+  const numbers = asWritten
+    ? []
+    : [...cardNumbersIn(doc)].slice(0, MAX_CARD_NUMBERS)
   const known: KnownCards = new Map(
     useQueries({
       queries: numbers.map((number) => ({
@@ -66,7 +88,18 @@ export function MessageBody({
         ),
     }),
   )
-  return <div className="flex flex-col gap-1">{blocks(doc.content, known)}</div>
+  return asWritten ? (
+    <PlainBody markdown={markdown} />
+  ) : (
+    <div className="flex flex-col gap-1">{blocks(doc.content, known)}</div>
+  )
+}
+
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
+
+// The text as it was written, Markdown marks and all.
+export function PlainBody({ markdown }: { markdown: string }) {
+  return <p className="break-words whitespace-pre-wrap">{markdown}</p>
 }
 
 function blocks(nodes: JSONContent[] | undefined, known: KnownCards) {
@@ -76,6 +109,9 @@ function blocks(nodes: JSONContent[] | undefined, known: KnownCards) {
 }
 
 function block(node: JSONContent, known: KnownCards): ReactNode {
+  if (node.type === 'text' || node.type === 'hardBreak') {
+    return inline(node, known)
+  }
   const inner = () => inlines(node.content, known)
   switch (node.type) {
     case 'paragraph':

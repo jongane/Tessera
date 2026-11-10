@@ -1,10 +1,10 @@
 import { messageBodyRequestSchema, type Message } from '@tessera/shared'
 import type { Editor } from '@tiptap/react'
 import { ApiError } from '../api/client'
+import { FORMER_MEMBER } from '../ui/former-member'
 import { checkForm } from '../ui/form-errors'
 
-// Wording pending the repository owner's decision
-export const DELETED_AUTHOR_NAME = 'Former member'
+export const DELETED_AUTHOR_NAME = FORMER_MEMBER
 
 export const COULDNT_SEND = 'Couldn’t send'
 export const COULDNT_SAVE = 'Couldn’t save, try again'
@@ -56,8 +56,17 @@ export function isSafeLink(href: string | undefined): boolean {
 export const CARD_NUMBER_IN_TEXT =
   /(?<![A-Za-z0-9-])[A-Z]{2,6}-[1-9][0-9]*(?:\.[1-9][0-9]*)*(?![A-Za-z0-9-])/g
 
+// The editor writes > < & as &gt; &lt; &amp;. A message keeps them as typed.
+function unescapeEntities(markdown: string): string {
+  const characters = { amp: '&', lt: '<', gt: '>' }
+  return markdown.replace(
+    /&(amp|lt|gt);/g,
+    (_, name: keyof typeof characters) => characters[name],
+  )
+}
+
 export function markdownOf(editor: Editor): string {
-  return editor.isEmpty ? '' : editor.getMarkdown().trim()
+  return editor.isEmpty ? '' : unescapeEntities(editor.getMarkdown()).trim()
 }
 
 // The text to send, or why it cannot be sent. Blank text has no reason: there

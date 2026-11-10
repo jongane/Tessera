@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react'
 // switching chats keeps them while the page is open.
 
 export interface OutgoingMessage {
+  // A UUID, also the id the message is saved with.
   id: string
   chatId: string
   body: string
@@ -17,11 +18,24 @@ export interface OutgoingMessage {
 
 const NONE: OutgoingMessage[] = []
 
+// A new UUID, which is also the message's id on the server: sending it again
+// never saves it twice. crypto.randomUUID is missing on pages not served
+// securely (http).
+function newId(): string {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 export class MessageOutbox {
   private entries = new Map<string, OutgoingMessage[]>()
   private drafts = new Map<string, string>()
   private listeners = new Set<() => void>()
-  private nextId = 1
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
@@ -40,7 +54,7 @@ export class MessageOutbox {
 
   add(chatId: string, body: string): OutgoingMessage {
     const entry: OutgoingMessage = {
-      id: `outgoing-${this.nextId++}`,
+      id: newId(),
       chatId,
       body,
       createdAt: new Date().toISOString(),

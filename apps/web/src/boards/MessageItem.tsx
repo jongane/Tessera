@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { exactTime } from '../ui/time-text'
 import { When } from '../ui/When'
 import { MessageEditor } from './MessageEditor'
+import { MessageBoundary } from './MessageBoundary'
 import { MessageBody } from './message-markdown'
 import {
   checkMessage,
@@ -99,7 +100,9 @@ export function MessageItem({
       ) : deleted ? (
         <>
           <del className="text-muted">
-            <MessageBody markdown={message.body} projectId={projectId} />
+            <MessageBoundary key={message.body} markdown={message.body}>
+              <MessageBody markdown={message.body} projectId={projectId} />
+            </MessageBoundary>
           </del>
           <p className="text-sm text-muted">
             Deleted by {message.deletedBy?.displayName ?? DELETED_AUTHOR_NAME},{' '}
@@ -108,7 +111,9 @@ export function MessageItem({
         </>
       ) : (
         <>
-          <MessageBody markdown={message.body} projectId={projectId} />
+          <MessageBoundary key={message.body} markdown={message.body}>
+            <MessageBody markdown={message.body} projectId={projectId} />
+          </MessageBoundary>
           {message.editedAt !== null && (
             <span className="text-sm text-muted">(edited)</span>
           )}

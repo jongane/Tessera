@@ -55,7 +55,7 @@ export default function ChatMessages({
 
   function post(entry: OutgoingMessage) {
     outbox.update(entry, { status: 'sending', error: undefined })
-    saveNew(entry.body, (shown) =>
+    saveNew(entry.id, entry.body, (shown) =>
       // Without a loaded list the saved message stays here until a reload.
       shown ? outbox.remove(entry) : outbox.update(entry, { status: 'saved' }),
     ).catch((error: unknown) =>
