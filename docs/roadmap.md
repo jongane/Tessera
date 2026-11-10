@@ -75,7 +75,7 @@ Each step gets its own plan, approved before building, as usual.
 1. **Refuse hidden NUL characters** in every text field. A small clean-up left from web PR 7. Done in #43.
 2. **Chat messages and live updates**, in two pull requests (agreed 2026-11-09). Messages come before attachments and AI because both depend on them.
    - **Chat messages:** built in the first pull request (still open). Sending, editing, deleting, Markdown, card-number and website links. They refresh with the existing 30-second reload.
-   - **Live updates (WebSockets):** next, in their own pull request with its own plan. They cover messages, board cards, the open card panel and the sidebar's chat list, and remove the 30-second reload ([web-app.md](web-app.md) section 6).
+   - **Live updates (WebSockets):** next, in their own pull request with its own plan. They cover messages, board cards, the open card panel and the sidebar's chat list, and remove the 30-second reload ([web-app.md](web-app.md) section 6). It also has to fix a known limit left by the messages PR: older messages kept on screen do not show other people's edits or deletes until the chat is reopened (agreed 2026-11-10).
 3. **File attachments** on a card or on a message, stored in MinIO, 100 MB per file by default ([card-features.md](card-features.md)).
 4. **AI**: the provider layer (Claude first), turning AI on per project by a project admin, summarising a chat and answering questions about a project.
 
