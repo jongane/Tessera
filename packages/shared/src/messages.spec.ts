@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { messageBodySchema, type Message } from './index.js';
+import {
+  messageBodyRequestSchema,
+  messageBodySchema,
+  newMessageSchema,
+  type Message,
+} from './index.js';
 
 // Chat messages PR, plan "Shared rules". messageBodySchema checks the text of
 // a message, both when it is sent and when it is edited.
@@ -43,6 +48,84 @@ describe('messageBodySchema', () => {
     expect(messageBodySchema.parse('Line one\n\nLine two 🎉👍🏽')).toBe(
       'Line one\n\nLine two 🎉👍🏽',
     );
+  });
+});
+
+// Criterion 37 (agreed 2026-11-10): lists and quotes count together.
+const TOO_DEEP = 'Use at most 10 levels of lists and quotes';
+
+// `levels` nested levels, each opened with one of `marks`, in turn.
+function nested(levels: number, marks: string[]) {
+  return (
+    Array.from({ length: levels }, (_, i) => marks[i % marks.length]).join('') +
+    'x'
+  );
+}
+
+// Nested bullet lists, one per line, each two spaces further in.
+function indentedList(levels: number) {
+  return Array.from(
+    { length: levels },
+    (_, i) => `${'  '.repeat(i)}- level ${i + 1}`,
+  ).join('\n');
+}
+
+describe('messageBodySchema: nesting (criterion 37)', () => {
+  const kinds: [string, (levels: number) => string][] = [
+    ['lists on one line', (n) => nested(n, ['- '])],
+    ['indented lists', indentedList],
+    ['quotes', (n) => nested(n, ['> '])],
+    ['lists and quotes together', (n) => nested(n, ['> ', '- '])],
+  ];
+
+  // 37
+  it.each(kinds)('accepts 10 levels of %s', (_name, build) => {
+    expect(messageBodySchema.safeParse(build(10)).success).toBe(true);
+  });
+
+  // 37
+  it.each(kinds)('refuses 11 levels of %s, saying why', (_name, build) => {
+    const result = messageBodySchema.safeParse(build(11));
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(TOO_DEEP);
+  });
+
+  // 37
+  it('refuses a very deep body without crashing', () => {
+    const result = messageBodySchema.safeParse('- '.repeat(500) + 'x');
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(TOO_DEEP);
+  });
+
+  // 37
+  it('applies to the request body of sending and editing too', () => {
+    expect(
+      messageBodyRequestSchema.safeParse({ body: nested(11, ['> ']) }).success,
+    ).toBe(false);
+    expect(
+      newMessageSchema.safeParse({ body: nested(11, ['> ']) }).success,
+    ).toBe(false);
+  });
+});
+
+describe('newMessageSchema (criterion 39)', () => {
+  // 39 (assumed name: the body of POST /api/chats/:chatId/messages)
+  it('takes a body, with an optional id that is a UUID', () => {
+    const id = '3f2b8c1e-9d4a-4f6b-8a1c-2e7d5b9a0c11';
+    expect(newMessageSchema.safeParse({ body: 'Hi' }).success).toBe(true);
+    const withId = newMessageSchema.safeParse({ body: 'Hi', id });
+    expect(withId.success).toBe(true);
+    expect(withId.data).toEqual({ body: 'Hi', id });
+  });
+
+  // 39
+  it('refuses an id that is not a UUID, and still checks the body', () => {
+    expect(newMessageSchema.safeParse({ body: 'Hi', id: 'abc' }).success).toBe(
+      false,
+    );
+    expect(
+      newMessageSchema.safeParse({ body: '  ', id: undefined }).success,
+    ).toBe(false);
   });
 });
 

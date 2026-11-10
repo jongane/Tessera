@@ -1,5 +1,5 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
-import { http } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import {
@@ -325,6 +325,105 @@ describe('Sending when the first load failed (criterion 23, reviewer finding)', 
     await pause()
     expect(within(chatPanel()).getByText('Saved anyway')).toBeInTheDocument()
     expect(chatPanel()).not.toHaveTextContent('Sending…')
+  })
+})
+
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+describe('The same message is never posted twice (criterion 39)', () => {
+  // 39
+  it('sends every new message with an id of its own, a UUID', async () => {
+    const { user, box, api } = await openBox()
+
+    await typeInto(user, box, 'First')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    await typeInto(user, box, 'Second')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(api.changes).toHaveLength(2))
+
+    const ids = api.changes.map((c) => (c.body as { id?: string }).id)
+    expect(ids[0]).toMatch(UUID)
+    expect(ids[1]).toMatch(UUID)
+    expect(ids[0]).not.toBe(ids[1])
+  })
+
+  // 39
+  it('reuses the id when "Try again" sends a message whose reply was lost', async () => {
+    const { user, box, api } = await openBox()
+    const lost: { id?: string; body: string }[] = []
+    server.use(
+      http.post(
+        '/api/chats/:chatId/messages',
+        async ({ request }) => {
+          lost.push((await request.json()) as { id?: string; body: string })
+          return HttpResponse.error()
+        },
+        { once: true },
+      ),
+    )
+
+    await typeInto(user, box, 'Did it arrive')
+    await user.keyboard('{Enter}')
+    const item = await waitFor(() => {
+      const found = messageWith('Did it arrive')
+      expect(found).toHaveTextContent(COULDNT_SEND)
+      return found
+    })
+    await user.click(within(item).getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    expect(lost[0]!.id).toMatch(UUID)
+    expect((api.changes[0]!.body as { id?: string }).id).toBe(lost[0]!.id)
+    await waitFor(() =>
+      expect(screen.getAllByText('Did it arrive')).toHaveLength(1),
+    )
+  })
+})
+
+// Types a bulleted list nested `levels` deep, from the keyboard: Shift+Enter
+// starts the next item and Tab moves it one level in.
+async function typeNestedList(
+  user: Awaited<ReturnType<typeof openBox>>['user'],
+  box: HTMLElement,
+  levels: number,
+) {
+  await user.click(
+    within(chatPanel()).getByRole('button', { name: 'Bulleted list' }),
+  )
+  await typeInto(user, box, 'level 1')
+  for (let level = 2; level <= levels; level += 1) {
+    await user.keyboard('{Shift>}{Enter}{/Shift}{Tab}')
+    await user.keyboard(`level ${level}`)
+  }
+}
+
+describe('Nesting limit in the message box (criterion 37)', () => {
+  // The wording is the shared rule's (packages/shared/src/messages.ts).
+  const TOO_DEEP = 'Use at most 10 levels of lists and quotes'
+
+  // 37
+  it('shows the message and sends nothing for text nested more than 10 levels', async () => {
+    const { user, box, api } = await openBox()
+
+    await typeNestedList(user, box, 11)
+    await user.keyboard('{Enter}')
+
+    await pause()
+    expect(await within(chatPanel()).findByText(TOO_DEEP)).toBeInTheDocument()
+    expect(api.changes).toEqual([])
+  })
+
+  // 37
+  it('sends text nested exactly 10 levels', async () => {
+    const { user, box, api } = await openBox()
+
+    await typeNestedList(user, box, 10)
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    expect(chatPanel()).not.toHaveTextContent(TOO_DEEP)
   })
 })
 

@@ -26,6 +26,7 @@ import {
   stubLayout,
 } from '../test/scroll'
 import { ana, apiError, server } from '../test/server'
+import { sprint } from '../test/fixtures'
 
 // Chat messages PR (plan "chat messages"): the chat panel's message list
 // (acceptance criteria 13 to 19, 29 to 33).
@@ -657,5 +658,179 @@ describe('Accessibility of the message list (criterion 33)', () => {
       await screen.findByRole('complementary', { name: /^Chat: / }),
     ).findByText(/Couldn.t load the messages/)
     await expectNoAccessibilityProblems(failing.container)
+  })
+})
+
+// Criteria 35 to 38 and 40 (agreed 2026-11-10, after the attack round).
+describe('A message that cannot be drawn (criterion 35)', () => {
+  // 35 (antagonist proof B1): a body the API used to accept (1,001
+  // characters) crashed the whole board.
+  it('still shows the board and the other messages when a message holds deeply nested Markdown', async () => {
+    const deep = '- '.repeat(500) + 'x'
+    openChat({
+      messages: [
+        message('Hello before', { createdAt: ago(10 * MINUTE) }),
+        message(deep, { author: ben, createdAt: ago(MINUTE) }),
+        message('Hello after', { createdAt: ago(MINUTE / 2) }),
+      ],
+    })
+
+    const list = await messageList()
+
+    expect(await within(list).findByText('Hello before')).toBeInTheDocument()
+    expect(within(list).getByText('Hello after')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Sprint 1', level: 1 }),
+    ).toBeInTheDocument()
+    // The deep message shows as the text that was written.
+    expect(within(list).getByText(deep)).toBeInTheDocument()
+  })
+})
+
+describe('Markdown the toolbar cannot make (criterion 36)', () => {
+  // The words of each body must be on the screen, whatever else is shown.
+  const bodies: [string, string, string[]][] = [
+    // Antagonist proof B2
+    [
+      'a table',
+      '| Task | Who |\n|---|---|\n| Deploy | Ben |',
+      ['Task', 'Deploy', 'Ben'],
+    ],
+    [
+      'an image',
+      '![diagram of the flow](https://example.com/a.png)',
+      ['diagram of the flow'],
+    ],
+    [
+      'a task list',
+      '- [ ] write the docs\n- [x] ship it',
+      ['write the docs', 'ship it'],
+    ],
+    [
+      'a heading',
+      '## Release notes\n\nSee below',
+      ['Release notes', 'See below'],
+    ],
+    ['raw HTML only', '<div>Only HTML here</div>', ['Only HTML here']],
+  ]
+
+  // 36
+  it.each(bodies)(
+    'shows %s as the text that was written',
+    async (_n, body, words) => {
+      openChat({ messages: [message(body)] })
+      const list = await messageList()
+
+      await waitFor(() => expect(list.textContent?.trim()).not.toBe(''))
+
+      for (const word of words) {
+        expect(list).toHaveTextContent(word)
+      }
+    },
+  )
+
+  // 36
+  it.each(bodies)(
+    'keeps the text of a deleted message that was %s, crossed out',
+    async (_n, body, words) => {
+      openChat({
+        messages: [message(body, { deletedAt: ago(MINUTE), deletedBy: ana })],
+      })
+      const list = await messageList()
+
+      await waitFor(() => expect(list.querySelector('del')).not.toBeNull())
+
+      for (const word of words) {
+        expect(list.querySelector('del')).toHaveTextContent(word)
+      }
+    },
+  )
+})
+
+describe('The loaded list only grows (criterion 38)', () => {
+  // 38 (antagonist proof B3): a reload while you read older messages must not
+  // take away the message you are reading.
+  it('keeps the older messages already shown when a new message arrives on reload', async () => {
+    const { user, api } = openChat({ messages: many(100) })
+    const list = await messageList()
+    await within(list).findByText('m100')
+    await user.click(
+      within(chatPanel()).getByRole('button', { name: 'Show older messages' }),
+    )
+    await within(list).findByText('m001')
+    scrollTo(list, 0)
+
+    api.arrive(
+      general.id,
+      message('Fresh news', { author: ben, createdAt: ago(1000) }),
+    )
+    window.dispatchEvent(new Event('visibilitychange'))
+    await within(list).findByText('Fresh news')
+
+    expect(shown(list)).toHaveLength(100)
+    expect(within(list).getByText('m001')).toBeInTheDocument()
+  })
+})
+
+describe('At most 20 card-number links per message (criterion 40)', () => {
+  // 40
+  it('looks up and links only the first 20 different numbers; the rest stay plain text', async () => {
+    const numbers = Array.from({ length: 21 }, (_, i) => `WEB-${101 + i}`)
+    // The first number again at the end does not count as a new one.
+    const body = `${numbers.join(' ')} and ${numbers[0]} once more`
+    const { queryClient, numbersAsked } = openChat({
+      messages: [message(body)],
+    })
+    // Every number is a card of this project, so only the limit can keep a
+    // number from becoming a link.
+    server.use(
+      http.get('/api/cards/by-number/:number', ({ params }) => {
+        numbersAsked.push(String(params.number))
+        return HttpResponse.json({ ...login, boardId: sprint.id })
+      }),
+    )
+    numbersAsked.length = 0
+    await messageList()
+
+    await screen.findAllByRole('link', { name: 'WEB-101' })
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+
+    expect(new Set(numbersAsked)).toEqual(new Set(numbers.slice(0, 20)))
+    expect(numbersAsked).toHaveLength(20)
+    expect(screen.getAllByRole('link', { name: 'WEB-120' })).toHaveLength(1)
+    expect(screen.queryByRole('link', { name: 'WEB-121' })).toBeNull()
+    expect(messageWith(/WEB-121/)).toHaveTextContent('WEB-121')
+  })
+})
+
+describe('Former member (criterion 41)', () => {
+  // 41
+  it('shows "Former member" as the name of an author whose account was deleted', async () => {
+    openChat({ messages: [message('Words from long ago', { author: null })] })
+    await messageList()
+    await screen.findByText('Words from long ago')
+
+    expect(
+      within(messageWith('Words from long ago')).getByText('Former member'),
+    ).toBeInTheDocument()
+  })
+
+  // 41
+  it('shows "Deleted by Former member" when the deleter’s account was deleted', async () => {
+    openChat({
+      messages: [
+        message('Gone words', {
+          deletedAt: ago(5 * MINUTE),
+          deletedBy: null,
+          createdAt: ago(20 * MINUTE),
+        }),
+      ],
+    })
+    await messageList()
+    await screen.findByText('Gone words')
+
+    expect(messageWith('Gone words')).toHaveTextContent(
+      'Deleted by Former member, 5 minutes ago',
+    )
   })
 })

@@ -17,7 +17,7 @@ const DETAILS = 'Details'
 const ACTIVITY = 'Activity'
 const SHOW_OLDER = 'Show older' // criterion 40
 const SHOW_CHANGES = 'Show changes' // criterion 42
-const DELETED_ACCOUNT = 'A deleted account'
+const DELETED_ACCOUNT = 'Former member'
 
 // Wording and details agreed 2026-11-08 (“(agreed 2026-11-08)”, to approve).
 const TABS = 'Card sections' // the tab list's name (agreed 2026-11-08)
@@ -276,7 +276,7 @@ describe('The Activity tab', () => {
   })
 
   // 41
-  it('shows a deleted person as “A deleted account”', async () => {
+  it('shows a deleted person as “Former member”', async () => {
     const { tab } = await openActivity([
       activityLine('MOVED', moved(), { actor: null }),
     ])

@@ -469,4 +469,115 @@ describe('Chat messages (e2e)', () => {
       });
     });
   });
+
+  describe('nesting (criterion 37)', () => {
+    const levels = (n: number) => '> '.repeat(n) + 'x';
+
+    // 37
+    it('accepts 10 levels and refuses 11 with 400 and the message, on sending and on editing', async () => {
+      const { ana, messagesUrl } = await setUp();
+      const sent = await send(ana, messagesUrl, levels(10));
+
+      const tooDeep = await ana.agent
+        .post(messagesUrl)
+        .send({ body: levels(11) });
+      expect(tooDeep.status).toBe(400);
+      expect(String(tooDeep.body.message)).toContain(
+        'Use at most 10 levels of lists and quotes',
+      );
+      const edit = await ana.agent
+        .patch(`/api/messages/${sent.id}`)
+        .send({ body: '- '.repeat(11) + 'x' });
+      expect(edit.status).toBe(400);
+      expect(String(edit.body.message)).toContain(
+        'Use at most 10 levels of lists and quotes',
+      );
+      expect((await page(ana, messagesUrl)).messages).toHaveLength(1);
+    });
+  });
+
+  describe('sending again with the same id (criterion 39)', () => {
+    const ID = '3f2b8c1e-9d4a-4f6b-8a1c-2e7d5b9a0c11';
+
+    // 39
+    it('saves a message with the id it was sent with', async () => {
+      const { ana, messagesUrl } = await setUp();
+
+      const response = await ana.agent
+        .post(messagesUrl)
+        .send({ body: 'Hello', id: ID })
+        .expect(201);
+
+      expect(response.body.id).toBe(ID);
+    });
+
+    // 39
+    it('answers 200 with the same message when the same author sends the same id again, and saves nothing new', async () => {
+      const { ana, messagesUrl } = await setUp();
+      const first = await ana.agent
+        .post(messagesUrl)
+        .send({ body: 'Hello', id: ID })
+        .expect(201);
+
+      const again = await ana.agent
+        .post(messagesUrl)
+        .send({ body: 'Hello', id: ID })
+        .expect(200);
+
+      expect(again.body).toEqual(first.body);
+      expect((await page(ana, messagesUrl)).messages).toHaveLength(1);
+    });
+
+    // 39
+    it('refuses the same id from another person with 409, and saves nothing', async () => {
+      const { ana, cara, messagesUrl } = await setUp();
+      await ana.agent
+        .post(messagesUrl)
+        .send({ body: 'Hello', id: ID })
+        .expect(201);
+
+      await cara.agent
+        .post(messagesUrl)
+        .send({ body: 'Mine', id: ID })
+        .expect(409);
+
+      expect(await page(ana, messagesUrl)).toMatchObject({
+        messages: [{ body: 'Hello', author: { id: ana.user.id } }],
+      });
+    });
+
+    // 39
+    it('refuses the same id in another chat with 409, even from the same author', async () => {
+      const { ana, board, messagesUrl } = await setUp();
+      const topic = (
+        await ana.agent
+          .post(`/api/boards/${board.id}/chats`)
+          .send({ title: 'Release plan' })
+          .expect(201)
+      ).body as { id: string };
+      await ana.agent
+        .post(messagesUrl)
+        .send({ body: 'Hello', id: ID })
+        .expect(201);
+
+      await ana.agent
+        .post(`/api/chats/${topic.id}/messages`)
+        .send({ body: 'Hello', id: ID })
+        .expect(409);
+
+      expect(await page(ana, `/api/chats/${topic.id}/messages`)).toMatchObject({
+        messages: [],
+      });
+    });
+
+    // 39
+    it('refuses an id that is not a UUID with 400', async () => {
+      const { ana, messagesUrl } = await setUp();
+
+      await ana.agent
+        .post(messagesUrl)
+        .send({ body: 'Hello', id: 'not-a-uuid' })
+        .expect(400);
+    });
+  });
 });

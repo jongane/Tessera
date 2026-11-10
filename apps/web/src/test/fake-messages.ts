@@ -85,16 +85,20 @@ export function fakeMessages(
       })
     }),
     http.post('/api/chats/:chatId/messages', async ({ request, params }) => {
-      const body = (await request.json()) as { body: string }
+      const body = (await request.json()) as { body: string; id?: string }
       changes.push({
         request: `POST /api/chats/${String(params.chatId)}/messages`,
         body,
       })
       await gate
+      // The same id from the same author is answered with the message again.
+      const same = body.id ? find(body.id) : undefined
+      if (same) return HttpResponse.json(same, { status: 200 })
       const created = message(body.body.trim(), {
         createdAt: new Date().toISOString(),
         author: me,
       })
+      if (body.id) created.id = body.id
       created.chatId = String(params.chatId)
       ;(chats[created.chatId] ??= []).push(created)
       return HttpResponse.json(created, { status: 201 })
