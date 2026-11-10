@@ -83,3 +83,106 @@ describe('Typed text is kept as typed in a message (criterion 43)', () => {
     },
   )
 })
+
+// Criteria 19 and 43 (reviewer): an address written between < and > is read
+// back with the right link address, and the text stays as typed.
+describe('Addresses between < and > (criteria 19 and 43)', () => {
+  const cases: [string, string, string | null, RegExp][] = [
+    [
+      'a web address',
+      'a <https://example.com> b',
+      'https://example.com',
+      /^a </,
+    ],
+    ['an email address', 'write <me@x.org> now', null, /^write </],
+  ]
+
+  it.each(cases)(
+    'keeps %s as typed, with a correct link, through editing',
+    async (_name, text, address, start) => {
+      const { user, api } = openChat()
+      const box = await within(
+        await screen.findByRole('complementary', { name: /^Chat: / }),
+      ).findByRole('textbox', { name: 'Message' })
+      await typeInto(user, box, text)
+      await user.keyboard('{Enter}')
+      const list = await messageList()
+      await waitFor(() => expect(api.changes).toHaveLength(1))
+      await waitFor(() => expect(list.textContent).toContain(text))
+
+      const hrefsAreRight = () => {
+        for (const link of list.querySelectorAll('a')) {
+          const href = link.getAttribute('href') ?? ''
+          expect(href).not.toMatch(/[<>]|%3E|&gt;|&lt;/i)
+        }
+      }
+      hrefsAreRight()
+      if (address) {
+        expect(
+          within(list).getByRole('link', { name: address }),
+        ).toHaveAttribute('href', address)
+      }
+
+      // Edit and save again: still as typed.
+      const item = messageWith(start)
+      await openMenu(
+        user,
+        within(item).getByRole('button', { name: 'Message options' }),
+      )
+      await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+      const editor = await within(item).findByRole('textbox')
+      await waitFor(() => expect(editor).toHaveFocus())
+      const held =
+        editor instanceof HTMLTextAreaElement
+          ? editor.value
+          : (editor.textContent ?? '')
+      expect(held).toBe(text)
+      await user.keyboard(' z')
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(list.textContent).toContain(`${text} z`))
+      hrefsAreRight()
+      if (address) {
+        expect(
+          within(list).getByRole('link', { name: address }),
+        ).toHaveAttribute('href', address)
+      }
+    },
+  )
+})
+
+// Criterion 43 (reviewer): a paragraph that starts with four or more spaces
+// must not turn into a code block when the text is read back.
+describe('A paragraph starting with spaces (criterion 43)', () => {
+  it('stays a paragraph in a message, through sending and editing', async () => {
+    const { user, api } = openChat()
+    const box = await within(
+      await screen.findByRole('complementary', { name: /^Chat: / }),
+    ).findByRole('textbox', { name: 'Message' })
+    await typeInto(user, box, 'first')
+    await user.keyboard('{Shift>}{Enter}{Enter}{/Shift}')
+    await user.keyboard('    second')
+    await user.keyboard('{Enter}')
+    const list = await messageList()
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    await waitFor(() => expect(list.textContent).toContain('second'))
+
+    expect(list.querySelector('pre')).toBeNull()
+    expect(list.textContent).toContain('first')
+    const item = messageWith(/first/)
+    await openMenu(
+      user,
+      within(item).getByRole('button', { name: 'Message options' }),
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+    const editor = await within(item).findByRole('textbox')
+    await waitFor(() => expect(editor).toHaveFocus())
+    expect(editor.querySelector('pre')).toBeNull()
+    expect(editor.textContent).toContain('second')
+    await user.keyboard(' z')
+    await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(list.textContent).toContain('second z'))
+    expect(list.querySelector('pre')).toBeNull()
+  })
+})

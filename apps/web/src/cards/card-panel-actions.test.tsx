@@ -776,3 +776,71 @@ describe('A > in a quote or a list item of the description (criterion 43)', () =
     expect(within(panel).getByText('> typed greater-than')).toBeInTheDocument()
   })
 })
+
+// Antagonist proof, round 4 (R4-3).
+describe('Line breaks in the description (criterion 43)', () => {
+  // 43
+  it('keeps a typed line break in table-like text through saving again', async () => {
+    const { user, api } = openCard()
+    const panel = await cardPanel()
+
+    for (const typed of [
+      '| a | b |{Shift>}{Enter}{/Shift}| --- | --- |',
+      ' more',
+    ]) {
+      await user.click(
+        await within(panel).findByRole('button', { name: 'Edit description' }),
+      )
+      const editor = await within(panel).findByRole('textbox', {
+        name: 'Description',
+      })
+      await waitFor(() => expect(editor).toHaveFocus())
+      await typeInto(user, editor, typed)
+      await user.click(within(panel).getByRole('button', { name: 'Save' }))
+      await within(panel).findByRole('button', { name: 'Edit description' })
+    }
+
+    await waitFor(() => expect(api.requests).toHaveLength(2))
+    expect(
+      (api.requests[1]!.body as { description: string }).description,
+    ).toMatch(/\| a \| b \|\s*\n\| --- \| --- \|/)
+  })
+})
+
+// Criterion 43 (reviewer): a paragraph that starts with four or more spaces
+// must not turn into a code block when the text is read back.
+describe('A paragraph starting with spaces in the description (criterion 43)', () => {
+  it('stays a paragraph through saving, reopening and saving again', async () => {
+    const { user, api } = openCard()
+    const panel = await cardPanel()
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Edit description' }),
+    )
+    const first = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await waitFor(() => expect(first).toHaveFocus())
+    await typeInto(user, first, 'first{Enter}    second')
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+    await within(panel).findByRole('button', { name: 'Edit description' })
+
+    expect(panel.querySelector('pre')).toBeNull()
+    expect(panel).toHaveTextContent('second')
+    await user.click(
+      await within(panel).findByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await waitFor(() => expect(editor).toHaveFocus())
+    expect(editor.querySelector('pre')).toBeNull()
+    expect(editor.textContent).toContain('second')
+    await user.keyboard(' z')
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+    await within(panel).findByRole('button', { name: 'Edit description' })
+
+    await waitFor(() => expect(api.requests).toHaveLength(2))
+    expect(panel.querySelector('pre')).toBeNull()
+    expect(panel).toHaveTextContent('second z')
+  })
+})

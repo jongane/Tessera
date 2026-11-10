@@ -290,3 +290,26 @@ describe('messageBodySchema: code fences (criterion 44)', () => {
     ).toBe('accepted');
   });
 });
+
+// Antagonist proofs, round 4 (R4-4): marks on several lines count per mark.
+describe('messageBodySchema: marks on several lines (criterion 44)', () => {
+  // 44. Each line opens lists inside the innermost item of the line above
+  // (indented to its text), one fewer each time: 10 + 9 + ... + 1 = 55 levels.
+  it('refuses lists nested 55 deep over ten lines', () => {
+    let body = '';
+    let indent = 0;
+    for (let marks = 10; marks >= 1; marks -= 1) {
+      body += `${body ? '\n' : ''}${' '.repeat(indent)}${'- '.repeat(marks)}x`;
+      indent += 2 * marks;
+    }
+    const result = messageBodySchema.safeParse(body);
+    expect(result.success).toBe(false);
+  });
+
+  // 44. The smallest case: 10 levels on one line, 9 more under its last item.
+  it('refuses 19 levels written on two lines', () => {
+    const body =
+      '- '.repeat(10) + 'x\n' + ' '.repeat(20) + '- '.repeat(9) + 'y';
+    expect(messageBodySchema.safeParse(body).success).toBe(false);
+  });
+});

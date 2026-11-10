@@ -765,3 +765,21 @@ describe('A reload that brings a message back before its POST answer (criterion 
     expect(chatPanel()).not.toHaveTextContent('Sending…')
   })
 })
+
+// Antagonist proof, round 4 (R4-2).
+describe('An address with _ in it (criteria 19 and 43)', () => {
+  // 19, 43. Enter straight after the address, before the box has made it a
+  // link.
+  it('shows the address as typed and links to it', async () => {
+    const { user, box } = await openBox()
+
+    await typeInto(user, box, 'See https://example.org/a_b_c')
+    await user.keyboard('{Enter}')
+
+    const list = await messageList()
+    const link = await within(list).findByRole('link', {
+      name: 'https://example.org/a_b_c',
+    })
+    expect(link).toHaveAttribute('href', 'https://example.org/a_b_c')
+  })
+})

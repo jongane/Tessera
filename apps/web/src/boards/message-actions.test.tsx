@@ -542,3 +542,39 @@ describe('The edit box keeps the whole text (criteria 43 and 45)', () => {
     expect(text ?? '').toMatch(/intro.*Part two.*more/s)
   })
 })
+
+// Criterion 45: anything the rich box would change on reading must open in
+// the plain-text box. Antagonist proof, round 4 (R4-1), and a reviewer case.
+describe('Bodies the rich edit box cannot hold keep their text through an edit (criterion 45)', () => {
+  // 45. An image, a table, a task list or a footnote is edited as plain text.
+  it.each([
+    ['a footnote', 'text[^1]\n\n[^1]: note', '[^1]: note'],
+    [
+      'an image',
+      '![chart](https://x.io/c.png) see',
+      '![chart](https://x.io/c.png)',
+    ],
+    [
+      'a table',
+      '| Task | Who |\n|---|---|\n| Deploy | Ben |',
+      '|\n|---|---|\n|',
+    ],
+    ['a task list', '- [ ] buy milk\n- [x] done', '[ ] buy milk'],
+  ])('keeps %s through an edit', async (_name, body, kept) => {
+    const { user, api } = await open({ messages: [message(body)] })
+    const item = within(await messageList()).getAllByRole('listitem')[0]!
+
+    await openMenu(
+      user,
+      within(item).getByRole('button', { name: 'Message options' }),
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+    const editor = await within(item).findByRole('textbox')
+    await waitFor(() => expect(editor).toHaveFocus())
+    await user.keyboard(editor.tagName === 'TEXTAREA' ? '{End} z' : ' z')
+    await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.changes).toHaveLength(1))
+    expect((api.changes[0]!.body as { body: string }).body).toContain(kept)
+  })
+})
