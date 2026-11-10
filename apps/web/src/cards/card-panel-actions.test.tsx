@@ -157,6 +157,29 @@ describe('The description', () => {
     ).toBeInTheDocument()
   })
 
+  // 42 (Jon, 2026-11-10): characters are kept as typed
+  it('saves > < & as typed, never as &gt; &lt; &amp;', async () => {
+    const { user, api } = openCard()
+    const panel = await cardPanel()
+
+    await user.click(
+      within(panel).getByRole('button', { name: 'Edit description' }),
+    )
+    const editor = await within(panel).findByRole('textbox', {
+      name: 'Description',
+    })
+    await typeInto(user, editor, 'a > b & c < d')
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(api.requests).toHaveLength(1))
+    const sent = (api.requests[0]!.body as { description: string }).description
+    expect(sent).not.toMatch(/&(gt|lt|amp);/)
+    expect(sent).toContain('>')
+    expect(sent).toContain('<')
+    expect(sent).toContain('&')
+    expect(await within(panel).findByText('a > b & c < d')).toBeInTheDocument()
+  })
+
   it('asks before throwing away changes', async () => {
     const { user, api, router } = openCard(
       boardCard('12', 'Login page', { description: 'Old text' }),
