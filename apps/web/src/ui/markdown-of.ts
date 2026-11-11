@@ -27,9 +27,48 @@ const ENTITY = /&(?=#?\w+;)/g
 // link), and the ">" after an address in < > is written as an entity, or the
 // link would take the ">" along.
 const ADDRESS =
-  /<([^\s<>`]*[:@][^\s<>`]*)>|(?:https?:\/\/|www\.)[^\s<>`*~[\]\\]+|(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g
-const SEPARATOR =
-  /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/
+  /(?:https?:\/\/|www\.)[^\s<>`*~[\]\\]+|(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g
+
+type Address = { start: number; end: number; inner?: string }
+
+// The addresses of a text, in order: those between < and > (found by a scan,
+// each "<" reading on only up to the next "<", a space or a ">"), and web and
+// email addresses outside them. No pattern here can take time in proportion
+// to the square of the text.
+function addressesIn(text: string): Address[] {
+  const angled: Address[] = []
+  let at = text.indexOf('<')
+  while (at >= 0) {
+    let end = at + 1
+    while (end < text.length && !/[\s<>`]/.test(text[end]!)) end += 1
+    const inner = text.slice(at + 1, end)
+    if (text[end] === '>' && /[:@]/.test(inner)) {
+      angled.push({ start: at, end: end + 1, inner })
+    }
+    at = text.indexOf('<', end > at ? end : at + 1)
+  }
+  const found: Address[] = []
+  let next = 0
+  for (const match of text.matchAll(ADDRESS)) {
+    const start = match.index
+    while (next < angled.length && angled[next]!.end <= start) {
+      found.push(angled[next]!)
+      next += 1
+    }
+    if (next < angled.length && angled[next]!.start <= start) continue
+    found.push({ start, end: start + match[0].length })
+  }
+  return found.concat(angled.slice(next))
+}
+
+// A table's header line: dashes, with colons, between pipes.
+function isTableDashes(line: string): boolean {
+  const cells = line.split('|')
+  if (cells[0]!.trim() === '') cells.shift()
+  if (cells.length > 0 && cells[cells.length - 1]!.trim() === '') cells.pop()
+  return cells.length > 0 && cells.every((cell) => /^:?-+:?$/.test(cell.trim()))
+}
+
 const LINE_STARTS: [RegExp, string][] = [
   [/^( {0,3})(#{1,6})(?=[ \t]|$)/, '$1\\$2'],
   [/^( {0,3})>/, '$1\\>'],
@@ -45,7 +84,7 @@ function escapeLineStart(line: string): string {
     return `&#32;${line.slice(1)}`
   }
   // A line of dashes between pipes is a table's header line.
-  if (line.includes('|') && SEPARATOR.test(line)) {
+  if (line.includes('|') && isTableDashes(line)) {
     return line.replace('|', '\\|')
   }
   for (const [pattern, replacement] of LINE_STARTS) {
@@ -71,13 +110,13 @@ function escapeInline(writer: Writer, text: string): string {
     writer.escapeMarkdownSyntax(part).replace(ENTITY, '&amp;')
   let result = ''
   let from = 0
-  for (const found of text.matchAll(ADDRESS)) {
-    result += plain(text.slice(from, found.index))
+  for (const found of addressesIn(text)) {
+    result += plain(text.slice(from, found.start))
     result +=
-      found[1] === undefined
-        ? found[0].replace(ENTITY, '&amp;')
-        : `\\<${found[1].replace(ENTITY, '&amp;')}&gt;`
-    from = found.index + found[0].length
+      found.inner === undefined
+        ? text.slice(found.start, found.end).replace(ENTITY, '&amp;')
+        : `\\<${found.inner.replace(ENTITY, '&amp;')}&gt;`
+    from = found.end
   }
   return result + plain(text.slice(from))
 }
@@ -100,10 +139,37 @@ function typedTextWriter(editor: Editor): Writer {
   return writer
 }
 
+// A link address with a space, a bracket or a backslash would end the link
+// early where it is written, between ( and ): it is written between < and >
+// instead, as Markdown allows, with < > and \\ escaped.
+function writableAddress(href: string): string {
+  return /[\s()<>\\]/.test(href) ? `<${href.replace(/[<>\\]/g, '\\$&')}>` : href
+}
+
+type Json = {
+  marks?: { type: string; attrs?: { href?: unknown } }[]
+  content?: Json[]
+}
+
+function withWritableLinks(node: Json): Json {
+  return {
+    ...node,
+    marks: node.marks?.map((mark) =>
+      mark.type === 'link' && typeof mark.attrs?.href === 'string'
+        ? {
+            ...mark,
+            attrs: { ...mark.attrs, href: writableAddress(mark.attrs.href) },
+          }
+        : mark,
+    ),
+    content: node.content?.map(withWritableLinks),
+  }
+}
+
 export function markdownOf(editor: Editor): string {
   if (editor.isEmpty || editor.state.doc.textContent.trim() === '') return ''
   const writer = typedTextWriter(editor) as unknown as {
     serialize(json: unknown): string
   }
-  return writer.serialize(editor.getJSON()).trim()
+  return writer.serialize(withWritableLinks(editor.getJSON())).trim()
 }
