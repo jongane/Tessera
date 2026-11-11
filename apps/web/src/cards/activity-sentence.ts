@@ -7,6 +7,7 @@ import {
   dueParts,
   formatMinutes,
 } from '@tessera/shared'
+import { FORMER_MEMBER } from '../ui/former-member'
 import { PRIORITY_NAMES } from '../boards/card-text'
 
 // The sentence for each kind of history line (docs/card-features.md,
@@ -19,7 +20,7 @@ export interface SentenceContext {
   now: Date
 }
 
-export const DELETED_ACCOUNT = 'A deleted account'
+export const DELETED_ACCOUNT = FORMER_MEMBER
 
 const MONTHS = [
   'Jan',

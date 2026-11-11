@@ -65,7 +65,7 @@ erDiagram
 | Column | A kanban column | id, board_id, name, position |
 | Card | Task or user story | id, board_id, column_id, title, description, position (more fields planned: see below) |
 | Chat | A conversation on a board | id, board_id, card_id (optional), kind |
-| Message | One chat message | id, chat_id, author_id, body, created_at, deleted_at |
+| Message | One chat message (built; the body is Markdown) | id, chat_id, author_id (empty once that account is deleted), body, created_at, edited_at (empty until edited), deleted_at and deleted_by_id (both empty until deleted; deleted_by_id also empties if the deleter's account is deleted) |
 | File | Uploaded file metadata | id, project_id, uploader_id, filename, mime_type, size, storage_key, card_id or message_id |
 | Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, comes after the MVP, see [roadmap.md](roadmap.md)) | from_type, from_id, to_type, to_id, link type |
 | ProjectAiConfig | Whether AI is on for a project, and which provider it uses | project_id, enabled, enabled_by, enabled_at, provider, model, encrypted_api_key |
@@ -77,13 +77,19 @@ erDiagram
 2. Each board has exactly one chat with kind `general`, and it has no card.
 3. `ProjectAiConfig.enabled` defaults to false. No AI request is allowed for a project where it is false, and only a member with the admin role can change it.
 4. A file is attached to exactly one thing: a card or a message.
-5. Deleting a message marks it deleted (`deleted_at`); it is not erased, so history stays consistent.
+5. Deleting a message marks it deleted (`deleted_at`, and `deleted_by_id` for who did it); it is not erased and its text is kept, because the web app shows a deleted message crossed out for everyone to read (agreed 2026-11-09). A delete is final: the message cannot be edited or deleted again (the API refuses both).
 6. All IDs are UUIDs, so they do not reveal how many records exist.
 7. A card's column, and a chat's card, are on the same board as the card or chat (composite foreign keys).
 8. A column that still has cards cannot be deleted. A card that still has a chat cannot be deleted directly; deleting a card through the API unlinks its chat first, so the chat is kept.
-9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and chats.
+9. Deleting a project deletes its boards; deleting a board deletes its columns, cards and chats, and a chat's messages go with the chat (agreed 2026-11-09).
+10. `deleted_by_id` needs `deleted_at`: a message cannot name who deleted it without saying when. The reverse is allowed, because the deleter's account may be deleted later, which empties `deleted_by_id` and keeps `deleted_at` (agreed 2026-11-09).
+11. Deleting an account keeps its messages: `author_id` (and `deleted_by_id`, where it names that account) is set to null (agreed 2026-11-09). The web app shows such an author, and such a deleter, as "Former member" (agreed 2026-11-10).
+12. A message's `id` may be chosen by the sender (a UUID), so that sending the same message again never saves it twice. See "Messages" in [api.md](api.md) (agreed 2026-11-10).
+13. A chat's messages are listed in the order (`created_at`, `id`), so two messages with the same time keep a fixed order. An index on (`chat_id`, `created_at`, `id`) keeps loading a page of messages fast.
 
-Rules 1, 2 (the "at most one general chat" part) and 7 to 9 are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general chat is the job of `BoardsService.createBoard`, which creates it with the board.
+Rules 1, 2 (the "at most one general chat" part) and 7 to 9 (the board part) are in place and tested in `apps/api/src/boards/board-rules.db-spec.ts`. "Exactly one" general chat is the job of `BoardsService.createBoard`, which creates it with the board.
+
+The messages table and rules 5 and 9 to 11 are tested in `apps/api/src/chats/messages.db-spec.ts`. Keeping the order of two messages with the same time is tested through the API, in `apps/api/test/messages.e2e-spec.ts`.
 
 Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`: email addresses are stored in lower case, a session token hash is never stored twice, an account's sessions end when it is deleted, and there is exactly one row of server settings. How sign-in works is described in [api.md](api.md).
 
@@ -152,4 +158,4 @@ Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`
 
 ## Not in this version
 
-Message replies inside a thread, reactions, file versions, notifications, task dependencies, milestones.
+Message replies inside a thread, reactions, link previews, unread markers, @mentions, file versions, notifications, task dependencies, milestones.

@@ -213,6 +213,34 @@ export interface Chat {
   createdAt: string;
 }
 
+// A person as a message shows them: the author, or whoever deleted it.
+export interface MessagePerson {
+  id: string;
+  displayName: string;
+}
+
+// One chat message (docs/api.md, "Messages"). A deleted message keeps its
+// body; the web app shows it crossed out. `author` and `deletedBy` are null
+// once that person's account has been deleted.
+export interface Message {
+  id: string;
+  chatId: string;
+  // Markdown.
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  author: MessagePerson | null;
+  deletedBy: MessagePerson | null;
+}
+
+// GET /api/chats/:chatId/messages: the newest 50 (or the 50 before a given
+// message), oldest first.
+export interface MessagePage {
+  messages: Message[];
+  hasOlder: boolean;
+}
+
 // One tick-box item of a checklist (docs/api.md, "Checklists").
 // POST /api/checklists/:checklistId/items and PATCH
 // /api/checklist-items/:itemId answer with one.

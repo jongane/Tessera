@@ -5,6 +5,7 @@ import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
 import { useEveryMinute } from './clock'
+import { When } from '../ui/When'
 import { activitySentence } from './activity-sentence'
 
 const LOAD_FAILED = 'Couldn’t load the activity'
@@ -121,48 +122,5 @@ function SavedText({ label, text }: { label: string; text: string | null }) {
         {empty ? '(empty)' : text}
       </p>
     </div>
-  )
-}
-
-// Made on each use: it reads the viewer's zone as it is then.
-function exactTime(at: Date) {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(at)
-}
-
-const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 365 * 86_400],
-  ['month', 30 * 86_400],
-  ['day', 86_400],
-  ['hour', 3_600],
-  ['minute', 60],
-]
-
-// "3 hours ago".
-function ago(createdAt: string, now: number) {
-  const seconds = Math.max(0, (now - Date.parse(createdAt)) / 1000)
-  const format = new Intl.RelativeTimeFormat('en', { numeric: 'always' })
-  for (const [unit, size] of UNITS) {
-    if (seconds >= size) {
-      return format.format(-Math.floor(seconds / size), unit)
-    }
-  }
-  return 'just now'
-}
-
-// The time as "3 hours ago", with the exact time in the viewer's own zone on
-// hover and for screen readers.
-function When({ createdAt, now }: { createdAt: string; now: number }) {
-  const exact = exactTime(new Date(createdAt))
-  return (
-    <time dateTime={createdAt} title={exact} className="text-muted">
-      {ago(createdAt, now)}
-      <span className="sr-only">{`, ${exact}`}</span>
-    </time>
   )
 }

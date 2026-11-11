@@ -2,7 +2,7 @@
 
 The API is what the web app (and anything else) talks to. Every address starts with `/api`, and request and response bodies are JSON. When the API runs locally, it is at http://localhost:3000/api.
 
-Status: every feature the API has so far can be reached through these endpoints. File attachments, chat messages and the AI features come later.
+Status: every feature the API has so far can be reached through these endpoints. Chat messages are built (see "Messages" below). File attachments and the AI features come later.
 
 ## How signing in works
 
@@ -122,6 +122,21 @@ Completing a card, or moving it into a done column, while some of its direct sub
 | `POST /api/boards/:boardId/chats` | Members | Body `{ title }`. Creates a chat that is not linked to a card |
 | `PUT /api/chats/:chatId/card` | Members | Body `{ cardId }`. Links the chat to a card on the same board. A card has at most one chat, and the general chat can't be linked (409) |
 | `DELETE /api/chats/:chatId/card` | Members | Removes the link. The chat and the card are both kept |
+
+### Messages
+
+A chat's messages. The text of a message is Markdown. Only project members may use these endpoints: for anyone else, a chat gives 404 "Chat not found" and a message gives 404 "Message not found", so nobody can tell whether it exists. Every project member can read and post in every chat of the project; private chats come after the MVP (agreed 2026-11-09).
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `GET /api/chats/:chatId/messages?before=<messageId>` | Members | `{ messages, hasOlder }`: the newest 50 messages, oldest first. With `before`, the 50 sent just before that message, in the same order. They are ordered by time and then id, so messages sent at the same moment are never repeated or missed between pages. A `before` that is not a message id gets 400; one that is not a message of this chat gets 404 "Message not found" |
+| `POST /api/chats/:chatId/messages` | Members | Body `{ body, id? }`. Sends a message, written by you. Answers 201 with the message. `id` is optional: a UUID the browser makes for the message, so that sending it again ("Try again") never saves it twice. If a message with that `id` already exists in this chat, written by you, the answer is 200 with that message and nothing new is saved. If the `id` belongs to another person's message or to a message in another chat, the answer is 409 "This message id is already used" (agreed 2026-11-10) |
+| `PATCH /api/messages/:messageId` | The author only | Body `{ body }`. Edits the message, sets `editedAt` and answers with it. Anyone else, a project admin included, gets 403 "Only the author can edit a message". A deleted message gets 409 "This message was deleted". No history of earlier texts is kept (agreed 2026-11-09) |
+| `DELETE /api/messages/:messageId` | The author, or a project admin | Marks the message deleted: sets `deletedAt` and `deletedBy`, keeps the text, and answers with the message. Another member gets 403 "Only the author or a project admin can delete a message". A message that is already deleted gets 409 "This message was deleted". A delete is final (agreed 2026-11-09) |
+
+Each message has `id`, `chatId`, `body`, `createdAt`, `editedAt` (null until edited), `deletedAt` (null until deleted), `author` and `deletedBy` (each `{ id, displayName }`, or null when nobody is recorded, for example once that account is deleted). A deleted message is still listed, with its text, because the web app shows it crossed out (agreed 2026-11-09).
+
+The body has its spaces at both ends dropped. It cannot be blank, and it is at most 10,000 characters (more gives 400 "Use at most 10000 characters"). It may nest lists and quotes (counted together) at most 10 levels deep, counted the way Markdown reads the text: quote marks count with or without spaces after them (`>>>>>>>>>>>x` is 11 levels), lists nested inside quotes by indenting count, anything inside a code block (fences are read the way CommonMark reads them, also inside quotes and list items) and divider lines such as `- - -` or `***` do not, and when it is unclear the rule refuses (agreed 2026-11-10); 10 is accepted, and deeper gives 400 "Use at most 10 levels of lists and quotes" (agreed 2026-11-10; the wording is the current proposal, the owner has not objected). The characters `<`, `>` and `&` are kept as typed in the stored text, except for the escapes Markdown needs for the text to read back as typed. The text is escaped as it is written: a line that starts with something Markdown would turn into formatting (`#`, `>`, `-`, `+`, `1.` or `1)`) gets a backslash, and an `&` that looks like the start of an entity (such as `&lt;`) is escaped, so a typed `&lt;` is stored as `&amp;lt;`. Plain `<`, `>` and `&` stay as typed, and code is never touched (agreed 2026-11-10). It follows the shared rules in `packages/shared` (`messageBodySchema`), so the web app's message box gives the same answer, and a hidden NUL character is refused like everywhere else (see "Text with a hidden character").
 
 ### Subtasks
 

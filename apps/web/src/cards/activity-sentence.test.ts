@@ -533,7 +533,7 @@ describe('Sentences that depend on the change', () => {
 
 // 41
 describe('A line whose person was deleted', () => {
-  it('reads “A deleted account …”', () => {
+  it('reads “Former member …”', () => {
     const line = activityLine(
       'MOVED',
       {
@@ -543,14 +543,14 @@ describe('A line whose person was deleted', () => {
       { actor: null },
     )
     expect(sentence(line)).toBe(
-      'A deleted account moved this from To do to In progress',
+      'Former member moved this from To do to In progress',
     )
   })
 
   it('works for every kind', () => {
     for (const [, line] of CASES) {
       const orphan = { ...line, actor: null } as ActivityLine
-      expect(sentence(orphan)).toMatch(/^A deleted account /)
+      expect(sentence(orphan)).toMatch(/^Former member /)
     }
   })
 })
@@ -571,9 +571,9 @@ describe('A line of a kind this page does not know (agreed 2026-11-08)', () => {
     )
   })
 
-  it('reads “A deleted account made a change this page can’t show yet” for a deleted person', () => {
+  it('reads “Former member made a change this page can’t show yet” for a deleted person', () => {
     expect(activitySentence(unknownKind(null), context)).toBe(
-      'A deleted account made a change this page can’t show yet',
+      'Former member made a change this page can’t show yet',
     )
   })
 })

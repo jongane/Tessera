@@ -10,6 +10,7 @@ export * from './chats.js';
 export * from './checklists.js';
 export * from './labels.js';
 export * from './members.js';
+export * from './messages.js';
 export * from './projects.js';
 export type * from './responses.js';
 export * from './server-settings.js';
