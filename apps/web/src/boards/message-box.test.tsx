@@ -783,3 +783,33 @@ describe('An address with _ in it (criteria 19 and 43)', () => {
     expect(link).toHaveAttribute('href', 'https://example.org/a_b_c')
   })
 })
+
+// Criterion 19 (antagonist proof, round 5, and one more address): the address
+// is written into the Markdown as it is, so a space or a ")" in it must not
+// end the link early and leave the Markdown marks showing.
+describe('The Link button with an odd address (criterion 19)', () => {
+  it.each([
+    ['has a space', 'https://example.com/my docs', 'example.com/my'],
+    ['has a )', 'https://x.io/a)b', 'x.io/a)b'],
+  ])(
+    'keeps the link on the selected words when the address %s',
+    async (_name, address, hrefPart) => {
+      const { user, box } = await openBox()
+      const panel = within(chatPanel())
+
+      await typeInto(user, box, 'read the docs')
+      await user.keyboard('{Control>}a{/Control}')
+      await user.click(panel.getByRole('button', { name: 'Link' }))
+      await typeInto(user, panel.getByLabelText('Link address'), address)
+      await user.click(panel.getByRole('button', { name: 'Apply' }))
+      await user.click(panel.getByRole('button', { name: 'Send' }))
+
+      const list = await messageList()
+      const link = await within(list).findByRole('link', {
+        name: 'read the docs',
+      })
+      expect(decodeURI(link.getAttribute('href') ?? '')).toContain(hrefPart)
+      expect(list).not.toHaveTextContent('](')
+    },
+  )
+})

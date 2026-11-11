@@ -844,3 +844,40 @@ describe('A paragraph starting with spaces in the description (criterion 43)', (
     expect(panel).toHaveTextContent('second z')
   })
 })
+
+// Criterion 19: the Link button of the description with an odd address.
+describe('The description’s Link button with an odd address (criterion 19)', () => {
+  it.each([
+    ['has a space', 'https://example.com/my docs', 'example.com/my'],
+    ['has a )', 'https://x.io/a)b', 'x.io/a)b'],
+  ])(
+    'keeps the link on the selected words when the address %s',
+    async (_name, address, hrefPart) => {
+      const { user } = openCard()
+      const panel = await cardPanel()
+      await user.click(
+        await within(panel).findByRole('button', { name: 'Edit description' }),
+      )
+      const editor = await within(panel).findByRole('textbox', {
+        name: 'Description',
+      })
+      await waitFor(() => expect(editor).toHaveFocus())
+      await typeInto(user, editor, 'read the docs')
+      await user.keyboard('{Control>}a{/Control}')
+      await user.click(within(panel).getByRole('button', { name: 'Link' }))
+      await typeInto(
+        user,
+        within(panel).getByLabelText('Link address'),
+        address,
+      )
+      await user.click(within(panel).getByRole('button', { name: 'Apply' }))
+      await user.click(within(panel).getByRole('button', { name: 'Save' }))
+
+      const link = await within(panel).findByRole('link', {
+        name: 'read the docs',
+      })
+      expect(decodeURI(link.getAttribute('href') ?? '')).toContain(hrefPart)
+      expect(panel).not.toHaveTextContent('](')
+    },
+  )
+})
