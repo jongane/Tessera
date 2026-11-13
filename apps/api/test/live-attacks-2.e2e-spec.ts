@@ -16,14 +16,15 @@ import { resetDatabase } from './support/reset-database.js';
 // Live updates PR, review and attack fixes round 2, criterion 43 (the
 // antagonist's proof, kept as a regression test). The server looks for
 // expired sessions every LIVE_SESSION_SWEEP_MS milliseconds (read when the
-// app starts; 30000 when not set, so within a minute of the expiry). The test
+// app starts; 30000 when not set, so within a minute of the expiry; only 1000 to
+// 86400000 count, criterion 56). The test
 // sets a short one instead of waiting.
 describe('Live updates: attacks, round 2 (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
 
   beforeAll(async () => {
-    process.env.LIVE_SESSION_SWEEP_MS = '200';
+    process.env.LIVE_SESSION_SWEEP_MS = '1000';
     ({ app, prisma } = await startLiveApp());
   });
 
@@ -57,7 +58,7 @@ describe('Live updates: attacks, round 2 (e2e)', () => {
     await until(
       () => !caraLive.socket.connected,
       'the expired session’s connection to close',
-      3000,
+      5000,
     );
     await s.ana.agent
       .patch(s.cardUrl)
