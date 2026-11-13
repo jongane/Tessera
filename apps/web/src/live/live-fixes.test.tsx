@@ -276,9 +276,12 @@ describe('Announcements (criterion 40)', () => {
 
     const note = await within(panel).findByText(NOTE)
 
+    // The page's status region carries the announcement (criterion 49).
     expect(
-      note.closest('[role="status"], [aria-live="polite"], output'),
-    ).not.toBeNull()
+      screen
+        .getAllByRole('status')
+        .some((region) => NOTE.test(region.textContent ?? '')),
+    ).toBe(true)
     expect(note.closest('[aria-live="assertive"], [role="alert"]')).toBeNull()
   })
 })
