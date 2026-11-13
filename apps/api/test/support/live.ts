@@ -16,7 +16,8 @@ import { startTestApp, testPassword } from './test-app.js';
 //   `{ boardId }`, and an acknowledgement `{ ok: true }` or `{ ok: false }`.
 // - The server sends each signal as the event `signal`.
 // - The connection id a browser sends in the X-Live-Connection header is
-//   the Socket.IO `socket.id`.
+//   the Socket.IO `socket.id`. It counts only if it names a live connection
+//   of the same session as the save (criterion 34).
 
 export const LIVE_HEADER = 'X-Live-Connection';
 
@@ -54,6 +55,28 @@ export async function signInCookie(
     .expect(200);
   const cookies = response.headers['set-cookie'] as unknown as string[];
   return cookies.map((c) => c.split(';')[0]).join('; ');
+}
+
+// The cookie a supertest agent holds, so a live connection can belong to the
+// same session as the agent's saves.
+export function cookieOf(agent: unknown): string {
+  const jar = (
+    agent as {
+      jar: {
+        getCookies: (access: object) => { toValueString: () => string }[];
+      };
+    }
+  ).jar;
+  const access = {
+    domain: '127.0.0.1',
+    path: '/',
+    secure: false,
+    script: false,
+  };
+  return jar
+    .getCookies(access)
+    .map((cookie) => cookie.toValueString())
+    .join('; ');
 }
 
 export async function signOutWith(

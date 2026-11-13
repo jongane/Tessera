@@ -19,7 +19,9 @@ import { sprint } from './fixtures'
 //     // X-Live-Connection header; null while there is none.
 //     readonly id: string | null
 //     readonly status: LiveStatus
-//     join(boardId: string): void // asks to be in a board's room
+//     // Asks to be in a board's room; resolves to whether the server said
+//     // ok. The app reloads what the board shows once it has (criterion 38).
+//     join(boardId: string): Promise<boolean>
 //     leave(boardId: string): void
 //     onSignal(listener: (signal: LiveSignal) => void): () => void
 //     onStatus(listener: (status: LiveStatus) => void): () => void
@@ -61,6 +63,9 @@ class FakeLive {
   private signalListeners = new Set<(signal: unknown) => void>()
   private statusListeners = new Set<(status: Status) => void>()
   private reconnects = 0
+  // While set, joins are not answered yet.
+  private gate: Promise<void> | null = null
+  private openGate: () => void = () => {}
 
   reset() {
     this.id = 'connection-of-this-tab'
@@ -72,6 +77,21 @@ class FakeLive {
     this.signalListeners.clear()
     this.statusListeners.clear()
     this.reconnects = 0
+    this.gate = null
+  }
+
+  // The server does not answer join requests until `answerJoins` is called,
+  // so a test can change things "before the join".
+  holdJoins() {
+    this.gate = new Promise<void>((resolve) => (this.openGate = resolve))
+  }
+
+  async answerJoins() {
+    this.gate = null
+    await act(async () => {
+      this.openGate()
+      await Promise.resolve()
+    })
   }
 
   // What the app gets from the factory.
@@ -87,9 +107,13 @@ class FakeLive {
       },
       join(boardId: string) {
         fake.joined.push(boardId)
-        if (fake.status === 'connected' && !fake.rooms.includes(boardId)) {
-          fake.rooms.push(boardId)
+        const enter = () => {
+          if (fake.status !== 'connected') return false
+          if (!fake.rooms.includes(boardId)) fake.rooms.push(boardId)
+          return true
         }
+        if (fake.gate) return fake.gate.then(enter)
+        return Promise.resolve(enter())
       },
       leave(boardId: string) {
         fake.rooms = fake.rooms.filter((room) => room !== boardId)

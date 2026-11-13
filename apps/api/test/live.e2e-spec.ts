@@ -7,6 +7,7 @@ import { boardScenario } from './support/board-scenario.js';
 import {
   closeAllSockets,
   connect,
+  cookieOf,
   isLetIn,
   join,
   LIVE_HEADER,
@@ -49,8 +50,10 @@ describe('Live updates (e2e)', () => {
   // `by` is the connection id Ana sends with her saves.
   async function setUp() {
     const scenario = await boardScenario(app);
-    const anaLive = await connect(app, await signInCookie(app, 'ana'));
-    const caraLive = await connect(app, await signInCookie(app, 'cara'));
+    // Each person's connection belongs to the session of their agent, which
+    // makes the saves, so the connection id they send counts (criterion 34).
+    const anaLive = await connect(app, cookieOf(scenario.ana.agent));
+    const caraLive = await connect(app, cookieOf(scenario.cara.agent));
     expect(await join(anaLive, scenario.board.id)).toBe(true);
     expect(await join(caraLive, scenario.board.id)).toBe(true);
     const chats = (await scenario.ana.agent.get(
