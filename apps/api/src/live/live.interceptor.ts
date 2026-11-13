@@ -16,6 +16,7 @@ import { connectionIdFrom } from './live-signal.js';
 import { LiveService } from './live.service.js';
 
 const GLOBAL_PREFIX = '/api/';
+const uuid = z.uuid();
 
 // Watches every save (an endpoint that changes something) and, once it has
 // worked, sends the live signals its rule in live-rules.ts asks for. A save
@@ -57,7 +58,7 @@ export class LiveInterceptor implements NestInterceptor {
   ) {
     // A malformed id is refused by the endpoint itself, quietly.
     if (
-      !Object.values(request.params).every((v) => z.uuid().safeParse(v).success)
+      !Object.values(request.params).every((v) => uuid.safeParse(v).success)
     ) {
       return null;
     }

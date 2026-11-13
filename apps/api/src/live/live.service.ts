@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import type { Server } from 'socket.io';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -41,14 +41,54 @@ export const emptyPlan = (): SignalPlan => ({
 // Sends the signals, and keeps the rooms right. The gateway attaches the
 // Socket.IO server; the rules in live-rules.ts decide what to send.
 @Injectable()
-export class LiveService {
+export class LiveService implements OnModuleDestroy {
   private readonly log = new Logger(LiveService.name);
   private server: Server | null = null;
+  private sweep: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
   attach(server: Server): void {
     this.server = server;
+    // A connection already in a room never asks again, so the server looks
+    // for expired sessions by itself. Read once, when the app starts.
+    const every = Number(process.env['LIVE_SESSION_SWEEP_MS'] ?? 30_000);
+    this.sweep = setInterval(() => {
+      this.closeExpiredSessions().catch((error: unknown) =>
+        this.log.warn(`Session sweep failed: ${String(error)}`),
+      );
+    }, every);
+    this.sweep.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweep) {
+      clearInterval(this.sweep);
+    }
+  }
+
+  // Closes the connections whose session has ended or expired.
+  private async closeExpiredSessions(): Promise<void> {
+    const sockets = (await this.server?.fetchSockets()) ?? [];
+    const hashes = [
+      ...new Set(sockets.map((s) => s.data.tokenHash as string | undefined)),
+    ].filter((h): h is string => h !== undefined);
+    if (hashes.length === 0) {
+      return;
+    }
+    const valid = new Set(
+      (
+        await this.prisma.session.findMany({
+          where: { tokenHash: { in: hashes }, expiresAt: { gt: new Date() } },
+          select: { tokenHash: true },
+        })
+      ).map((s) => s.tokenHash),
+    );
+    for (const socket of sockets) {
+      if (!valid.has(socket.data.tokenHash)) {
+        socket.disconnect(true);
+      }
+    }
   }
 
   // Whether the person is a member of the board's project.
