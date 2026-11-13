@@ -66,6 +66,9 @@ class FakeLive {
   // While set, joins are not answered yet.
   private gate: Promise<void> | null = null
   private openGate: () => void = () => {}
+  // How many of the next joins the server refuses (or does not answer in
+  // time): the join resolves to false and the room is not joined.
+  private refusals = 0
 
   reset() {
     this.id = 'connection-of-this-tab'
@@ -78,6 +81,13 @@ class FakeLive {
     this.statusListeners.clear()
     this.reconnects = 0
     this.gate = null
+    this.refusals = 0
+  }
+
+  // The next `count` joins fail, as when the server refuses them or does
+  // not answer within 10 seconds.
+  refuseJoins(count = Infinity) {
+    this.refusals = count
   }
 
   // The server does not answer join requests until `answerJoins` is called,
@@ -109,6 +119,10 @@ class FakeLive {
         fake.joined.push(boardId)
         const enter = () => {
           if (fake.status !== 'connected') return false
+          if (fake.refusals > 0) {
+            fake.refusals -= 1
+            return false
+          }
           if (!fake.rooms.includes(boardId)) fake.rooms.push(boardId)
           return true
         }
