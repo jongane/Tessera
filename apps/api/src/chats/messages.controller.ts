@@ -41,6 +41,15 @@ export class MessagesController {
     return this.messages.listMessages(user.id, chatId, query.before);
   }
 
+  // One message as it now is, for a screen that kept an older one.
+  @Get('messages/:messageId')
+  find(
+    @CurrentUser() user: SignedInUser,
+    @Param('messageId', IdParam) messageId: string,
+  ): Promise<MessageView> {
+    return this.messages.getMessage(user.id, messageId);
+  }
+
   @Post('chats/:chatId/messages')
   async send(
     @CurrentUser() user: SignedInUser,

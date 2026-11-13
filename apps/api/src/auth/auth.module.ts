@@ -9,5 +9,6 @@ import { ServerSettingsController } from '../server/server-settings.controller.j
   controllers: [AuthController, ServerSettingsController],
   // APP_GUARD runs AuthGuard before every endpoint in the app.
   providers: [AuthService, { provide: APP_GUARD, useClass: AuthGuard }],
+  exports: [AuthService],
 })
 export class AuthModule {}

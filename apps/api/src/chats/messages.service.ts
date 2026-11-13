@@ -81,6 +81,11 @@ export class MessagesService {
     };
   }
 
+  async getMessage(userId: string, messageId: string): Promise<MessageView> {
+    const message = await this.findVisibleMessage(userId, messageId);
+    return this.reload(message.id);
+  }
+
   // With an `id`, sending the same message again (same author, same chat)
   // gives the saved message back and saves nothing new; the id of another
   // person's or another chat's message is refused.
