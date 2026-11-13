@@ -41,6 +41,8 @@ export function useBoardLive(boardId: string, openCardId: string | null) {
           failures = 0
           reloadEverything(queryClient, boardId)
         } else if (connection?.status === 'connected') {
+          // Another join may have set a timer meanwhile: only one is kept.
+          clearTimeout(retry)
           retry = setTimeout(join, retryWait(failures))
           failures += 1
         }

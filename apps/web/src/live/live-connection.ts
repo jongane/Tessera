@@ -38,17 +38,25 @@ export function retryWait(failures: number): number {
   return Math.min(1000 * 2 ** failures, 30_000)
 }
 
-function openSocketConnection(): LiveConnection {
+function openSocketConnection(onLost?: () => void): LiveConnection {
   // Trying again is done here, as the library does not try again after the
   // server closed the connection or refused the handshake.
   const socket = io({ path: '/socket.io', reconnection: false })
   let failures = 0
   let retry: ReturnType<typeof setTimeout> | undefined
   let closed = false
+  // Told once per break, so the app can find out whether the session ended.
+  let lostReported = false
 
-  function tryAgain() {
+  function tryAgain(refused = false) {
     if (closed || retry !== undefined) {
       return
+    }
+    // Asked after a refused handshake, not at the close itself: the close
+    // alone says nothing, the refusal is what a ended session looks like.
+    if (refused && !lostReported) {
+      lostReported = true
+      onLost?.()
     }
     retry = setTimeout(() => {
       retry = undefined
@@ -68,6 +76,7 @@ function openSocketConnection(): LiveConnection {
   }
   socket.on('connect', () => {
     failures = 0
+    lostReported = false
     setStatus('connected')
   })
   socket.on('disconnect', () => {
@@ -76,7 +85,7 @@ function openSocketConnection(): LiveConnection {
   })
   socket.on('connect_error', () => {
     setStatus('disconnected')
-    tryAgain()
+    tryAgain(true)
   })
   socket.on('signal', (signal: LiveSignal) => {
     for (const listener of [...signalListeners]) listener(signal)
@@ -135,8 +144,10 @@ export function setLiveConnectionFactory(
   factory = next
 }
 
-export function openLiveConnection(): LiveConnection {
-  return (factory ?? openSocketConnection)()
+// `onLost` is called once each time the connection is lost or refused, for
+// the real connection (the fake in tests ignores it).
+export function openLiveConnection(onLost?: () => void): LiveConnection {
+  return factory ? factory() : openSocketConnection(onLost)
 }
 
 // The connection of this tab, if one is open: its id goes with every save.

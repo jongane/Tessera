@@ -9,8 +9,7 @@ const SHOW_AFTER_MS = 3000
 // down for more than 3 seconds. It goes away when the connection is back,
 // with no message (docs/web-app.md, section 6). The status region is always
 // on the page, and only its text comes and goes, so screen readers announce
-// it. Other
-// announcements (a conflict panel opening) go into it as hidden text.
+// it.
 export function ReconnectingBar() {
   const connection = useLiveConnection()
   const [down, setDown] = useState(false)
@@ -38,17 +37,21 @@ export function ReconnectingBar() {
   }, [connection])
 
   return (
-    <div role="status">
-      {down && (
-        <p className="bg-subtle px-4 py-1.5 text-center text-sm font-semibold">
-          Reconnecting…
-        </p>
-      )}
-      {announcements.map(([id, text]) => (
-        <p key={id} className="sr-only">
-          {text}
-        </p>
-      ))}
-    </div>
+    <>
+      <div role="status">
+        {down && (
+          <p className="bg-subtle px-4 py-1.5 text-center text-sm font-semibold">
+            Reconnecting…
+          </p>
+        )}
+      </div>
+      {/* Another region, so that neither text is read again when the
+          other comes or goes. */}
+      <div role="status" className="sr-only">
+        {announcements.map(([id, text]) => (
+          <p key={id}>{text}</p>
+        ))}
+      </div>
+    </>
   )
 }
