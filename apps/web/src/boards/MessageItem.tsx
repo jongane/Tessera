@@ -273,7 +273,7 @@ function PlainEditForm({
     onDone,
   )
   const [text, setText] = useState(message.body)
-  const change = useTheirChange(message.body, !sending)
+  const change = useTheirChange(message.body, true, sending)
   return (
     <div className="flex flex-col gap-2">
       <textarea
@@ -330,7 +330,7 @@ function RichEditForm({
     message,
     onDone,
   )
-  const change = useTheirChange(message.body, !sending)
+  const change = useTheirChange(message.body, true, sending)
   return (
     <MessageEditor
       label="Edit message"

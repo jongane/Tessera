@@ -31,8 +31,31 @@ export interface LiveConnection {
   close(): void
 }
 
+// How long to wait before trying again: 1, 2, 4, 8, 16 seconds, then 30 at
+// most, with no random variation. `failures` is how many tries failed in a
+// row.
+export function retryWait(failures: number): number {
+  return Math.min(1000 * 2 ** failures, 30_000)
+}
+
 function openSocketConnection(): LiveConnection {
-  const socket = io({ path: '/socket.io' })
+  // Trying again is done here, as the library does not try again after the
+  // server closed the connection or refused the handshake.
+  const socket = io({ path: '/socket.io', reconnection: false })
+  let failures = 0
+  let retry: ReturnType<typeof setTimeout> | undefined
+  let closed = false
+
+  function tryAgain() {
+    if (closed || retry !== undefined) {
+      return
+    }
+    retry = setTimeout(() => {
+      retry = undefined
+      socket.connect()
+    }, retryWait(failures))
+    failures += 1
+  }
   const signalListeners = new Set<(signal: LiveSignal) => void>()
   const statusListeners = new Set<(status: LiveStatus) => void>()
   let status: LiveStatus = 'disconnected'
@@ -43,9 +66,18 @@ function openSocketConnection(): LiveConnection {
       for (const listener of [...statusListeners]) listener(next)
     }
   }
-  socket.on('connect', () => setStatus('connected'))
-  socket.on('disconnect', () => setStatus('disconnected'))
-  socket.on('connect_error', () => setStatus('disconnected'))
+  socket.on('connect', () => {
+    failures = 0
+    setStatus('connected')
+  })
+  socket.on('disconnect', () => {
+    setStatus('disconnected')
+    tryAgain()
+  })
+  socket.on('connect_error', () => {
+    setStatus('disconnected')
+    tryAgain()
+  })
   socket.on('signal', (signal: LiveSignal) => {
     for (const listener of [...signalListeners]) listener(signal)
   })
@@ -84,6 +116,8 @@ function openSocketConnection(): LiveConnection {
       return () => void statusListeners.delete(listener)
     },
     close() {
+      closed = true
+      clearTimeout(retry)
       signalListeners.clear()
       statusListeners.clear()
       socket.close()

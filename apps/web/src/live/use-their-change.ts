@@ -5,7 +5,13 @@ import { useState } from 'react'
 // whether you are editing it. `base` is the value your edit started from;
 // when `current` moves away from it, `theirs` is their new value. Your text
 // stays in the box either way.
-export function useTheirChange(current: string, open: boolean) {
+export function useTheirChange(
+  current: string,
+  open: boolean,
+  // While your own save is being sent: your starting value is kept, but
+  // the save's own change must not look like someone else's.
+  paused = false,
+) {
   const [base, setBase] = useState<string | null>(null)
   // Set while drawing, as it follows from `open` and `current` alone.
   if (open && base === null) {
@@ -13,7 +19,8 @@ export function useTheirChange(current: string, open: boolean) {
   } else if (!open && base !== null) {
     setBase(null)
   }
-  const theirs = open && base !== null && current !== base ? current : null
+  const theirs =
+    open && !paused && base !== null && current !== base ? current : null
   return {
     theirs,
     // What your edit is measured against.

@@ -130,8 +130,10 @@ function DescriptionEditor({
 }) {
   const [asking, setAsking] = useState(false)
   const [tooLong, setTooLong] = useState<string>()
-  // Not while saving: the box's own change then reaches `description`.
-  const change = useTheirChange(description, !saving)
+  // Not announced while saving: the box's own change then reaches
+  // `description`. The starting value is kept, so a failed save still sees
+  // what someone else changed meanwhile.
+  const change = useTheirChange(description, true, saving)
   // The text you are measured against, which the editor reads as you type.
   const base = useRef(change.base)
   useEffect(() => {

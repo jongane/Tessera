@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAnnouncements } from './announce'
 import { useLiveConnection } from './use-live-connection'
 
 // How long the connection may be down before the bar shows.
@@ -8,10 +9,12 @@ const SHOW_AFTER_MS = 3000
 // down for more than 3 seconds. It goes away when the connection is back,
 // with no message (docs/web-app.md, section 6). The status region is always
 // on the page, and only its text comes and goes, so screen readers announce
-// it.
+// it. Other
+// announcements (a conflict panel opening) go into it as hidden text.
 export function ReconnectingBar() {
   const connection = useLiveConnection()
   const [down, setDown] = useState(false)
+  const announcements = useAnnouncements()
 
   useEffect(() => {
     if (!connection) {
@@ -41,6 +44,11 @@ export function ReconnectingBar() {
           Reconnecting…
         </p>
       )}
+      {announcements.map(([id, text]) => (
+        <p key={id} className="sr-only">
+          {text}
+        </p>
+      ))}
     </div>
   )
 }

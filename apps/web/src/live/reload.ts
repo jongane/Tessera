@@ -55,6 +55,13 @@ function reloadRelatives(queryClient: QueryClient, boardId: string) {
   })
 }
 
+// Whether this tab's own card edit or move is still being saved. Reloads
+// of the board wait then, so they cannot put back what it has shown; the
+// change reloads the board when it has settled.
+export function isSavingEdit(queryClient: QueryClient, boardId: string) {
+  return queryClient.isMutating({ mutationKey: boardEditKey(boardId) }) > 0
+}
+
 // A signal from someone else. `openCardId` is the card open in the panel,
 // if any.
 export function reloadForSignal(
@@ -66,11 +73,6 @@ export function reloadForSignal(
   switch (signal.type) {
     case 'board':
     case 'card':
-      // Our own edit or move is still being saved: it reloads the board
-      // when it has settled, with their change too.
-      if (queryClient.isMutating({ mutationKey: boardEditKey(boardId) }) > 0) {
-        return
-      }
       // Only the board: its chats have their own signal.
       void queryClient.invalidateQueries({
         queryKey: boardKey(boardId),
@@ -94,9 +96,17 @@ export function reloadForSignal(
 // The connection is back after a break: everything on screen loads once,
 // to catch up with what changed meanwhile.
 export function reloadEverything(queryClient: QueryClient, boardId: string) {
+  const board = boardKey(boardId)
+  const savingEdit = isSavingEdit(queryClient, boardId)
   void queryClient.invalidateQueries({
     predicate: ({ queryKey }) =>
       !beingSaved(queryClient, queryKey) &&
+      // The board itself waits for our own edit or move to settle.
+      !(
+        savingEdit &&
+        queryKey.length === board.length &&
+        inBoardKey(queryKey, boardId)
+      ) &&
       (inBoardKey(queryKey, boardId) ||
         queryKey[0] === 'cards' ||
         queryKey[0] === 'chats'),
