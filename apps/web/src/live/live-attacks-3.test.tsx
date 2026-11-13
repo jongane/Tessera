@@ -1,6 +1,6 @@
 import { createServer, type Server as HttpServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react'
 import { http as mswHttp, passthrough } from 'msw'
 import { Server } from 'socket.io'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -37,8 +37,20 @@ let http: HttpServer | undefined
 let io: Server | undefined
 
 afterEach(async () => {
-  io?.close()
-  await new Promise((resolve) => setTimeout(resolve, 50))
+  // The app first (it closes its connection and any request in flight), then
+  // the server, so no request is cut off in the middle.
+  cleanup()
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  const closing = new Promise<void>((resolve) => {
+    if (!io) return resolve()
+    void io.close(() => resolve())
+  })
+  // A request the app gave up on (it closed its connection) can leave a
+  // socket open that nobody answers; it would keep the server open.
+  http?.closeAllConnections()
+  await closing
+  io = undefined
+  http = undefined
   vi.unstubAllGlobals()
 })
 
