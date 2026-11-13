@@ -55,7 +55,7 @@ The API tells open browser tabs that something changed, so screens stay current 
 - The live connection uses Socket.IO at the path `/socket.io`, on the same address as the API (so there is still no CORS, see [ADR 0001](adr/0001-web-app-and-api-on-one-origin.md)). It is not under `/api`.
 - The session cookie is checked when the connection is made (the handshake). A connection without a valid session is refused with the error "Please sign in".
 - Signing out ends that session's live connections straight away. So does changing the password: it ends the person's other sessions, and the live connections of every session it ended are closed, including the browser that made the change, which then reconnects with its new session.
-- Sessions that expire are swept every `LIVE_SESSION_SWEEP_MS` milliseconds (default 30000, read once when the API starts), and the live connections of an expired session are closed, without waiting for it to ask for anything. This is the only setting for live updates, an optional environment variable of the API.
+- Sessions that expire are swept every `LIVE_SESSION_SWEEP_MS` milliseconds (default 30000; a value from 1000 to 86400000 is used, anything else gives 30000; read once when the API starts), and the live connections of an expired session are closed, without waiting for it to ask for anything. This is the only setting for live updates, an optional environment variable of the API.
 - A `join-board` from a session that has ended or expired gets `{ ok: false }` and its connection is closed.
 - The MVP runs on one server. Running several servers would need a shared message layer (Redis) so a signal reaches tabs connected to another server; that is left for later.
 
