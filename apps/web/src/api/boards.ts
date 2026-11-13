@@ -2,13 +2,12 @@ import type { BoardView, Card, NewCardBody } from '@tessera/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { findCard, moveCardInView } from '../boards/move-card'
 import { api } from './client'
-import { BOARD_RELOAD_MS, boardKey } from './query-keys'
+import { boardKey } from './query-keys'
 
 export function useBoardView(boardId: string) {
   return useQuery({
     queryKey: boardKey(boardId),
     queryFn: () => api<BoardView>(`/boards/${boardId}`),
-    refetchInterval: BOARD_RELOAD_MS,
   })
 }
 

@@ -76,7 +76,7 @@ export interface CardPanelProps {
 // One card, with everything about it that can be changed. The panel does
 // not know where it sits: the board screen places it, so it can move into a
 // dialog or onto its own page later (docs/web-app.md, section 3). It reads
-// the card from the board, which reloads every 30 seconds.
+// the card from the board, which reloads when the server says it changed.
 export default function CardPanel(props: CardPanelProps) {
   const found = findCard(props.view, props.cardId)
   return (

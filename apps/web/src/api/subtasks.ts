@@ -10,6 +10,7 @@ import type {
   SubtaskListItem,
 } from '@tessera/shared'
 import {
+  type QueryClient,
   useMutation,
   useQueries,
   useQuery,
@@ -17,7 +18,7 @@ import {
 } from '@tanstack/react-query'
 import { api } from './client'
 import { useBoards } from './projects'
-import { BOARD_RELOAD_MS, boardKey } from './query-keys'
+import { boardKey } from './query-keys'
 
 // A card's subtasks, in the card panel (docs/card-features.md, section 4).
 // The list is kept under the board's key, so it reloads with the board, and
@@ -28,17 +29,17 @@ export function subtasksKey(boardId: string, cardId: string) {
 }
 
 export function useSubtasks(boardId: string, cardId: string) {
-  const queryClient = useQueryClient()
   return useQuery({
     queryKey: subtasksKey(boardId, cardId),
     queryFn: () => api<SubtaskList>(`/cards/${cardId}/subtasks`),
-    // Skipped while a tick is still being saved, so it cannot put back what
-    // the tick has already shown.
-    refetchInterval: () =>
-      queryClient.isMutating({ mutationKey: tickKey(cardId) }) > 0
-        ? false
-        : BOARD_RELOAD_MS,
   })
+}
+
+// Whether a tick on the card's subtasks is still being saved. A reload the
+// server asks for waits then, so it cannot put back what the tick has
+// already shown; the last tick reloads when it has settled.
+export function ticksBusy(queryClient: QueryClient, cardId: string) {
+  return queryClient.isMutating({ mutationKey: tickKey(cardId) }) > 0
 }
 
 // Every tick on one card's subtasks, so the reload waits until the last of

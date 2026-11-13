@@ -12,7 +12,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from './client'
-import { BOARD_RELOAD_MS, boardKey } from './query-keys'
+import { boardKey } from './query-keys'
 
 // A card's checklists, in the card panel (docs/card-features.md, section 2).
 // Ticks, edits, moves and deletes show straight away; if saving fails, only
@@ -27,18 +27,18 @@ export function checklistsKey(boardId: string, cardId: string) {
   return [...boardKey(boardId), 'checklists', cardId] as const
 }
 
-// The regular reload is skipped while a change is still being saved, so it
-// cannot put back what the change has already shown.
 export function useChecklists(boardId: string, cardId: string) {
-  const queryClient = useQueryClient()
   return useQuery({
     queryKey: checklistsKey(boardId, cardId),
     queryFn: () => api<Lists>(`/cards/${cardId}/checklists`),
-    refetchInterval: () =>
-      queryClient.isMutating({ mutationKey: mutationKey(cardId) }) > 0
-        ? false
-        : BOARD_RELOAD_MS,
   })
+}
+
+// Whether a change to the card's checklists is still being saved. A reload
+// the server asks for waits then, so it cannot put back what the change
+// has already shown; the change reloads when it has settled.
+export function checklistsBusy(queryClient: QueryClient, cardId: string) {
+  return queryClient.isMutating({ mutationKey: mutationKey(cardId) }) > 0
 }
 
 // Every change to one card's checklists, so the reload waits until the

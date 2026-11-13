@@ -26,6 +26,7 @@ import { NewChatDialog } from './NewChatDialog'
 import { ChatCard } from './ChatCard'
 import { ChatPanel } from './ChatPanel'
 import { MessageOutbox } from './message-outbox'
+import { useBoardLive } from '../live/use-board-live'
 
 const SAVE_FAILED = 'Couldn’t save, try again'
 
@@ -79,6 +80,7 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedCardId = searchParams.get('card')
   const openChatId = searchParams.get('chat')
+  useBoardLive(boardId, selectedCardId)
   const chats = useChats(boardId)
   const relatives = useCardRelatives(boardId, selectedCardId)
   const highlightOf =

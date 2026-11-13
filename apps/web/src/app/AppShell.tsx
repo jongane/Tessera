@@ -1,14 +1,26 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Link, Outlet, useNavigate } from 'react-router'
 import { useMe, useSignOut } from '../api/auth'
+import { LiveProvider } from '../live/LiveProvider'
+import { ReconnectingBar } from '../live/ReconnectingBar'
 import { Logo } from '../ui/Logo'
 import { TimerChip } from './TimerChip'
 
 // The frame around every signed-in page: the Tessera mark and the account
-// menu along the top, and the page below.
+// menu along the top, and the page below. It also holds the tab's live
+// connection, and the "Reconnecting…" bar above everything else.
 export function AppShell() {
   return (
+    <LiveProvider>
+      <Frame />
+    </LiveProvider>
+  )
+}
+
+function Frame() {
+  return (
     <div className="flex h-dvh flex-col">
+      <ReconnectingBar />
       <header className="flex flex-wrap items-center gap-4 border-b border-line bg-surface px-4 py-2.5 sm:px-5">
         <Link
           to="/projects"
