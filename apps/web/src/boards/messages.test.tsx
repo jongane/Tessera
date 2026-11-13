@@ -543,9 +543,11 @@ describe('Loading and scrolling (criteria 29 and 30)', () => {
   })
 })
 
-describe('Reloading (criterion 31)', () => {
-  // 31
-  it('reloads every 30 seconds while the chat is open', async () => {
+describe('Reloading (criterion 31; live updates criterion 15)', () => {
+  // 31, changed by the live updates PR (criterion 15): the 30-second reload
+  // is gone, so a message from someone else shows when the server says so
+  // (see live-updates.test.tsx), not on a timer.
+  it('does not reload on a timer while the chat is open', async () => {
     const { api } = openChat({ messages: [message('Hello')] })
     const list = await messageList()
     await within(list).findByText('Hello')
@@ -556,11 +558,11 @@ describe('Reloading (criterion 31)', () => {
       message('From Ben', { author: ben, createdAt: ago(1000) }),
     )
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
     })
 
-    expect(await within(list).findByText('From Ben')).toBeInTheDocument()
-    expect(api.gets.length).toBeGreaterThan(loads)
+    expect(api.gets.length).toBe(loads)
+    expect(within(list).queryByText('From Ben')).not.toBeInTheDocument()
   })
 
   // 31

@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterAll, afterEach, beforeAll } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest'
+import { installFakeLive, removeFakeLive } from './fake-live'
 import { server } from './server'
 
 // jsdom has no ResizeObserver; the resizable panels need one to start.
@@ -21,8 +22,12 @@ Range.prototype.getBoundingClientRect ??= () => new DOMRect()
 Element.prototype.scrollIntoView ??= () => {}
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
+// Every test gets a fake live connection (see fake-live.ts), so no test opens
+// a real one.
+beforeEach(() => installFakeLive())
 afterEach(() => {
   cleanup()
+  removeFakeLive()
   localStorage.clear()
   server.resetHandlers()
 })

@@ -2,10 +2,10 @@ import type { BoardCard } from '@tessera/shared'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
-import { BOARD_RELOAD_MS } from '../api/query-keys'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import { boardPath, cardPanel, typeInto } from '../test/card-panel'
 import { backlogCard, backlogColumns, fakeBoard } from '../test/fake-board'
+import { live } from '../test/fake-live'
 import { boardCard, boardColumn, boardView } from '../test/fixtures'
 import { currentPath, renderApp } from '../test/render'
 import { apiError, server } from '../test/server'
@@ -1306,8 +1306,8 @@ function held() {
   return { promise, release }
 }
 
-describe('Subtasks: ticks and the 30 second reload', () => {
-  it('still reloads every 30 seconds after a quick tick and untick', async () => {
+describe('Subtasks: ticks and live reloads', () => {
+  it('still reloads when the card changes after a quick tick and untick', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const { parent, form, errors } = twoOpenSubtasks()
@@ -1349,9 +1349,7 @@ describe('Subtasks: ticks and the 30 second reload', () => {
           }),
         ),
       )
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(parent.id)
       await vi.waitFor(
         () => expect(section).toHaveTextContent('Errors renamed'),
         { timeout: 3000 },
@@ -1546,11 +1544,9 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
     )
   }
 
-  // Lets the 30 second reload run and waits until the row is gone.
-  async function reloadDropsRow(section: HTMLElement) {
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-    })
+  // Someone else's change reaches the panel, and waits until the row is gone.
+  async function reloadDropsRow(section: HTMLElement, parentId: string) {
+    await live.cardChanged(parentId)
     await vi.waitFor(
       () => expect(within(section).queryByText(/WEB-12\.1/)).toBe(null),
       { timeout: 3000 },
@@ -1624,7 +1620,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
       )
       // The server has saved it; the reload lands before the answer.
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       gate.release()
       await settle()
 
@@ -1659,7 +1655,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
         await within(picker).findByRole('button', { name: /WEB-14 Icon set/ }),
       )
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       gate.release()
       await settle()
 
@@ -1690,7 +1686,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
         await screen.findByRole('menuitem', { name: 'Make its own card' }),
       )
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       gate.release()
       await settle()
 
@@ -1725,7 +1721,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
         await within(picker).findByRole('button', { name: /WEB-14 Icon set/ }),
       )
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       gate.release()
       await settle()
 
@@ -1790,7 +1786,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
         await screen.findByRole('menuitem', { name: 'Make its own card' }),
       )
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       const editor = await focusDescriptionEditor(user, panel)
       gate.release()
       await settle()
@@ -1817,7 +1813,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
       const section = await subtasksOf(panel)
       await pickIcons(user, section)
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       const editor = await focusDescriptionEditor(user, panel)
       gate.release()
       await settle()
@@ -1843,7 +1839,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
       const section = await subtasksOf(await cardPanel())
       await pickIcons(user, section)
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       gate.release()
       await settle()
 
@@ -1868,7 +1864,7 @@ describe('Subtasks: focus when a reload removes the row mid-save', () => {
       const section = await subtasksOf(await cardPanel())
       await pickIcons(user, section)
       server.use(onlyErrors(parent, errors))
-      await reloadDropsRow(section)
+      await reloadDropsRow(section, parent.id)
       gate.release()
       await settle()
 

@@ -61,6 +61,8 @@ export function fakeMessages(
   // message that is still being sent.
   let gate: Promise<void> = Promise.resolve()
   const gets: URL[] = []
+  // The id of every message asked for on its own (GET /api/messages/:id).
+  const fetched: string[] = []
   const changes: { request: string; body: unknown }[] = []
 
   function find(messageId: string) {
@@ -83,6 +85,11 @@ export function fakeMessages(
         messages: all.slice(from, end),
         hasOlder: from > 0,
       })
+    }),
+    http.get('/api/messages/:messageId', ({ params }) => {
+      fetched.push(String(params.messageId))
+      const found = find(String(params.messageId))
+      return found ? HttpResponse.json(found) : apiError(404, 'Message not found')
     }),
     http.post('/api/chats/:chatId/messages', async ({ request, params }) => {
       const body = (await request.json()) as { body: string; id?: string }
@@ -131,6 +138,7 @@ export function fakeMessages(
   return {
     handlers,
     gets,
+    fetched,
     changes,
     // Makes sending wait until the returned function is called.
     hold: () => {
@@ -140,6 +148,18 @@ export function fakeMessages(
     },
     // What the server holds for a chat, oldest first.
     messagesOf: (chatId: string) => chats[chatId] ?? [],
+    // Someone else edited a message, seen at the next reload.
+    edit: (messageId: string, body: string) => {
+      const found = find(messageId)!
+      found.body = body
+      found.editedAt = new Date().toISOString()
+    },
+    // Someone else deleted a message, seen at the next reload.
+    remove: (messageId: string, by: Person) => {
+      const found = find(messageId)!
+      found.deletedAt = new Date().toISOString()
+      found.deletedBy = who(by)
+    },
     // A message that arrived from someone else, seen at the next reload.
     arrive: (chatId: string, sent: Message) => {
       ;(chats[chatId] ??= []).push({ ...sent, chatId })
