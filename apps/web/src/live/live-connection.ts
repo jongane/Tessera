@@ -38,15 +38,17 @@ export function retryWait(failures: number): number {
   return Math.min(1000 * 2 ** failures, 30_000)
 }
 
-function openSocketConnection(onLost?: () => void): LiveConnection {
+function openSocketConnection(onLost?: () => Promise<boolean>): LiveConnection {
   // Trying again is done here, as the library does not try again after the
   // server closed the connection or refused the handshake.
   const socket = io({ path: '/socket.io', reconnection: false })
   let failures = 0
   let retry: ReturnType<typeof setTimeout> | undefined
   let closed = false
-  // Told once per break, so the app can find out whether the session ended.
-  let lostReported = false
+  // Whether the session check of this outage was answered with a 200, and
+  // whether a check is running. A refused handshake asks again until then.
+  let sessionConfirmed = false
+  let checking = false
 
   function tryAgain(refused = false) {
     if (closed || retry !== undefined) {
@@ -54,9 +56,17 @@ function openSocketConnection(onLost?: () => void): LiveConnection {
     }
     // Asked after a refused handshake, not at the close itself: the close
     // alone says nothing, the refusal is what a ended session looks like.
-    if (refused && !lostReported) {
-      lostReported = true
-      onLost?.()
+    if (refused && !sessionConfirmed && !checking && onLost) {
+      checking = true
+      void onLost().then(
+        (confirmed) => {
+          checking = false
+          sessionConfirmed = confirmed
+        },
+        () => {
+          checking = false
+        },
+      )
     }
     retry = setTimeout(() => {
       retry = undefined
@@ -76,7 +86,7 @@ function openSocketConnection(onLost?: () => void): LiveConnection {
   }
   socket.on('connect', () => {
     failures = 0
-    lostReported = false
+    sessionConfirmed = false
     setStatus('connected')
   })
   socket.on('disconnect', () => {
@@ -144,9 +154,14 @@ export function setLiveConnectionFactory(
   factory = next
 }
 
-// `onLost` is called once each time the connection is lost or refused, for
-// the real connection (the fake in tests ignores it).
-export function openLiveConnection(onLost?: () => void): LiveConnection {
+// `onLost` is called on a refused handshake (not on a plain close), for the
+// real connection (the fake in tests ignores it). It runs the session check
+// and answers true for a 200. It runs again at every later refusal of the
+// outage until it has answered true, and never while a check is running; a
+// successful connect starts the count again.
+export function openLiveConnection(
+  onLost?: () => Promise<boolean>,
+): LiveConnection {
   return factory ? factory() : openSocketConnection(onLost)
 }
 

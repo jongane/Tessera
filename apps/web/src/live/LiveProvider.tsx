@@ -8,11 +8,15 @@ import { openLiveConnection, setCurrentConnection } from './live-connection'
 export function LiveProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   useEffect(() => {
-    // Lost or refused: ask who is signed in, once. If the session has ended
+    // Refused: ask who is signed in. If the session has ended
     // the API answers 401, and the normal sign-in page takes over (which
     // leaves this shell and closes the connection for good).
-    const opened = openLiveConnection(() => {
-      void queryClient.invalidateQueries({ queryKey: meKey })
+    // The answer is true for a 200, and false when there was none (a 503, no
+    // network), so the connection asks again at the next refusal.
+    const opened = openLiveConnection(async () => {
+      await queryClient.invalidateQueries({ queryKey: meKey })
+      const state = queryClient.getQueryState(meKey)
+      return state?.status === 'success' && state.data != null
     })
     setCurrentConnection(opened)
     return () => {
