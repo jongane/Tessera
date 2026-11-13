@@ -9,6 +9,8 @@ import {
 } from '@tessera/shared'
 import { type FocusEvent, type KeyboardEvent, useId, useState } from 'react'
 import { PRIORITY_NAMES } from '../boards/card-text'
+import { TheirVersion } from '../live/their-change'
+import { useTheirChange } from '../live/use-their-change'
 import { checkForm } from '../ui/form-errors'
 import { estimateFrom } from './estimate'
 
@@ -22,11 +24,14 @@ const smallButton =
   'min-h-8 self-start text-sm font-semibold text-accent hover:text-accent-strong hover:underline'
 
 // The title box looks like a heading. Enter or leaving the box saves it;
-// Escape puts it back. A reload while typing does not overwrite it.
+// Escape puts it back. A reload while typing does not overwrite it: if
+// someone else changed the title meanwhile, their version is shown under the
+// box, and leaving the box no longer saves (docs/web-app.md, section 6).
 export function TitleField({ card, save }: { card: BoardCard; save: Save }) {
   const id = useId()
   const [draft, setDraft] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const change = useTheirChange(card.title, draft !== null)
 
   function commit() {
     if (draft === null) {
@@ -66,7 +71,13 @@ export function TitleField({ card, save }: { card: BoardCard; save: Save }) {
         value={draft ?? card.title}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={onKeyDown}
-        onBlur={commit}
+        onBlur={() => {
+          // Only Save, Enter, Use theirs or Keep mine act while their
+          // version is shown.
+          if (change.theirs === null) {
+            commit()
+          }
+        }}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         className="-mx-2 rounded-md border border-transparent px-2 py-1 text-xl font-bold hover:border-line focus:border-line-strong aria-invalid:border-danger"
@@ -75,6 +86,17 @@ export function TitleField({ card, save }: { card: BoardCard; save: Save }) {
         <p id={`${id}-error`} className="text-danger">
           {error}
         </p>
+      )}
+      {change.theirs !== null && (
+        <TheirVersion
+          onUseTheirs={() => {
+            setDraft(change.theirs)
+            change.seen()
+          }}
+          onKeepMine={change.seen}
+        >
+          <p className="text-lg font-bold">{change.theirs}</p>
+        </TheirVersion>
       )}
     </div>
   )

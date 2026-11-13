@@ -11,6 +11,8 @@ import { MessageEditor } from './MessageEditor'
 import { canHoldInMessageBox } from './message-extensions'
 import { MessageBoundary } from './MessageBoundary'
 import { MessageBody } from './message-markdown'
+import { TheirVersion } from '../live/their-change'
+import { useTheirChange } from '../live/use-their-change'
 import {
   checkMessage,
   COULDNT_SAVE,
@@ -45,7 +47,10 @@ export function MessageItem({
   canDelete: boolean
   outgoing?: Outgoing
 }) {
-  const [editing, setEditing] = useState(false)
+  const [editStarted, setEditing] = useState(false)
+  const deleted = message.deletedAt !== null
+  // Someone deleting the message while you edit it closes the editor.
+  const editing = editStarted && !deleted
   const item = useRef<HTMLLIElement>(null)
   // Once an edit is over, focus goes back to the message's menu button.
   const wasEditing = useRef(false)
@@ -60,7 +65,6 @@ export function MessageItem({
   const [deleting, setDeleting] = useState<HTMLElement | null | false>(false)
   // Why the last delete failed.
   const [deleteProblem, setDeleteProblem] = useState<string>()
-  const deleted = message.deletedAt !== null
   const menu = [
     canEdit && {
       name: 'Edit',
@@ -97,7 +101,11 @@ export function MessageItem({
         </time>
       )}
       {editing ? (
-        <EditForm message={message} onDone={() => setEditing(false)} />
+        <EditForm
+          message={message}
+          projectId={projectId}
+          onDone={() => setEditing(false)}
+        />
       ) : deleted ? (
         <>
           <del className="text-muted">
@@ -158,6 +166,9 @@ export function MessageItem({
 function useSaveEdit(message: Message, onDone: () => void) {
   const edit = useEditMessage(message.chatId)
   const [problem, setProblem] = useState<string>()
+  // From sending until it fails: the saved change must not look like
+  // someone else's.
+  const [sending, setSending] = useState(false)
 
   function save(markdown: string) {
     if (edit.isPending) {
@@ -170,15 +181,17 @@ function useSaveEdit(message: Message, onDone: () => void) {
       onDone()
     } else {
       setProblem(undefined)
+      setSending(true)
       edit
         .mutateAsync({ id: message.id, body: checked.body })
-        .then(onDone, (error: unknown) =>
-          setProblem(refusalOr(error, COULDNT_SAVE)),
-        )
+        .then(onDone, (error: unknown) => {
+          setSending(false)
+          setProblem(refusalOr(error, COULDNT_SAVE))
+        })
     }
   }
 
-  return { save, problem, setProblem, saving: edit.isPending }
+  return { save, problem, setProblem, saving: edit.isPending, sending }
 }
 
 // The rich edit box. If it cannot hold the message's body whole (a heading,
@@ -186,16 +199,20 @@ function useSaveEdit(message: Message, onDone: () => void) {
 // body as plain text instead (the chat carries on either way).
 function EditForm({
   message,
+  projectId,
   onDone,
 }: {
   message: Message
+  projectId: string
   onDone: () => void
 }) {
   const [rich] = useState(() => canHoldInMessageBox(message.body))
-  const plain = <PlainEditForm message={message} onDone={onDone} />
+  const plain = (
+    <PlainEditForm message={message} projectId={projectId} onDone={onDone} />
+  )
   return rich ? (
     <EditBoundary fallback={plain}>
-      <RichEditForm message={message} onDone={onDone} />
+      <RichEditForm message={message} projectId={projectId} onDone={onDone} />
     </EditBoundary>
   ) : (
     plain
@@ -217,15 +234,43 @@ class EditBoundary extends Component<
   }
 }
 
+// What the message says now, under the box, when someone else changed it
+// while you were editing (docs/web-app.md, section 6).
+function TheirMessage({
+  theirs,
+  projectId,
+  onUseTheirs,
+  onKeepMine,
+}: {
+  theirs: string
+  projectId: string
+  onUseTheirs: () => void
+  onKeepMine: () => void
+}) {
+  return (
+    <TheirVersion onUseTheirs={onUseTheirs} onKeepMine={onKeepMine}>
+      <MessageBoundary key={theirs} markdown={theirs}>
+        <MessageBody markdown={theirs} projectId={projectId} />
+      </MessageBoundary>
+    </TheirVersion>
+  )
+}
+
 function PlainEditForm({
   message,
+  projectId,
   onDone,
 }: {
   message: Message
+  projectId: string
   onDone: () => void
 }) {
-  const { save, problem, setProblem, saving } = useSaveEdit(message, onDone)
+  const { save, problem, setProblem, saving, sending } = useSaveEdit(
+    message,
+    onDone,
+  )
   const [text, setText] = useState(message.body)
+  const change = useTheirChange(message.body, !sending)
   return (
     <div className="flex flex-col gap-2">
       <textarea
@@ -245,6 +290,17 @@ function PlainEditForm({
         }}
         className="min-h-11 rounded-lg border border-line-strong bg-surface px-3 py-2"
       />
+      {change.theirs !== null && (
+        <TheirMessage
+          theirs={change.theirs}
+          projectId={projectId}
+          onUseTheirs={() => {
+            setText(change.theirs ?? '')
+            change.seen()
+          }}
+          onKeepMine={change.seen}
+        />
+      )}
       {problem && <Alert>{problem}</Alert>}
       <div className="flex gap-2">
         <Button disabled={saving} onClick={() => save(text.trim())}>
@@ -260,12 +316,18 @@ function PlainEditForm({
 
 function RichEditForm({
   message,
+  projectId,
   onDone,
 }: {
   message: Message
+  projectId: string
   onDone: () => void
 }) {
-  const { save, problem, setProblem, saving } = useSaveEdit(message, onDone)
+  const { save, problem, setProblem, saving, sending } = useSaveEdit(
+    message,
+    onDone,
+  )
+  const change = useTheirChange(message.body, !sending)
   return (
     <MessageEditor
       label="Edit message"
@@ -277,6 +339,19 @@ function RichEditForm({
     >
       {(editor) => (
         <>
+          {change.theirs !== null && (
+            <TheirMessage
+              theirs={change.theirs}
+              projectId={projectId}
+              onUseTheirs={() => {
+                editor.commands.setContent(change.theirs ?? '', {
+                  contentType: 'markdown',
+                })
+                change.seen()
+              }}
+              onKeepMine={change.seen}
+            />
+          )}
           {problem && <Alert>{problem}</Alert>}
           <div className="flex gap-2">
             <Button disabled={saving} onClick={() => save(markdownOf(editor))}>
