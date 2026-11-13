@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import type { Server } from 'socket.io';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { sweepIntervalFrom } from './live-sweep.js';
 import {
   boardRoom,
   boardSignal,
@@ -52,7 +53,7 @@ export class LiveService implements OnModuleDestroy {
     this.server = server;
     // A connection already in a room never asks again, so the server looks
     // for expired sessions by itself. Read once, when the app starts.
-    const every = Number(process.env['LIVE_SESSION_SWEEP_MS'] ?? 30_000);
+    const every = sweepIntervalFrom(process.env['LIVE_SESSION_SWEEP_MS']);
     this.sweep = setInterval(() => {
       this.closeExpiredSessions().catch((error: unknown) =>
         this.log.warn(`Session sweep failed: ${String(error)}`),
