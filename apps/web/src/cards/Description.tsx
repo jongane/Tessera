@@ -2,10 +2,16 @@ import { Markdown } from '../ui/markdown'
 import { type Editor, EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { cardChangesSchema } from '@tessera/shared'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Alert } from '../ui/Alert'
+import { TheirVersion } from '../live/their-change'
+import { useTheirChange } from '../live/use-their-change'
 import { Button } from '../ui/Button'
-import { EditorToolbar, type ToolbarButton } from '../ui/editor-toolbar'
+import {
+  EditorToolbar,
+  NumberedListIcon,
+  type ToolbarButton,
+} from '../ui/editor-toolbar'
 import { markdownOf } from '../ui/markdown-of'
 import { checkForm } from '../ui/form-errors'
 
@@ -124,6 +130,15 @@ function DescriptionEditor({
 }) {
   const [asking, setAsking] = useState(false)
   const [tooLong, setTooLong] = useState<string>()
+  // Not announced while saving: the box's own change then reaches
+  // `description`. The starting value is kept, so a failed save still sees
+  // what someone else changed meanwhile.
+  const change = useTheirChange(description, true, saving)
+  // The text you are measured against, which the editor reads as you type.
+  const base = useRef(change.base)
+  useEffect(() => {
+    base.current = change.base
+  })
   const editor = useEditor({
     extensions,
     content: description,
@@ -138,8 +153,14 @@ function DescriptionEditor({
       },
     },
     onUpdate: ({ editor: changed }) =>
-      onChange(markdownOf(changed) !== description),
+      onChange(markdownOf(changed) !== base.current),
   })
+
+  function takeTheirs(theirs: string) {
+    editor?.commands.setContent(theirs, { contentType: 'markdown' })
+    change.seen()
+    onChange(false)
+  }
 
   function cancel() {
     if (editor && markdownOf(editor) !== description) {
@@ -167,6 +188,18 @@ function DescriptionEditor({
     <div className="flex flex-col gap-2">
       <EditorToolbar editor={editor} label="Formatting" buttons={BUTTONS} />
       <EditorContent editor={editor} />
+      {change.theirs !== null && (
+        <TheirVersion
+          onUseTheirs={() => takeTheirs(change.theirs ?? '')}
+          onKeepMine={() => {
+            change.seen()
+            // Your text now differs from what is saved.
+            onChange(markdownOf(editor) !== change.theirs)
+          }}
+        >
+          <ReadOnlyDescription markdown={change.theirs} />
+        </TheirVersion>
+      )}
       {tooLong && <Alert>{tooLong}</Alert>}
       {asking ? (
         <div role="alert" className="flex flex-wrap items-center gap-2">
@@ -225,7 +258,7 @@ const BUTTONS: readonly ToolbarButton[] = [
     name: 'Numbered list',
     mark: 'orderedList',
     run: (e: Editor) => e.chain().focus().toggleOrderedList().run(),
-    look: '1.',
+    look: <NumberedListIcon />,
   },
   {
     name: 'Quote',

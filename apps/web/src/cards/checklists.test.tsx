@@ -1,10 +1,10 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { BOARD_RELOAD_MS } from '../api/query-keys'
 import { expectNoAccessibilityProblems } from '../test/a11y'
 import { cardPanel, login, openCard, typeInto } from '../test/card-panel'
 import { checklist, itemOf } from '../test/fake-checklists'
+import { live } from '../test/fake-live'
 import { boardCard } from '../test/fixtures'
 import { apiError, server } from '../test/server'
 
@@ -114,9 +114,9 @@ describe('Seeing a card’s checklists', () => {
     await expectNoAccessibilityProblems(container)
   })
 
-  // Changes reload with the board every 30 seconds: someone else ticks an
-  // item, and after the reload this panel shows it.
-  it('reloads with the board every 30 seconds and shows another person’s tick', async () => {
+  // Live updates (criterion 18): someone else ticks an item, the server says
+  // the card changed, and after the reload this panel shows it.
+  it('reloads when the server says the card changed and shows another person’s tick', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const testing = checklist('Testing', ['Safari'])
@@ -140,9 +140,7 @@ describe('Seeing a card’s checklists', () => {
           ]),
         ),
       )
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(login.id)
       await vi.waitFor(
         () =>
           expect(
@@ -478,9 +476,7 @@ describe('The New item box closing at 100 items', () => {
           ]),
         ),
       )
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(login.id)
       await within(browsers).findByRole('checkbox', { name: 'Browser 100' })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500)
@@ -531,9 +527,7 @@ describe('The New item box closing at 100 items', () => {
           ]),
         ),
       )
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(login.id)
       await within(list).findByRole('checkbox', { name: 'Browser 100' })
       await waitFor(() =>
         expect(within(list).queryByRole('textbox', { name: 'New item' })).toBe(
@@ -548,9 +542,7 @@ describe('The New item box closing at 100 items', () => {
       )
 
       served = almost
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(login.id)
       await waitFor(() =>
         expectTurnedOn(within(list).getByRole('button', { name: 'Add item' })),
       )
@@ -593,9 +585,7 @@ describe('The New item box closing at 100 items', () => {
           ]),
         ),
       )
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(login.id)
       await within(list).findByRole('checkbox', { name: 'Browser 100' })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500)
@@ -737,8 +727,8 @@ describe('Editing an item', () => {
     ])
   })
 
-  // Regression: the 30-second reload must not undo a text change still being saved.
-  it('keeps an item’s new text shown while it is still being saved when the 30-second reload comes', async () => {
+  // Regression: a reload must not undo a text change still being saved.
+  it('keeps an item’s new text shown while it is still being saved when a reload comes', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const testing = checklist('Testing', ['Safari'])
@@ -760,9 +750,7 @@ describe('Editing an item', () => {
       await user.clear(box)
       await typeInto(user, box, 'Safari 17{Enter}')
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(login.id)
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500)
       })
@@ -842,8 +830,8 @@ describe('Ticking items', () => {
     expect(list).toHaveTextContent('1 of 2')
   })
 
-  // Regression: the 30-second reload must not undo a tick still being saved.
-  it('keeps a tick shown while it is still being saved when the 30-second reload comes', async () => {
+  // Regression: a reload must not undo a tick still being saved.
+  it('keeps a tick shown while it is still being saved when a reload comes', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const testing = checklist('Testing', ['Safari'])
@@ -866,9 +854,7 @@ describe('Ticking items', () => {
       await user.click(safari)
       await waitFor(() => expect(safari).toBeChecked())
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-      })
+      await live.cardChanged(login.id)
       // Let the reload's answer arrive.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500)
@@ -883,7 +869,7 @@ describe('Ticking items', () => {
     }
   })
 
-  it('keeps reloading every 30 seconds after a tick has been saved', async () => {
+  it('keeps reloading when the card changes after a tick has been saved', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const testing = checklist('Testing', ['Chrome', 'Safari'])
@@ -922,9 +908,7 @@ describe('Ticking items', () => {
       // Someone else ticks Chrome on the server.
       server.use(serverSays(['Chrome', 'Safari']))
       for (let i = 0; i < 2; i++) {
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-        })
+        await live.cardChanged(login.id)
       }
       await vi.waitFor(
         () =>
@@ -938,7 +922,7 @@ describe('Ticking items', () => {
     }
   })
 
-  it('keeps reloading every 30 seconds after a tick could not be saved', async () => {
+  it('keeps reloading when the card changes after a tick could not be saved', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const testing = checklist('Testing', ['Chrome', 'Safari'])
@@ -976,9 +960,7 @@ describe('Ticking items', () => {
       // Someone else ticks Chrome on the server.
       server.use(serverSays(['Chrome']))
       for (let i = 0; i < 2; i++) {
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(BOARD_RELOAD_MS + 1000)
-        })
+        await live.cardChanged(login.id)
       }
       await vi.waitFor(
         () =>

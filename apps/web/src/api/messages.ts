@@ -13,13 +13,14 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from './client'
-import { BOARD_RELOAD_MS, messagesKey } from './query-keys'
+import { messagesKey } from './query-keys'
 
 type Pages = InfiniteData<MessagePage, string>
 
 // A chat's messages: the newest page first; `fetchNextPage` adds the next,
-// older one. A reload (every 30 seconds, on coming back to the tab, after
-// your own change) loads every page that is shown again, from the newest.
+// older one. A reload (when the server says a message changed, on coming
+// back to the tab, after your own change) loads every page that is shown
+// again, from the newest.
 export function useMessages(chatId: string) {
   return useInfiniteQuery({
     queryKey: messagesKey(chatId),
@@ -31,7 +32,6 @@ export function useMessages(chatId: string) {
     // The next page is the one just before the oldest message shown.
     getNextPageParam: (oldest) =>
       oldest.hasOlder ? oldest.messages[0]?.id : undefined,
-    refetchInterval: BOARD_RELOAD_MS,
     // A reload never takes away a message already shown.
     structuralSharing: keepShown,
   })

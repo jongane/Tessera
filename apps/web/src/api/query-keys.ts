@@ -1,4 +1,4 @@
-// The cache keys of a board's data, and how often it reloads. The chats' key starts with the board's,
+// The cache keys of a board's data. The chats' key starts with the board's,
 // so reloading the board reloads its chats too.
 
 export function boardKey(boardId: string) {
@@ -9,12 +9,14 @@ export function chatsKey(boardId: string) {
   return ['boards', boardId, 'chats'] as const
 }
 
-// While a board is open, it and its chats reload this often, and when you
-// come back to the tab (docs/web-app.md, section 6).
-export const BOARD_RELOAD_MS = 30_000
-
-// A chat's messages (newest page first, then older ones), which reload every
-// BOARD_RELOAD_MS while the chat is open.
+// A chat's messages (newest page first, then older ones).
 export function messagesKey(chatId: string) {
   return ['chats', chatId, 'messages'] as const
+}
+
+// Every change this tab makes to a card or its place on the board. A reload
+// the server asks for waits while one is being saved, so it cannot put back
+// what the change has already shown; the change reloads when it has settled.
+export function boardEditKey(boardId: string) {
+  return ['boards', boardId, 'edit'] as const
 }

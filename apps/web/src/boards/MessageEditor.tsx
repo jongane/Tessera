@@ -1,6 +1,10 @@
 import { type Editor, EditorContent, Extension, useEditor } from '@tiptap/react'
 import { type ReactNode, useEffect, useState } from 'react'
-import { EditorToolbar, type ToolbarButton } from '../ui/editor-toolbar'
+import {
+  EditorToolbar,
+  NumberedListIcon,
+  type ToolbarButton,
+} from '../ui/editor-toolbar'
 import { messageExtensions } from './message-extensions'
 import { markdownOf } from './message-text'
 
@@ -133,20 +137,5 @@ export function MessageEditor({
       <EditorContent editor={editor} />
       {children?.(editor)}
     </div>
-  )
-}
-
-// Three numbered lines. Drawn, as the digit "1." would not be part of the
-// button's name.
-function NumberedListIcon() {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-      <rect x="1" y="2" width="3" height="3" />
-      <rect x="1" y="6.5" width="3" height="3" />
-      <rect x="1" y="11" width="3" height="3" />
-      <rect x="6" y="2.5" width="9" height="2" />
-      <rect x="6" y="7" width="9" height="2" />
-      <rect x="6" y="11.5" width="9" height="2" />
-    </svg>
   )
 }

@@ -17,7 +17,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from './client'
-import { BOARD_RELOAD_MS, boardKey } from './query-keys'
+import { boardEditKey, boardKey } from './query-keys'
 
 // Changes to one card, made from the card panel. Each shows on screen
 // straight away, on the board's copy of the card, which the panel reads
@@ -38,6 +38,7 @@ function useCardMutation<Input, Output>(
   const queryClient = useQueryClient()
   const key = boardKey(boardId)
   return useMutation({
+    mutationKey: boardEditKey(boardId),
     mutationFn: send,
     onMutate: async (input: Input) => {
       await queryClient.cancelQueries({ queryKey: key, exact: true })
@@ -336,6 +337,5 @@ export function useCardRelatives(boardId: string, cardId: string | null) {
     queryKey: [...boardKey(boardId), 'relatives', cardId],
     queryFn: () => api<CardRelatives>(`/cards/${cardId}/relatives`),
     enabled: cardId !== null,
-    refetchInterval: BOARD_RELOAD_MS,
   })
 }

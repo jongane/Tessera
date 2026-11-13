@@ -40,6 +40,8 @@ import {
   useTurnItemIntoSubtask,
 } from '../api/checklists'
 import { Alert } from '../ui/Alert'
+import { TheirVersion } from '../live/their-change'
+import { useTheirChange } from '../live/use-their-change'
 import { Button } from '../ui/Button'
 import { checkForm } from '../ui/form-errors'
 import { TextField } from '../ui/TextField'
@@ -263,7 +265,9 @@ function ItemRow({
 }
 
 // Enter or leaving the box saves; Escape puts the text back. Gives the new
-// text, or null when nothing changed.
+// text, or null when nothing changed. If someone else changed the item's text
+// meanwhile, their version is shown under the box, and leaving the box no
+// longer saves (docs/web-app.md, section 6).
 function ItemTextBox({
   text,
   onDone,
@@ -274,6 +278,7 @@ function ItemTextBox({
   const id = useId()
   const [draft, setDraft] = useState(text)
   const [error, setError] = useState<string>()
+  const change = useTheirChange(text, true)
   // Leaving the box after Enter or Escape must not save again.
   const done = useRef(false)
 
@@ -314,7 +319,11 @@ function ItemTextBox({
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={onKeyDown}
-        onBlur={commit}
+        onBlur={() => {
+          if (change.theirs === null) {
+            commit()
+          }
+        }}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         className="min-h-8 min-w-0 rounded-md border border-line-strong px-2 aria-invalid:border-danger"
@@ -323,6 +332,17 @@ function ItemTextBox({
         <p id={`${id}-error`} className="text-danger">
           {error}
         </p>
+      )}
+      {change.theirs !== null && (
+        <TheirVersion
+          onUseTheirs={() => {
+            setDraft(change.theirs ?? '')
+            change.seen()
+          }}
+          onKeepMine={change.seen}
+        >
+          <p>{change.theirs}</p>
+        </TheirVersion>
       )}
     </div>
   )

@@ -1,15 +1,14 @@
 import type { NewChatBody, Chat, ChatLink } from '@tessera/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import { BOARD_RELOAD_MS, boardKey, chatsKey } from './query-keys'
+import { boardKey, chatsKey } from './query-keys'
 
-// The general chat first, then the others oldest first. Reloads with the
-// board (docs/web-app.md, section 6).
+// The general chat first, then the others oldest first. Reloads when the
+// server says the chat list changed (docs/web-app.md, section 6).
 export function useChats(boardId: string) {
   return useQuery({
     queryKey: chatsKey(boardId),
     queryFn: () => api<Chat[]>(`/boards/${boardId}/chats`),
-    refetchInterval: BOARD_RELOAD_MS,
   })
 }
 

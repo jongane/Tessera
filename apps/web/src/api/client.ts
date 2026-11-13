@@ -1,4 +1,5 @@
 import type { ApiErrorBody } from '@tessera/shared'
+import { currentConnectionId } from '../live/live-connection'
 
 // A refusal from the API (4xx or 5xx), or no answer at all (status 0).
 // `message` can be shown to people as it is.
@@ -38,7 +39,7 @@ export async function api<T>(
     response = await fetch(new URL(`/api${path}`, window.location.origin), {
       method,
       credentials: 'same-origin',
-      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+      headers: requestHeaders(method, body !== undefined),
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
@@ -52,6 +53,20 @@ export async function api<T>(
     return undefined as T
   }
   return (await response.json()) as T
+}
+
+// Every save says which live connection (tab) made it, so that tab can
+// ignore the signal about its own change (docs/api.md, "Live updates").
+function requestHeaders(method: string, hasBody: boolean) {
+  const headers: Record<string, string> = {}
+  if (hasBody) {
+    headers['Content-Type'] = 'application/json'
+  }
+  const connectionId = currentConnectionId()
+  if (method !== 'GET' && connectionId) {
+    headers['X-Live-Connection'] = connectionId
+  }
+  return headers
 }
 
 async function errorBody(

@@ -98,7 +98,9 @@ test('move a card with the keyboard', async ({ page }) => {
 
   // Space picks the card up, the arrow keys move it, Space drops it. Each
   // step is read out, so wait for it as a screen reader user would.
-  const announcement = page.getByRole('status')
+  // The drag-and-drop announcements, not the Reconnecting… status region
+  // (live updates, criterion 40), which is always in the page too.
+  const announcement = page.locator('[role="status"][id^="DndLiveRegion"]')
   await card(page, 'To do', 'Sign-up page').focus()
   await page.keyboard.press('Space')
   await expect(announcement).toHaveText(/is in To do, place 2 of 2/)

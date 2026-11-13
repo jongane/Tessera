@@ -6,7 +6,7 @@ This page shows what is built, what is left for the first version (the MVP), and
 
 ## Where we are
 
-The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version except attachments, and chats with messages (sending, editing, deleting; in the chat messages pull request, still open). Chats do not update live yet, and files and AI are not started.
+The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version except attachments, chats with messages (sending, editing, deleting; #44), and live updates (#45). Boards, cards, the open card, chats and messages now update without a reload. Files and AI are not started.
 
 ## The flowchart
 
@@ -18,7 +18,7 @@ flowchart TD
     classDef later fill:#f3f4f6,stroke:#6b7280,color:#111827
     classDef idea fill:#ffffff,stroke:#9ca3af,color:#374151,stroke-dasharray: 4 4
 
-    subgraph Built["Built (merged PRs up to #41)"]
+    subgraph Built["Built (merged PRs up to #44, and #45)"]
         F[Foundation: repo, CI, Claude review, sub agents]
         A[API: accounts, projects, boards, cards, chats, card features]
         W[Web app: sign in, board view, chat panel, settings, card panel]
@@ -49,9 +49,9 @@ flowchart TD
     R --> L1 & L2 & L3 & L4 & L5
     R -.-> I1 & I2
 
-    class F,A,W,N1 done
-    class N2 next
-    class N3,N4,R mvp
+    class F,A,W,N1,N2 done
+    class N3 next
+    class N4,R mvp
     class L1,L2,L3,L4,L5 later
     class I1,I2 idea
 ```
@@ -63,7 +63,7 @@ Green is done, amber is next, blue is the rest of the MVP, grey is after the MVP
 | MVP item (from PROJECT.md) | Status |
 |---|---|
 | 1. Users and sign-in; a project with members | Done |
-| 2. Boards with kanban cards, a general chat, and multiple chats | Boards, cards, chats and chat messages are done (messages built in the chat messages pull request, agreed 2026-11-09). Live updates are still to build, in their own pull request next |
+| 2. Boards with kanban cards, a general chat, and multiple chats | Done: boards, cards, chats, chat messages (#44) and live updates (#45) |
 | 3. Card and chat linking, the "Create a card?" prompt and retroactive creation | Done |
 | 4. File upload attached to a card or message | Not started (needs MinIO) |
 | 5. AI provider layer with chat summaries and project questions, off by default | Not started |
@@ -73,10 +73,10 @@ Green is done, amber is next, blue is the rest of the MVP, grey is after the MVP
 Each step gets its own plan, approved before building, as usual.
 
 1. **Refuse hidden NUL characters** in every text field. A small clean-up left from web PR 7. Done in #43.
-2. **Chat messages and live updates**, in two pull requests (agreed 2026-11-09). Messages come before attachments and AI because both depend on them.
-   - **Chat messages:** built in the first pull request (still open). Sending, editing, deleting, Markdown, card-number and website links. They refresh with the existing 30-second reload.
-   - **Live updates (WebSockets):** next, in their own pull request with its own plan. They cover messages, board cards, the open card panel and the sidebar's chat list, and remove the 30-second reload ([web-app.md](web-app.md) section 6). It also has to fix a known limit left by the messages PR: older messages kept on screen do not show other people's edits or deletes until the chat is reopened (agreed 2026-11-10).
-3. **File attachments** on a card or on a message, stored in MinIO, 100 MB per file by default ([card-features.md](card-features.md)).
+2. **Chat messages and live updates**, in two pull requests (agreed 2026-11-09). Messages come before attachments and AI because both depend on them. Done.
+   - **Chat messages:** built in #44. Sending, editing, deleting, Markdown, card-number and website links.
+   - **Live updates (WebSockets):** built in #45. They cover messages, board cards, the open card panel and the sidebar's chat list, and the 30-second reload is gone ([web-app.md](web-app.md) section 6, [api.md](api.md) "Live updates", [ADR 0002](adr/0002-live-updates-signals-then-reload.md)). Older messages kept on screen now show other people's edits and deletes.
+3. **File attachments** (next) on a card or on a message, stored in MinIO, 100 MB per file by default ([card-features.md](card-features.md)).
 4. **AI**: the provider layer (Claude first), turning AI on per project by a project admin, summarising a chat and answering questions about a project.
 
 ## Done so far
@@ -91,7 +91,8 @@ Each step gets its own plan, approved before building, as usual.
 | API for the web app | Card order, board card summaries, new card from a chat, chat rename, relationship colours, card search, time in the project's time zone, subtask list details | #18, #25, #26, #28, #30, #35, #36, #37 |
 | Web app | Sign in and projects, board view and dockable chat panel, project settings and admin screen, card panel, checklists, subtasks, time and timer, Activity tab | #22, #27, #29, #31, #32, #38 to #41 |
 | Input safety | Hidden NUL characters refused in every text field and anywhere in a request ([api.md](api.md) "Text with a hidden character") | #43 |
-| Chat messages | Messages table, API to send, list, edit and delete messages, and the chat panel's message list and message box (the pull request number is added when it is opened) | this pull request |
+| Chat messages | Messages table, API to send, list, edit and delete messages, and the chat panel's message list and message box | #44 |
+| Live updates | Socket.IO live connection with "something changed" signals, boards, the open card, the chat list and messages updating without a reload, the "Reconnecting…" bar, a panel for when someone changes the field you are editing, and `GET /api/messages/:id` | #45 |
 
 ## After the MVP
 

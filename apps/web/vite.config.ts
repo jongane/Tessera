@@ -7,9 +7,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     // The web app and the API share one address (docs/adr/0001), so during
-    // development the dev server passes /api on to the API.
+    // development the dev server passes /api, and the live connection
+    // (/socket.io, WebSocket upgrades included), on to the API.
     proxy: {
       '/api': 'http://localhost:3000',
+      '/socket.io': { target: 'http://localhost:3000', ws: true },
     },
   },
   test: {
