@@ -37,21 +37,38 @@ export class LiveGateway implements OnGatewayInit {
   }
 
   // Joining a board leaves the one before: a tab shows one board at a time.
+  // The last board asked for wins, even when an earlier answer comes later.
   @SubscribeMessage('join-board')
   async joinBoard(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: unknown,
   ): Promise<{ ok: boolean }> {
     const parsed = joinSchema.safeParse(body);
+    if (!parsed.success) {
+      return { ok: false };
+    }
+    const { boardId } = parsed.data;
     const userId = client.data.userId as string;
+    client.data.wantedBoard = boardId;
+    if (!(await this.stillSignedIn(client))) {
+      return { ok: false };
+    }
     if (
-      !parsed.success ||
-      !(await this.live.mayJoin(userId, parsed.data.boardId))
+      !(await this.live.mayJoin(userId, boardId)) ||
+      client.data.wantedBoard !== boardId
     ) {
       return { ok: false };
     }
     await leaveBoards(client);
-    await client.join(boardRoom(parsed.data.boardId));
+    await client.join(boardRoom(boardId));
+    // Removed from the project while joining: the room must not keep them.
+    if (
+      client.data.wantedBoard !== boardId ||
+      !(await this.live.mayJoin(userId, boardId))
+    ) {
+      await client.leave(boardRoom(boardId));
+      return { ok: false };
+    }
     return { ok: true };
   }
 
@@ -59,8 +76,23 @@ export class LiveGateway implements OnGatewayInit {
   async leaveBoard(
     @ConnectedSocket() client: Socket,
   ): Promise<{ ok: boolean }> {
+    client.data.wantedBoard = null;
     await leaveBoards(client);
     return { ok: true };
+  }
+
+  // A session that has ended or expired cannot join, and its connection
+  // closes.
+  private async stillSignedIn(client: Socket): Promise<boolean> {
+    const tokenHash = client.data.tokenHash as string | undefined;
+    if (
+      tokenHash === undefined ||
+      (await this.live.sessionIsValid(tokenHash))
+    ) {
+      return true;
+    }
+    client.disconnect(true);
+    return false;
   }
 
   private async signIn(socket: Socket): Promise<void> {

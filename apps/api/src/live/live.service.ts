@@ -60,6 +60,50 @@ export class LiveService {
     return board !== null;
   }
 
+  async sessionIsValid(tokenHash: string): Promise<boolean> {
+    const session = await this.prisma.session.findUnique({
+      where: { tokenHash },
+      select: { expiresAt: true },
+    });
+    return session !== null && session.expiresAt.getTime() > Date.now();
+  }
+
+  // The connection id a save names counts only when it is a live connection
+  // of the same session as the save; anything else is nobody's.
+  attribute(header: string | null, tokenHash: string | null): string | null {
+    if (header === null || tokenHash === null) {
+      return null;
+    }
+    const socket = this.server?.sockets.sockets.get(header);
+    return socket?.data.tokenHash === tokenHash ? header : null;
+  }
+
+  // The sessions of an account changed (a password change ended the others):
+  // connections of sessions that no longer exist close.
+  async endEndedSessions(userId: string): Promise<void> {
+    const kept = new Set(
+      (
+        await this.prisma.session.findMany({
+          where: { userId },
+          select: { tokenHash: true },
+        })
+      ).map((s) => s.tokenHash),
+    );
+    for (const socket of (await this.server?.fetchSockets()) ?? []) {
+      if (socket.data.userId === userId && !kept.has(socket.data.tokenHash)) {
+        socket.disconnect(true);
+      }
+    }
+  }
+
+  async boardOfColumn(columnId: string): Promise<string | null> {
+    const row = await this.prisma.column.findUnique({
+      where: { id: columnId },
+      select: { boardId: true },
+    });
+    return row?.boardId ?? null;
+  }
+
   // Someone left or was removed: their connections leave the project's
   // boards at once, without reconnecting.
   async leaveProject(projectId: string, userId: string): Promise<void> {
@@ -127,6 +171,10 @@ export class LiveService {
     for (const boardId of plan.chats) {
       this.emit(chatsSignal(boardId, by));
     }
+  }
+
+  sendBoard(by: string | null, boardId: string): void {
+    this.emit(boardSignal(boardId, by));
   }
 
   sendChats(by: string | null, boardId: string): void {

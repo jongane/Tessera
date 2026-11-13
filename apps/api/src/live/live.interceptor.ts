@@ -6,6 +6,9 @@ import {
   type NestInterceptor,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { z } from 'zod';
+import { SESSION_COOKIE } from '../auth/session-cookie.js';
+import { hashToken } from '../auth/session-token.js';
 import { from, type Observable, switchMap } from 'rxjs';
 import type { AuthenticatedRequest } from '../auth/signed-in-user.js';
 import { type Rule, liveRules } from './live-rules.js';
@@ -52,14 +55,25 @@ export class LiveInterceptor implements NestInterceptor {
     request: AuthenticatedRequest,
     response: Response,
   ) {
+    // A malformed id is refused by the endpoint itself, quietly.
+    if (
+      !Object.values(request.params).every((v) => z.uuid().safeParse(v).success)
+    ) {
+      return null;
+    }
+    const cookies = request.cookies as Record<string, string> | undefined;
+    const token = cookies?.[SESSION_COOKIE];
     try {
       return await rule({
         live: this.live,
-        by: connectionIdFrom(request.get('x-live-connection')),
+        by: this.live.attribute(
+          connectionIdFrom(request.get('x-live-connection')),
+          token ? hashToken(token) : null,
+        ),
         userId: request.user?.id,
         params: request.params as Record<string, string>,
         body: request.body as Record<string, unknown> | undefined,
-        cookies: request.cookies as Record<string, string> | undefined,
+        cookies,
         statusCode: () => response.statusCode,
       });
     } catch (error) {

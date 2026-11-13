@@ -120,7 +120,26 @@ export const liveRules: Record<string, Rule> = {
       chats: true,
       below: true,
     });
-    return () => c.live.send(c.by, plan);
+    return async () => {
+      // Subtasks moved under another card: that card and its board change.
+      const choices = (c.body?.['subtasks'] ?? {}) as Record<
+        string,
+        { action?: string; parentId?: string }
+      >;
+      const parents = Object.values(choices)
+        .map((choice) => choice.parentId)
+        .filter((id): id is string => typeof id === 'string');
+      const moved = await c.live.plan(parents, { board: true });
+      c.live.send(c.by, c.live.merge(plan, moved));
+    };
+  },
+  'PATCH columns/:columnId': async (c) => {
+    const boardId = await c.live.boardOfColumn(c.params['columnId']!);
+    return () => {
+      if (boardId) {
+        c.live.sendBoard(c.by, boardId);
+      }
+    };
   },
   'POST cards/:cardId/subtasks': createsCard((c) => [cardParam(c)]),
   'PUT cards/:cardId/parent': movesCardTree,
@@ -176,6 +195,11 @@ export const liveRules: Record<string, Rule> = {
 
   'DELETE projects/:projectId/members/:userId': (c) => async () => {
     await c.live.leaveProject(c.params['projectId']!, c.params['userId']!);
+  },
+  'POST auth/password': (c) => async () => {
+    if (c.userId) {
+      await c.live.endEndedSessions(c.userId);
+    }
   },
   'POST auth/sign-out': (c) => async () => {
     const token = c.cookies?.[SESSION_COOKIE];
