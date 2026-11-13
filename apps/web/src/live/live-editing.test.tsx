@@ -47,8 +47,9 @@ async function joined() {
 async function openDescription(card: BoardCard = withDescription) {
   const app = openCard(card)
   const panel = await cardPanel()
+  // The description editor loads lazily, so wait for its button.
   await app.user.click(
-    within(panel).getByRole('button', { name: 'Edit description' }),
+    await within(panel).findByRole('button', { name: 'Edit description' }),
   )
   const editor = await within(panel).findByRole('textbox', {
     name: 'Description',
