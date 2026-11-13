@@ -54,12 +54,14 @@ The API tells open browser tabs that something changed, so screens stay current 
 
 - The live connection uses Socket.IO at the path `/socket.io`, on the same address as the API (so there is still no CORS, see [ADR 0001](adr/0001-web-app-and-api-on-one-origin.md)). It is not under `/api`.
 - The session cookie is checked when the connection is made (the handshake). A connection without a valid session is refused with the error "Please sign in".
-- Signing out ends that session's live connections straight away.
+- Signing out ends that session's live connections straight away. So does changing the password: it ends the person's other sessions, and the live connections of every session it ended are closed, including the browser that made the change, which then reconnects with its new session.
+- Sessions that expire are swept every `LIVE_SESSION_SWEEP_MS` milliseconds (default 30000, read once when the API starts), and the live connections of an expired session are closed, without waiting for it to ask for anything. This is the only setting for live updates, an optional environment variable of the API.
+- A `join-board` from a session that has ended or expired gets `{ ok: false }` and its connection is closed.
 - The MVP runs on one server. Running several servers would need a shared message layer (Redis) so a signal reaches tabs connected to another server; that is left for later.
 
 ### Rooms
 
-A signal goes to a **board's room**. A tab is in one board's room at a time, because it shows one board at a time.
+A signal goes to a **board's room**. A tab is in one board's room at a time, because it shows one board at a time. If a tab asks for several boards in quick succession, the last board asked wins: an earlier join that is answered later gets `{ ok: false }` and leaves the tab out of that room. Someone removed from the project while a join is being answered is left out too.
 
 | Message from the browser | What it does | Answer |
 |---|---|---|
@@ -93,15 +95,16 @@ The server sends the event `signal` to everyone in the board's room:
 
 **Who sends which signal.** A signal is sent only after a save worked. A refused or failed save (400, 403, 404, 409) sends none, and neither does sending the same message again (the answer 200 above).
 
-- **Cards.** Creating, editing (title, description, estimate, priority, due date and so on), moving, completing, reopening, deleting; changing assignees, the owner or labels on a card; changing a checklist or one of its items; changing a subtask or a time entry; starting or stopping a timer. Each sends a `card` signal for the card. Creating, moving and deleting a card also send `board`.
+- **Cards.** Creating, editing (title, description, estimate, priority, due date and so on), moving, completing, reopening, deleting; changing assignees, the owner or labels on a card; changing a checklist or one of its items; changing a subtask or a time entry; starting or stopping a timer. Each sends a `card` signal for the card. Creating, moving and deleting a card also send `board`. When a deleted card's subtasks are moved under a new parent, that parent card gets a `card` signal and its board a `board` signal too.
 - **Cards above it.** A card's progress, time and totals show on the cards above it (its parents), so each of those parents gets a `card` signal too. A change that touches cards on two boards (a subtask on another board, a parent's totals, moving a card with its subtasks under another parent) sends signals to both boards' rooms.
 - **Chats.** Creating a chat sends `chats`. Linking a chat to a card, or unlinking it, sends `chats`, and `card` for each card it was or is on. Creating or deleting a card, or making a subtask from a checklist item, also sends `chats`, because a card comes with its own chat.
 - **Messages.** Sending, editing and deleting a message send `message` with `chatId` and `messageId`.
+- **Columns.** Renaming a column or changing its done flag (`PATCH /api/columns/:columnId`) sends `board`.
 - **Not live.** Project-wide changes (labels, members, project settings, the project list) send no signals. Screens show them when you come back to the browser tab ([web-app.md](web-app.md) section 6).
 
 ### `X-Live-Connection`
 
-Every save the web app sends carries the header `X-Live-Connection` with the id of that tab's live connection. The server copies it into the `by` of the signals the save causes, so the tab that made the change can ignore its own signal (its screen is already up to date). The header is optional and is not checked; without it `by` is `null` and everyone, the sender included, reloads.
+Every save the web app sends carries the header `X-Live-Connection` with the id of that tab's live connection. The server copies it into the `by` of the signals the save causes, so the tab that made the change can ignore its own signal (its screen is already up to date). The header is optional, but it is checked: it must name a live connection of the same signed-in session as the save. Otherwise (missing, made up, or another person's connection id) `by` is `null` and everyone, the sender included, reloads. No other value ever reaches a signal.
 
 ## Endpoints
 

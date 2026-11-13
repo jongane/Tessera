@@ -10,7 +10,7 @@ The web app keeps screens current with a live connection that carries only "some
 - **One server for the MVP.** Signals are sent from memory inside the single API process. Several servers would need Redis (Socket.IO's Redis adapter) so that a signal reaches tabs connected to another server. We leave that until it is needed.
 - **Nothing private over the socket.** Because only an id travels, there is nothing to leak if a connection is wrongly joined: the worst case is an extra reload that the normal permission checks answer.
 - **One copy of the permission rules.** Every reload is an ordinary request, so it passes the same checks as any other. We write no second set of rules for the live connection.
-- **Your own signals are ignored.** Each save carries the tab's connection id (`X-Live-Connection`), and the server puts it in the signal's `by`.
+- **Your own signals are ignored.** Each save carries the tab's connection id (`X-Live-Connection`). The server checks that it names a live connection of the same signed-in session, and only then puts it in the signal's `by`; otherwise `by` is null, so a made-up id can never reach a signal or hide a change from someone else.
 
 ## Alternatives we did not choose
 
