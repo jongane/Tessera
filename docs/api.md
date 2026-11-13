@@ -99,7 +99,7 @@ The server sends the event `signal` to everyone in the board's room:
 - **Cards above it.** A card's progress, time and totals show on the cards above it (its parents), so each of those parents gets a `card` signal too. A change that touches cards on two boards (a subtask on another board, a parent's totals, moving a card with its subtasks under another parent) sends signals to both boards' rooms.
 - **Chats.** Creating a chat sends `chats`. Linking a chat to a card, or unlinking it, sends `chats`, and `card` for each card it was or is on. Creating or deleting a card, or making a subtask from a checklist item, also sends `chats`, because a card comes with its own chat.
 - **Messages.** Sending, editing and deleting a message send `message` with `chatId` and `messageId`.
-- **Columns.** Renaming a column or changing its done flag (`PATCH /api/columns/:columnId`) sends `board`.
+- **Columns.** Changing a column's done flag (`PATCH /api/columns/:columnId`) sends `board`.
 - **Not live.** Project-wide changes (labels, members, project settings, the project list) send no signals. Screens show them when you come back to the browser tab ([web-app.md](web-app.md) section 6).
 
 ### `X-Live-Connection`
