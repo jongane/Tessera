@@ -2,7 +2,7 @@ import type { BoardView, Card, NewCardBody } from '@tessera/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { findCard, moveCardInView } from '../boards/move-card'
 import { api } from './client'
-import { boardKey } from './query-keys'
+import { boardEditKey, boardKey } from './query-keys'
 
 export function useBoardView(boardId: string) {
   return useQuery({
@@ -38,6 +38,7 @@ export function useMoveCard(boardId: string) {
   const queryClient = useQueryClient()
   const key = boardKey(boardId)
   return useMutation({
+    mutationKey: boardEditKey(boardId),
     mutationFn: ({ cardId, ...body }: CardMove) =>
       api<Card>(`/cards/${cardId}/move`, { method: 'POST', body }),
     onMutate: async (move) => {

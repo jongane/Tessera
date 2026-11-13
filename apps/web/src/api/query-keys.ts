@@ -13,3 +13,10 @@ export function chatsKey(boardId: string) {
 export function messagesKey(chatId: string) {
   return ['chats', chatId, 'messages'] as const
 }
+
+// Every change this tab makes to a card or its place on the board. A reload
+// the server asks for waits while one is being saved, so it cannot put back
+// what the change has already shown; the change reloads when it has settled.
+export function boardEditKey(boardId: string) {
+  return ['boards', boardId, 'edit'] as const
+}

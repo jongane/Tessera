@@ -2,7 +2,12 @@ import type { Message, MessagePage } from '@tessera/shared'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { checklistsBusy } from '../api/checklists'
-import { boardKey, chatsKey, messagesKey } from '../api/query-keys'
+import {
+  boardEditKey,
+  boardKey,
+  chatsKey,
+  messagesKey,
+} from '../api/query-keys'
 import { ticksBusy } from '../api/subtasks'
 import type { LiveSignal } from './live-connection'
 
@@ -61,6 +66,11 @@ export function reloadForSignal(
   switch (signal.type) {
     case 'board':
     case 'card':
+      // Our own edit or move is still being saved: it reloads the board
+      // when it has settled, with their change too.
+      if (queryClient.isMutating({ mutationKey: boardEditKey(boardId) }) > 0) {
+        return
+      }
       // Only the board: its chats have their own signal.
       void queryClient.invalidateQueries({
         queryKey: boardKey(boardId),

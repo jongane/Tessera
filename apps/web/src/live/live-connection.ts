@@ -21,9 +21,10 @@ export interface LiveConnection {
   // header; null while there is none.
   readonly id: string | null
   readonly status: LiveStatus
-  // Asks to be in a board's room. The server forgets rooms when a
-  // connection drops, so the app asks again once it is back.
-  join(boardId: string): void
+  // Asks to be in a board's room; resolves to whether the server said ok.
+  // The server forgets rooms when a connection drops, so the app asks again
+  // once it is back. The app reloads what the board shows after an ok.
+  join(boardId: string): Promise<boolean>
   leave(boardId: string): void
   onSignal(listener: (signal: LiveSignal) => void): () => void
   onStatus(listener: (status: LiveStatus) => void): () => void
@@ -56,9 +57,17 @@ function openSocketConnection(): LiveConnection {
     get status() {
       return status
     },
-    join(boardId) {
-      if (socket.connected) {
-        socket.emit('join-board', { boardId })
+    async join(boardId) {
+      if (!socket.connected) {
+        return false
+      }
+      try {
+        const reply = (await socket
+          .timeout(10_000)
+          .emitWithAck('join-board', { boardId })) as { ok?: boolean }
+        return reply.ok === true
+      } catch {
+        return false
       }
     },
     leave(boardId) {

@@ -56,9 +56,11 @@ export function MessageItem({
   const wasEditing = useRef(false)
   useEffect(() => {
     if (wasEditing.current && !editing) {
-      item.current
-        ?.querySelector<HTMLElement>('button[aria-label="Message options"]')
-        ?.focus()
+      // A deleted message has no menu: the message itself takes the focus.
+      const menu = item.current?.querySelector<HTMLElement>(
+        'button[aria-label="Message options"]',
+      )
+      ;(menu ?? item.current)?.focus()
     }
     wasEditing.current = editing
   }, [editing])
@@ -82,6 +84,7 @@ export function MessageItem({
   return (
     <li
       ref={item}
+      tabIndex={-1}
       className={`relative flex flex-col gap-0.5 ${showHeader ? 'mt-3' : ''} ${outgoing?.status === 'sending' ? 'opacity-60' : ''}`}
     >
       {showHeader ? (

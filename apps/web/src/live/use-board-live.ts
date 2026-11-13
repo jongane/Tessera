@@ -1,12 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { useLiveConnection } from './use-live-connection'
 import { reloadEverything, reloadForSignal } from './reload'
+import { useLiveConnection } from './use-live-connection'
 
 // While a board is open: the tab is in the board's room, and the signals of
 // other people's changes reload what they name (docs/web-app.md, section 6).
-// After a break in the connection the room is joined again, and everything
-// on screen loads once to catch up. `openCardId` is the card in the panel.
+// Whenever the server confirms a join (the first time, a new board, after a
+// break in the connection) everything on screen loads once, to catch up with
+// what changed before the tab was in the room. `openCardId` is the card in
+// the panel.
 export function useBoardLive(boardId: string, openCardId: string | null) {
   const connection = useLiveConnection()
   const queryClient = useQueryClient()
@@ -20,8 +22,15 @@ export function useBoardLive(boardId: string, openCardId: string | null) {
     if (!connection) {
       return
     }
-    let wasDown = false
-    connection.join(boardId)
+    let active = true
+    function join() {
+      void connection?.join(boardId).then((ok) => {
+        if (ok && active) {
+          reloadEverything(queryClient, boardId)
+        }
+      })
+    }
+    join()
     const stopSignals = connection.onSignal((signal) => {
       // Our own change is already on screen.
       if (signal.by !== null && signal.by === connection.id) {
@@ -32,17 +41,12 @@ export function useBoardLive(boardId: string, openCardId: string | null) {
       }
     })
     const stopStatus = connection.onStatus((status) => {
-      if (status === 'disconnected') {
-        wasDown = true
-        return
-      }
-      connection.join(boardId)
-      if (wasDown) {
-        wasDown = false
-        reloadEverything(queryClient, boardId)
+      if (status === 'connected') {
+        join()
       }
     })
     return () => {
+      active = false
       stopSignals()
       stopStatus()
       connection.leave(boardId)

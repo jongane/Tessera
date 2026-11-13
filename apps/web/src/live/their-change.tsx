@@ -20,7 +20,7 @@ export function TheirVersion({
       aria-labelledby={noteId}
       className="flex flex-col gap-2 rounded-lg border border-line-strong bg-subtle p-3"
     >
-      <p id={noteId} className="font-semibold">
+      <p id={noteId} role="status" className="font-semibold">
         Someone changed this while you were editing.
       </p>
       <div className="break-words">{children}</div>
