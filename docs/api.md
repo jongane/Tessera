@@ -2,7 +2,7 @@
 
 The API is what the web app (and anything else) talks to. Every address starts with `/api`, and request and response bodies are JSON. When the API runs locally, it is at http://localhost:3000/api.
 
-Status: every feature the API has so far can be reached through these endpoints. Chat messages are built (see "Messages" below). File attachments and the AI features come later.
+Status: every feature the API has so far can be reached through these endpoints. Chat messages and live updates are built (see "Messages" and "Live updates" below). File attachments and the AI features come later.
 
 ## How signing in works
 
@@ -45,6 +45,63 @@ A NUL character (code 0, written `\u0000`) is invisible, and PostgreSQL cannot s
 - **The whole API** also refuses it with 400 and the same message, wherever it is in the request: a body field name or value, a query value (for example the card search `q`) or a part of the URL (for example `by-code/:code`). This check runs before the other input rules, so a field added later that forgets the shared rule still gets a clear 400 and never a 500. It runs after the sign-in check, so someone not signed in gets 401 "Please sign in" instead, which tells a stranger nothing (agreed 2026-11-08, Jon).
 - **Two exceptions.** Sign-in `password` and change-password `currentPassword` may hold one, as before, because they are only compared with the stored hash and never saved as text. A new password (sign-up `password`, change-password `newPassword`) refuses it.
 - Other control characters, and tabs, new lines and emoji, are still accepted.
+
+## Live updates
+
+The API tells open browser tabs that something changed, so screens stay current without waiting for a reload. It does this with **signals, then reload**: a signal says only *what* changed, never the data itself. The browser then loads that piece again through the normal endpoints above, so every reload goes through the same permission checks as any other request. Nothing private travels over the live connection. The reasons are in [ADR 0002](adr/0002-live-updates-signals-then-reload.md).
+
+### Connecting
+
+- The live connection uses Socket.IO at the path `/socket.io`, on the same address as the API (so there is still no CORS, see [ADR 0001](adr/0001-web-app-and-api-on-one-origin.md)). It is not under `/api`.
+- The session cookie is checked when the connection is made (the handshake). A connection without a valid session is refused with the error "Please sign in".
+- Signing out ends that session's live connections straight away.
+- The MVP runs on one server. Running several servers would need a shared message layer (Redis) so a signal reaches tabs connected to another server; that is left for later.
+
+### Rooms
+
+A signal goes to a **board's room**. A tab is in one board's room at a time, because it shows one board at a time.
+
+| Message from the browser | What it does | Answer |
+|---|---|---|
+| `join-board` with `{ boardId }` | Joins that board's room, and leaves the one it was in. Allowed only for a member of the board's project | `{ ok: true }`, or `{ ok: false }` for a board that does not exist, a project you are not a member of, or a body that is not a board id. The server never says which |
+| `leave-board` | Leaves the current board's room | `{ ok: true }` |
+
+A connection that is not in a room receives nothing. Rooms are forgotten when a connection drops, so the browser joins again once it is back. Someone removed from a project (or who leaves it) leaves that project's boards' rooms at once, without reconnecting, and gets no more signals.
+
+### Signals
+
+The server sends the event `signal` to everyone in the board's room:
+
+```json
+{ "type": "card", "boardId": "…", "cardId": "…", "by": "Ab12…" }
+```
+
+| Field | Meaning |
+|---|---|
+| `type` | `card`, `board`, `chats` or `message` (see below) |
+| `boardId` | The board whose room gets the signal. Always present |
+| `cardId` | Only with `card`: the card that changed |
+| `chatId`, `messageId` | Only with `message`: the message that changed, and its chat |
+| `by` | The id of the connection that made the change (see `X-Live-Connection`), or `null` when the save did not say. A signal never holds text, names or other card content |
+
+| Type | Means | What the browser reloads |
+|---|---|---|
+| `card` | A card changed | The board; and the card panel, if it shows that card |
+| `board` | A card came, went or moved on the board | The board |
+| `chats` | The board's list of chats changed | The sidebar's chat list |
+| `message` | A message was sent, edited or deleted | That chat's messages. A message older than the latest page is loaded with `GET /api/messages/:messageId` and replaced in place |
+
+**Who sends which signal.** A signal is sent only after a save worked. A refused or failed save (400, 403, 404, 409) sends none, and neither does sending the same message again (the answer 200 above).
+
+- **Cards.** Creating, editing (title, description, estimate, priority, due date and so on), moving, completing, reopening, deleting; changing assignees, the owner or labels on a card; changing a checklist or one of its items; changing a subtask or a time entry; starting or stopping a timer. Each sends a `card` signal for the card. Creating, moving and deleting a card also send `board`.
+- **Cards above it.** A card's progress, time and totals show on the cards above it (its parents), so each of those parents gets a `card` signal too. A change that touches cards on two boards (a subtask on another board, a parent's totals, moving a card with its subtasks under another parent) sends signals to both boards' rooms.
+- **Chats.** Creating a chat sends `chats`. Linking a chat to a card, or unlinking it, sends `chats`, and `card` for each card it was or is on. Creating or deleting a card, or making a subtask from a checklist item, also sends `chats`, because a card comes with its own chat.
+- **Messages.** Sending, editing and deleting a message send `message` with `chatId` and `messageId`.
+- **Not live.** Project-wide changes (labels, members, project settings, the project list) send no signals. Screens show them when you come back to the browser tab ([web-app.md](web-app.md) section 6).
+
+### `X-Live-Connection`
+
+Every save the web app sends carries the header `X-Live-Connection` with the id of that tab's live connection. The server copies it into the `by` of the signals the save causes, so the tab that made the change can ignore its own signal (its screen is already up to date). The header is optional and is not checked; without it `by` is `null` and everyone, the sender included, reloads.
 
 ## Endpoints
 
@@ -129,6 +186,7 @@ A chat's messages. The text of a message is Markdown. Only project members may u
 
 | Method and path | Who | What it does |
 |---|---|---|
+| `GET /api/messages/:messageId` | Members | One message as it is now, in the same shape as in the list above. It lets a screen refresh an older message it kept after someone edited or deleted it (see "Live updates"). Non-members and unknown ids get 404 "Message not found"; an id that is not a UUID gets 400 |
 | `GET /api/chats/:chatId/messages?before=<messageId>` | Members | `{ messages, hasOlder }`: the newest 50 messages, oldest first. With `before`, the 50 sent just before that message, in the same order. They are ordered by time and then id, so messages sent at the same moment are never repeated or missed between pages. A `before` that is not a message id gets 400; one that is not a message of this chat gets 404 "Message not found" |
 | `POST /api/chats/:chatId/messages` | Members | Body `{ body, id? }`. Sends a message, written by you. Answers 201 with the message. `id` is optional: a UUID the browser makes for the message, so that sending it again ("Try again") never saves it twice. If a message with that `id` already exists in this chat, written by you, the answer is 200 with that message and nothing new is saved. If the `id` belongs to another person's message or to a message in another chat, the answer is 409 "This message id is already used" (agreed 2026-11-10) |
 | `PATCH /api/messages/:messageId` | The author only | Body `{ body }`. Edits the message, sets `editedAt` and answers with it. Anyone else, a project admin included, gets 403 "Only the author can edit a message". A deleted message gets 409 "This message was deleted". No history of earlier texts is kept (agreed 2026-11-09) |
