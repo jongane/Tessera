@@ -7,7 +7,11 @@ import { Alert } from '../ui/Alert'
 import { TheirVersion } from '../live/their-change'
 import { useTheirChange } from '../live/use-their-change'
 import { Button } from '../ui/Button'
-import { EditorToolbar, type ToolbarButton } from '../ui/editor-toolbar'
+import {
+  EditorToolbar,
+  NumberedListIcon,
+  type ToolbarButton,
+} from '../ui/editor-toolbar'
 import { markdownOf } from '../ui/markdown-of'
 import { checkForm } from '../ui/form-errors'
 
@@ -252,7 +256,7 @@ const BUTTONS: readonly ToolbarButton[] = [
     name: 'Numbered list',
     mark: 'orderedList',
     run: (e: Editor) => e.chain().focus().toggleOrderedList().run(),
-    look: '1.',
+    look: <NumberedListIcon />,
   },
   {
     name: 'Quote',

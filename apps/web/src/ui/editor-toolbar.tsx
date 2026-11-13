@@ -127,3 +127,18 @@ function LinkForm({ editor, onDone }: { editor: Editor; onDone: () => void }) {
     </form>
   )
 }
+
+// Three numbered lines. Drawn, as the digit "1." would not be part of the
+// button's name.
+export function NumberedListIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+      <rect x="1" y="2" width="3" height="3" />
+      <rect x="1" y="6.5" width="3" height="3" />
+      <rect x="1" y="11" width="3" height="3" />
+      <rect x="6" y="2.5" width="9" height="2" />
+      <rect x="6" y="7" width="9" height="2" />
+      <rect x="6" y="11.5" width="9" height="2" />
+    </svg>
+  )
+}

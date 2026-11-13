@@ -6,8 +6,7 @@ const SHOW_AFTER_MS = 3000
 
 // "Reconnecting…" at the top of the app, once the live connection has been
 // down for more than 3 seconds. It goes away when the connection is back,
-// with no message (docs/web-app.md, section 6). The region is always on the
-// page, so screen readers announce the text when it appears.
+// with no message (docs/web-app.md, section 6).
 export function ReconnectingBar() {
   const connection = useLiveConnection()
   const [down, setDown] = useState(false)
@@ -33,13 +32,15 @@ export function ReconnectingBar() {
     }
   }, [connection])
 
+  if (!down) {
+    return null
+  }
   return (
-    <div role="status">
-      {down && (
-        <p className="bg-subtle px-4 py-1.5 text-center text-sm font-semibold">
-          Reconnecting…
-        </p>
-      )}
-    </div>
+    <p
+      role="status"
+      className="bg-subtle px-4 py-1.5 text-center text-sm font-semibold"
+    >
+      Reconnecting…
+    </p>
   )
 }
