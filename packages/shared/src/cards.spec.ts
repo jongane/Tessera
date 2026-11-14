@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   cardChangesSchema,
   cardSearchQuerySchema,
+  CHOOSE_WHAT_HAPPENS_TO_FILES,
   completionSchema,
+  deleteCardQuerySchema,
   deleteCardSchema,
   MAX_ESTIMATE_MINUTES,
   moveCardSchema,
@@ -138,6 +140,55 @@ describe('deleteCardSchema', () => {
       deleteCardSchema.safeParse({ subtasks: { [id]: { action: 'move' } } })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('deleteCardQuerySchema', () => {
+  it('accepts no query, files=delete, or moveFilesTo with a card id', () => {
+    expect(deleteCardQuerySchema.safeParse({}).success).toBe(true);
+    expect(deleteCardQuerySchema.safeParse({ files: 'delete' }).success).toBe(
+      true,
+    );
+    expect(deleteCardQuerySchema.safeParse({ moveFilesTo: id }).success).toBe(
+      true,
+    );
+  });
+
+  it('refuses both files and moveFilesTo, saying so', () => {
+    const result = deleteCardQuerySchema.safeParse({
+      files: 'delete',
+      moveFilesTo: id,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(
+      'Choose either to delete the files or to move them, not both',
+    );
+  });
+
+  it('refuses a files value other than delete, and a repeated one', () => {
+    for (const files of ['keep', ['delete', 'delete']]) {
+      const result = deleteCardQuerySchema.safeParse({ files });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual(['files']);
+      expect(result.error?.issues[0]?.message).toBe(
+        'Invalid input: expected "delete"',
+      );
+    }
+  });
+
+  it('refuses a moveFilesTo that is not a card id, and unknown fields', () => {
+    expect(
+      deleteCardQuerySchema.safeParse({ moveFilesTo: 'nope' }).success,
+    ).toBe(false);
+    expect(deleteCardQuerySchema.safeParse({ extra: '1' }).success).toBe(false);
+  });
+});
+
+describe('CHOOSE_WHAT_HAPPENS_TO_FILES', () => {
+  it('is exported with the text the delete dialog and the API share', () => {
+    expect(CHOOSE_WHAT_HAPPENS_TO_FILES).toBe(
+      'Choose what happens to this card’s files',
+    );
   });
 });
 

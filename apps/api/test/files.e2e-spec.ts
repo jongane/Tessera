@@ -944,15 +944,39 @@ describe('Files on cards (e2e)', () => {
       );
 
       expect(response.status).toBe(400);
+      expect(response.body.message).toBe(
+        'Choose either to delete the files or to move them, not both',
+      );
+      await expectNothingDeleted(ana, card.id, 2);
+    });
+
+    // 31 (approved 2026-11-14: these messages stay as they are)
+    it('refuses a files value other than delete, with the message files: Invalid input: expected "delete"', async () => {
+      const { ana, card } = await withFiles();
+
+      const response = await ana.agent.delete(
+        `/api/cards/${card.id}?files=keep`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe(
+        'files: Invalid input: expected "delete"',
+      );
       await expectNothingDeleted(ana, card.id, 2);
     });
 
     // 31
-    it('refuses a files value other than delete', async () => {
+    it('refuses files given twice, with the same message', async () => {
       const { ana, card } = await withFiles();
 
-      await ana.agent.delete(`/api/cards/${card.id}?files=keep`).expect(400);
+      const response = await ana.agent.delete(
+        `/api/cards/${card.id}?files=delete&files=delete`,
+      );
 
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe(
+        'files: Invalid input: expected "delete"',
+      );
       await expectNothingDeleted(ana, card.id, 2);
     });
 
