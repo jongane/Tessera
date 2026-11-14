@@ -1,7 +1,7 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { takeNextCardNumber, takeNextSubtaskNumber } from './card-numbering.js';
-import { lockCardsInOrder } from './card-access.js';
+import { lockUntilCovered } from './card-access.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
 
 // The deepest a card can be: 0 is top level, so 4 means 5 levels in all.
@@ -44,25 +44,34 @@ export async function loadAncestorIds(
   return rows.map((row) => row.id);
 }
 
-// Moves `card`, with everything below it, under `newParent` (or to the top
-// level when null). The moved cards get fresh numbers and their old numbers
-// are kept, so references in chat still lead to them. Refuses a move under
-// the card itself or one of its subtasks, and one deeper than 5 levels.
+// Moves the card `cardId`, with everything below it, under `newParentId` (or
+// to the top level when null). The moved cards get fresh numbers and their old
+// numbers are kept, so references in chat still lead to them. Refuses a move
+// under the card itself or one of its subtasks, and one deeper than 5 levels.
 // The move is recorded in the history of every card it touches.
+//
+// Takes ids, not cards: everything is read again once the cards are locked
+// (in id order, as a delete does, so the two never wait on each other), so a
+// move that waited works from what the other change left.
 export async function moveSubtree(
   tx: Prisma.TransactionClient,
   actorId: string,
-  card: Card,
-  newParent: Card | null,
+  cardId: string,
+  newParentId: string | null,
 ): Promise<Card> {
-  // Lock in id order, as a delete does, so the two never wait on each other.
-  const unlocked = await loadSubtree(tx, card.id);
-  await lockCardsInOrder(tx, [
-    ...unlocked.map((member) => member.id),
-    ...(card.parentId ? [card.parentId] : []),
-    ...(newParent ? [newParent.id] : []),
-  ]);
-  const subtree = await loadSubtree(tx, card.id);
+  let state!: MoveState;
+  await lockUntilCovered(tx, async () => {
+    state = await readMoveState(tx, cardId, newParentId);
+    return [
+      ...state.subtree.map((member) => member.id),
+      ...(state.card.parentId ? [state.card.parentId] : []),
+      ...(newParentId ? [newParentId] : []),
+    ];
+  });
+  const { card, oldParent, newParent, subtree } = state;
+  if (card.parentId === (newParent?.id ?? null)) {
+    return card;
+  }
   if (newParent && subtree.some((member) => member.id === newParent.id)) {
     throw new ConflictException(
       'A card cannot go under itself or one of its own subtasks',
@@ -110,8 +119,40 @@ export async function moveSubtree(
       depth: newDepth,
     },
   });
-  await recordMove(tx, actorId, card, moved, newParent);
+  await recordMove(tx, actorId, card, moved, oldParent, newParent);
   return moved;
+}
+
+interface MoveState {
+  card: Card;
+  oldParent: Card | null;
+  newParent: Card | null;
+  subtree: TreeMember[];
+}
+
+export async function findCard(
+  tx: Prisma.TransactionClient,
+  cardId: string,
+): Promise<Card> {
+  const card = await tx.card.findUnique({ where: { id: cardId } });
+  if (!card) {
+    throw new NotFoundException('Card not found');
+  }
+  return card;
+}
+
+async function readMoveState(
+  tx: Prisma.TransactionClient,
+  cardId: string,
+  newParentId: string | null,
+): Promise<MoveState> {
+  const card = await findCard(tx, cardId);
+  return {
+    card,
+    oldParent: card.parentId ? await findCard(tx, card.parentId) : null,
+    newParent: newParentId ? await findCard(tx, newParentId) : null,
+    subtree: await loadSubtree(tx, cardId),
+  };
 }
 
 async function recordMove(
@@ -119,11 +160,9 @@ async function recordMove(
   actorId: string,
   before: Card,
   after: Card,
+  oldParent: Card | null,
   newParent: Card | null,
 ): Promise<void> {
-  const oldParent = before.parentId
-    ? await tx.card.findUniqueOrThrow({ where: { id: before.parentId } })
-    : null;
   await recordActivity(tx, after, actorId, 'PARENT_CHANGED', {
     from: oldParent && cardRef(oldParent),
     to: newParent && cardRef(newParent),

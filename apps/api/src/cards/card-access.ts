@@ -22,13 +22,18 @@ export async function findVisibleCard(
 // Holds the card's row until the transaction ends, so two changes to the
 // same card run one after the other. Without it, two people assigned at the
 // same moment could both become the owner, or two edits could both record
-// the same "from" value in the card's history.
+// the same "from" value in the card's history. Answers the card as it is now,
+// and "not found" if another request deleted it while this one waited.
 export async function lockCard(
   tx: Prisma.TransactionClient,
   cardId: string,
 ): Promise<Card> {
   await tx.$queryRaw`SELECT id FROM cards WHERE id = ${cardId}::uuid FOR UPDATE`;
-  return tx.card.findUniqueOrThrow({ where: { id: cardId } });
+  const card = await tx.card.findUnique({ where: { id: cardId } });
+  if (!card) {
+    throw new NotFoundException('Card not found');
+  }
+  return card;
 }
 
 // Locks the cards in id order, and answers "not found" if one is already gone
@@ -42,5 +47,26 @@ export async function lockCardsInOrder(
     SELECT id FROM cards WHERE id = ANY(${wanted}::uuid[]) ORDER BY id FOR UPDATE`;
   if (locked.length !== wanted.length) {
     throw new NotFoundException('Card not found');
+  }
+}
+
+// Locks every card `idsNeeded` names, in id order, and asks again: what a
+// card looks like once it is locked can name more cards (its parent has
+// changed, a subtask was added). Ends when everything named is locked, so
+// whatever `idsNeeded` read in its last round is current.
+export async function lockUntilCovered(
+  tx: Prisma.TransactionClient,
+  idsNeeded: () => Promise<string[]>,
+): Promise<void> {
+  const held = new Set<string>();
+  for (;;) {
+    const missing = [...new Set(await idsNeeded())].filter(
+      (id) => !held.has(id),
+    );
+    if (missing.length === 0) {
+      return;
+    }
+    await lockCardsInOrder(tx, missing);
+    missing.forEach((id) => held.add(id));
   }
 }
