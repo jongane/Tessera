@@ -66,7 +66,7 @@ erDiagram
 | Card | Task or user story | id, board_id, column_id, title, description, position (more fields planned: see below) |
 | Chat | A conversation on a board | id, board_id, card_id (optional), kind |
 | Message | One chat message (built; the body is Markdown) | id, chat_id, author_id (empty once that account is deleted), body, created_at, edited_at (empty until edited), deleted_at and deleted_by_id (both empty until deleted; deleted_by_id also empties if the deleter's account is deleted) |
-| File | Uploaded file metadata | id, project_id, uploader_id, filename, mime_type, size, storage_key, card_id or message_id |
+| File | An uploaded file's details (built for files on cards; the bytes are in the file store, see "Files" below) | id, project_id, card_id or message_id (exactly one; message_id is not used until files on messages are built), uploader_id (empty once that account is deleted), name, size (bytes), mime_type (the type the API detected, see below), storage_key (unique), created_at |
 | Link | Connection between cards, chats and messages, with a type the person picks from a list the project admin keeps (agreed 2026-10-31; not built yet, comes after the MVP, see [roadmap.md](roadmap.md)) | from_type, from_id, to_type, to_id, link type |
 | ProjectAiConfig | Whether AI is on for a project, and which provider it uses | project_id, enabled, enabled_by, enabled_at, provider, model, encrypted_api_key |
 | AiRequest | Audit log of AI use | id, chat_id, user_id, kind, provider, created_at |
@@ -76,7 +76,7 @@ erDiagram
 1. A card has at most one chat: `Chat.card_id` is unique and optional.
 2. Each board has exactly one chat with kind `general`, and it has no card.
 3. `ProjectAiConfig.enabled` defaults to false. No AI request is allowed for a project where it is false, and only a member with the admin role can change it.
-4. A file is attached to exactly one thing: a card or a message.
+4. A file is attached to exactly one thing: a card or a message. Built and tested (`files_one_owner`, see "Files" below).
 5. Deleting a message marks it deleted (`deleted_at`, and `deleted_by_id` for who did it); it is not erased and its text is kept, because the web app shows a deleted message crossed out for everyone to read (agreed 2026-11-09). A delete is final: the message cannot be edited or deleted again (the API refuses both).
 6. All IDs are UUIDs, so they do not reveal how many records exist.
 7. A card's column, and a chat's card, are on the same board as the card or chat (composite foreign keys).
@@ -92,6 +92,18 @@ Rules 1, 2 (the "at most one general chat" part) and 7 to 9 (the board part) are
 The messages table and rules 5 and 9 to 11 are tested in `apps/api/src/chats/messages.db-spec.ts`. Keeping the order of two messages with the same time is tested through the API, in `apps/api/test/messages.e2e-spec.ts`.
 
 Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`: email addresses are stored in lower case, a session token hash is never stored twice, an account's sessions end when it is deleted, and there is exactly one row of server settings. How sign-in works is described in [api.md](api.md).
+
+### Files
+
+The File table (migration `add_files`) holds a file's details. Its bytes are in the file store (SeaweedFS, through the S3 API; [ADR 0003](adr/0003-files-in-seaweedfs-through-the-s3-api.md)), under the key in `storage_key`, which is `files/<random uuid>` and never made from the name. Rules, tested in `apps/api/src/files/file-rules.db-spec.ts`:
+
+- A file belongs to exactly one thing: a row with both `card_id` and `message_id`, or with neither, is refused (rule 4).
+- A card file is in its card's project: a composite foreign key on (`card_id`, `project_id`), as for checklists and time entries.
+- `name` is 1 to 255 characters (not bytes), `size` is 0 or more, and `storage_key` is unique.
+- `mime_type` keeps its name but holds the type the API **detected** from the file's first bytes, never the browser's claim: one of `image/png`, `image/jpeg`, `image/gif` or `image/webp`, or `application/octet-stream` for everything else. Only the four image types are ever shown inline.
+- Deleting the uploader's account keeps the file and empties `uploader_id`.
+- Deleting a card or a project deletes its file rows (and a message's files go with the message row, in the same way). Only the API can delete the stored objects, so it does that itself when a card is deleted (or its files are moved to another card first). A deleted message keeps its row and text (rule 5); in PR B, deleting a message will remove its files too (decided 2026-11-14, not built yet), and rule 5 will say so then. Deleting boards and projects is not built yet; when it is, it must delete their files' stored objects as well.
+- The Activity kinds `FILE_ADDED`, `FILE_REMOVED` and `FILE_MOVED` are part of the `activity_kind` type. History stays append-only.
 
 ## Behaviour decided so far
 
@@ -110,7 +122,7 @@ Accounts and sessions are tested in `apps/api/src/auth/sign-in-rules.db-spec.ts`
 
 [card-features.md](card-features.md) describes what cards will do. This section lists the database changes it needs. They will be added one pull request at a time, each with its own database tests.
 
-**Built so far:** project codes and card numbers, subtasks, completion and done columns, old card numbers, estimates, time entries and timers, assignees, labels, priority, due dates, card creators, checklists and card history. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts`, `apps/api/src/cards/subtask-rules.db-spec.ts`, `apps/api/src/time/time-rules.db-spec.ts`, `apps/api/src/cards/card-fields-rules.db-spec.ts` `apps/api/src/checklists/checklist-rules.db-spec.ts` and `apps/api/src/activity/activity-rules.db-spec.ts`.
+**Built so far:** project codes and card numbers, files on cards (File table), subtasks, completion and done columns, old card numbers, estimates, time entries and timers, assignees, labels, priority, due dates, card creators, checklists and card history. The tables below are marked ✓ where built. Their rules are tested in `apps/api/src/projects/numbering-rules.db-spec.ts`, `apps/api/src/cards/subtask-rules.db-spec.ts`, `apps/api/src/time/time-rules.db-spec.ts`, `apps/api/src/cards/card-fields-rules.db-spec.ts` `apps/api/src/checklists/checklist-rules.db-spec.ts`, `apps/api/src/activity/activity-rules.db-spec.ts` and `apps/api/src/files/file-rules.db-spec.ts`.
 
 ### Changes to existing tables
 

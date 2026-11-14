@@ -2,7 +2,7 @@
 
 The API is what the web app (and anything else) talks to. Every address starts with `/api`, and request and response bodies are JSON. When the API runs locally, it is at http://localhost:3000/api.
 
-Status: every feature the API has so far can be reached through these endpoints. Chat messages and live updates are built (see "Messages" and "Live updates" below). File attachments and the AI features come later.
+Status: every feature the API has so far can be reached through these endpoints. Chat messages and live updates are built (see "Messages" and "Live updates" below). Files on cards are built (see "Files" below); files on messages and the AI features come later.
 
 ## How signing in works
 
@@ -36,13 +36,15 @@ sequenceDiagram
 | 403 | Signed in, but not allowed (for example, not a project admin) |
 | 404 | Not found, or in a project you are not a member of. The two are not told apart, so nobody can find out which projects exist |
 | 409 | Clashes with something, for example the email already has an account |
+| 413 | A file is bigger than the limit (see "Files") |
 | 429 | Too many failed sign-ins; wait and try again |
 
 ## Text with a hidden character
 
 A NUL character (code 0, written `\u0000`) is invisible, and PostgreSQL cannot store it, so it is refused everywhere (agreed 2026-11-08, Jon).
 - **Every text field** in the shared rules (`packages/shared`) refuses it with the message "This contains a hidden character that can’t be saved". This message comes before any other for the same field (for example before "too short"), and the web forms show it under the field, because they use the same rules. New text fields start from `textWithoutNul()` (in `packages/shared/src/text.ts`), not plain `z.string()`.
-- **The whole API** also refuses it with 400 and the same message, wherever it is in the request: a body field name or value, a query value (for example the card search `q`) or a part of the URL (for example `by-code/:code`). This check runs before the other input rules, so a field added later that forgets the shared rule still gets a clear 400 and never a 500. It runs after the sign-in check, so someone not signed in gets 401 "Please sign in" instead, which tells a stranger nothing (agreed 2026-11-08, Jon).
+- **The whole API** also refuses it with 400 and the same message, wherever it is in the text of the request: a body field name or value, a query value (for example the card search `q`) or a part of the URL (for example `by-code/:code`). This check runs before the other input rules, so a field added later that forgets the shared rule still gets a clear 400 and never a 500. It runs after the sign-in check, so someone not signed in gets 401 "Please sign in" instead, which tells a stranger nothing (agreed 2026-11-08, Jon).
+- **A file's contents are not checked.** They are raw bytes, and many files (every PNG, for one) contain NUL bytes. Only the text around a file is: the file's name, and the names of the form fields. The global check runs before the upload form is read and does not see the file's name, so the files code checks the name with the shared `fileNameSchema` and gives the same message (agreed 2026-11-14).
 - **Two exceptions.** Sign-in `password` and change-password `currentPassword` may hold one, as before, because they are only compared with the stored hash and never saved as text. A new password (sign-up `password`, change-password `newPassword`) refuses it.
 - Other control characters, and tabs, new lines and emoji, are still accepted.
 
@@ -95,7 +97,7 @@ The server sends the event `signal` to everyone in the board's room:
 
 **Who sends which signal.** A signal is sent only after a save worked. A refused or failed save (400, 403, 404, 409) sends none, and neither does sending the same message again (the answer 200 above).
 
-- **Cards.** Creating, editing (title, description, estimate, priority, due date and so on), moving, completing, reopening, deleting; changing assignees, the owner or labels on a card; changing a checklist or one of its items; changing a subtask or a time entry; starting or stopping a timer. Each sends a `card` signal for the card. Creating, moving and deleting a card also send `board`. When a deleted card's subtasks are moved under a new parent, that parent card gets a `card` signal and its board a `board` signal too.
+- **Cards.** Creating, editing (title, description, estimate, priority, due date and so on), moving, completing, reopening, deleting; changing assignees, the owner or labels on a card; changing a checklist or one of its items; changing a subtask or a time entry; starting or stopping a timer. Each sends a `card` signal for the card. Attaching a file to a card or removing one sends `card` for that card. Deleting a card with `moveFilesTo` also sends `card` for the card that took the files. Creating, moving and deleting a card also send `board`. When a deleted card's subtasks are moved under a new parent, that parent card gets a `card` signal and its board a `board` signal too.
 - **Cards above it.** A card's progress, time and totals show on the cards above it (its parents), so each of those parents gets a `card` signal too. A change that touches cards on two boards (a subtask on another board, a parent's totals, moving a card with its subtasks under another parent) sends signals to both boards' rooms.
 - **Chats.** Creating a chat sends `chats`. Linking a chat to a card, or unlinking it, sends `chats`, and `card` for each card it was or is on. Creating or deleting a card, or making a subtask from a checklist item, also sends `chats`, because a card comes with its own chat.
 - **Messages.** Sending, editing and deleting a message send `message` with `chatId` and `messageId`.
@@ -122,8 +124,8 @@ Every save the web app sends carries the header `X-Live-Connection` with the id 
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `GET /api/server/settings` | Anyone | `{ signUpOpen }`, so the sign-up page knows whether to show itself |
-| `PATCH /api/server/settings` | Server admins | Body `{ signUpOpen }`. Switches sign-up on or off |
+| `GET /api/server/settings` | Anyone | `{ signUpOpen, fileSizeLimitBytes }`: whether the sign-up page shows itself, and the largest file in bytes (from the `FILE_SIZE_LIMIT_MB` environment variable, default 100 MB), so the web app can refuse a file that is too big before sending it |
+| `PATCH /api/server/settings` | Server admins | Body `{ signUpOpen }`. Switches sign-up on or off. Answers like `GET`. The file size limit cannot be changed here |
 
 ### Project members
 
@@ -170,7 +172,7 @@ Email invitations and "forgot password" need the server to send email, so they c
 | `POST /api/cards/:cardId/move` | Members | Body `{ columnId, position?, confirmOpenSubtasks? }`. Moves the card to another column on its board, or to another place in its own column. `position` 0 is the top; past the end, or left out, is the bottom. Into a done column completes it; out of one reopens it. Moving between columns is recorded in the card's history; reordering within a column is not |
 | `POST /api/cards/:cardId/complete` | Members | Body `{ confirmOpenSubtasks? }`. Completes the card. Answers `{ card, doneColumnId }`: the done column to offer moving it to, or null |
 | `POST /api/cards/:cardId/reopen` | Members | Reopens the card |
-| `DELETE /api/cards/:cardId` | The card's creator, or a project admin | Deletes the card; its chat is kept, unlinked. A card with subtasks needs body `{ subtasks: { "<subtask id>": { "action": "delete" or "standalone" } or { "action": "move", "parentId": "..." } } }` with a choice for each direct subtask |
+| `DELETE /api/cards/:cardId` | The card's creator, or a project admin | Deletes the card; its chat is kept, unlinked. A card with subtasks needs body `{ subtasks: { "<subtask id>": { "action": "delete" or "standalone" } or { "action": "move", "parentId": "..." } } }` with a choice for each direct subtask. The card's files are deleted with it (their stored objects too, once the card is gone). With the query `?moveFilesTo=<cardId>` they move to that card instead, in the same transaction as the delete, and that card's Activity gets a `FILE_MOVED` line for each. The card must be in the same project and not be one of the cards being deleted: else 404 "Card not found" or 400 "Pick a card that is not being deleted", and nothing is deleted. The files of subtasks chosen for deletion are handled the same way |
 
 Completing a card, or moving it into a done column, while some of its direct subtasks are open gets 409 with `openSubtasks` (how many). Send the request again with `confirmOpenSubtasks: true` to go ahead. Deleting a card with logged time gets 409 with `loggedMinutes`.
 
@@ -245,6 +247,33 @@ Each of these answers with the card's assignees afterwards, owner first.
 | `GET /api/timer` | Signed in | `{ timer }`: your running timer, or null |
 | `DELETE /api/timer` | Signed in | Stops your timer. `{ entry }` is the time saved, or null if it ran under half a minute. 404 if none is running |
 
+### Files
+
+Files on cards. Every byte goes through the API, which checks first that the person is signed in and a member of the project. The storage behind it (SeaweedFS, through the S3 API) is private and never reachable by the browser ([ADR 0003](adr/0003-files-in-seaweedfs-through-the-s3-api.md)). A non-member, an unknown id, or a card or file of another project all get 404, so nobody can tell what exists. Files on messages come in a later pull request.
+
+| Method and path | Who | What it does |
+|---|---|---|
+| `POST /api/cards/:cardId/files` | Members | One file as a multipart form, in the field `file`. Stores it and answers 201 with the file. 404 "Card not found" for a non-member, an unknown card or a card deleted meanwhile |
+| `GET /api/cards/:cardId/files` | Members | `{ files }`, newest first (ties in a fixed order) |
+| `GET /api/files/:fileId/download` | Members | The exact bytes, always as a download |
+| `GET /api/files/:fileId/preview` | Members | The image, inline. Only for a PNG, JPEG, GIF or WebP; any other file gets 404 "File not found" |
+| `DELETE /api/files/:fileId` | The person who added it, or a project admin | Removes the file, from storage too. Answers 204 |
+
+**The file** (`CardFile` in `@tessera/shared`): `id`, `name`, `size` (bytes), `isImage`, `uploader` (`{ id, displayName }`, or null once that account is deleted), `createdAt`, and `messageId` and `chatId` (both null for a card's own file; they are for files on messages, later).
+
+**Rules:**
+- **Streamed.** The upload is passed on to the storage piece by piece, never held whole in memory. The bytes are counted as they pass.
+- **Size.** Over the limit (`fileSizeLimitBytes`, see "Server settings") the answer is 413 "Files can be at most 100 MB" (the number follows the setting), whether or not the browser announced the size, and nothing is left in storage or the database. A file exactly at the limit is accepted.
+- **Form.** No file, a file in another field, or any other form field gets 400 "Attach one file". Two files get 400 "Attach one file at a time".
+- **Name.** The browser's file name with any folder part removed (`C:\Users\jon\plan.pdf` and `../plan.pdf` both become `plan.pdf`) and spaces at both ends dropped. Letters from any language and emoji are kept as typed. A NUL character gets 400 "This contains a hidden character that can’t be saved", an empty name 400 "This can’t be empty", and more than 255 characters 400 "Use at most 255 characters" (the shared `fileNameSchema`).
+- **Image or not** is decided by the API from the file's first bytes, whatever name or type the browser sent. An SVG, an HTML file renamed `x.png`, or text sent as `image/png` is not an image (`isImage: false`). The type kept in the database is the detected one ([data-model.md](data-model.md)).
+- **Downloads** send `Content-Disposition: attachment` with the name (an ASCII fallback plus the full name as `filename*=UTF-8''...`, so names in any language survive), `Content-Type: application/octet-stream`, `X-Content-Type-Options: nosniff` and `Content-Length`. A name cannot break or add to a header. A malformed id gets 400, an unknown one 404 "File not found".
+- **Previews** send the detected image type, `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`, so nothing inside a file can run from the app's address.
+- **Removing.** Another member gets 403 "Only the person who added a file or a project admin can remove it", and the file stays. A project admin can remove a file whose uploader's account was deleted. The row and the card's Activity line `FILE_REMOVED` are saved together, then the stored object is deleted. If deleting the object fails, the failure is logged and the answer is still 204: nobody can reach the leftover object, because only rows lead to objects.
+- **Attaching** saves the stored object first, then the row and the `FILE_ADDED` Activity line together. If the row cannot be saved, the object is deleted again.
+- **Live.** Attaching and removing send a `card` signal (see "Live updates"); a refused request sends none.
+- **Settings.** The storage is set by the environment variables `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_FORCE_PATH_STYLE`, and the size limit by `FILE_SIZE_LIMIT_MB` (see `apps/api/.env.example`). They are read once when the API starts; a missing or wrong one stops it with a message naming it (never its value). The API makes its bucket at start if it is missing.
+
 ### Checklists
 
 | Method and path | Who | What it does |
@@ -264,4 +293,4 @@ Names and item text have the spaces around them dropped. An empty or spaces-only
 
 | Method and path | Who | What it does |
 |---|---|---|
-| `GET /api/cards/:cardId/activity?limit=50&before=...` | Members | The card's history, newest first: `{ items, nextBefore }`. Each line has `kind`, `details`, `actor` and `createdAt`. Pass `nextBefore` as `before` to get the next, older page; it is null on the last page. The type of `details` (`ActivityDetails` and its helper types) comes from `@tessera/shared`, so the API and the web app share one definition (agreed 2026-11-08) |
+| `GET /api/cards/:cardId/activity?limit=50&before=...` | Members | The card's history, newest first: `{ items, nextBefore }`. Each line has `kind`, `details`, `actor` and `createdAt`. Pass `nextBefore` as `before` to get the next, older page; it is null on the last page. The type of `details` (`ActivityDetails` and its helper types) comes from `@tessera/shared`, so the API and the web app share one definition (agreed 2026-11-08). Files add the kinds `FILE_ADDED` and `FILE_REMOVED` (`{ fileId, name, size }`) and `FILE_MOVED` (the same, plus `from`, the deleted card's `numberPath` and `title`) |

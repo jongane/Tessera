@@ -6,7 +6,7 @@ This page shows what is built, what is left for the first version (the MVP), and
 
 ## Where we are
 
-The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version except attachments, chats with messages (sending, editing, deleting; #44), and live updates (#45). Boards, cards, the open card, chats and messages now update without a reload. Files and AI are not started.
+The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version, chats with messages (sending, editing, deleting; #44), and live updates (#45). Boards, cards, the open card, chats and messages now update without a reload. Step 3, files, is in progress: files on cards are built in the pull request on branch `feat/card-files` (PR A, not merged yet), and files on messages come next (PR B). AI is not started.
 
 ## The flowchart
 
@@ -27,7 +27,7 @@ flowchart TD
     subgraph MVP["To finish the MVP"]
         N1[Step 1: Refuse hidden NUL characters in text fields]
         N2[Step 2: Chat messages and live updates]
-        N3[Step 3: File attachments on cards and messages]
+        N3[Step 3: Files on cards (PR A, in progress) and on messages (PR B)]
         N4[Step 4: AI: provider layer, chat summaries, project questions]
         R([MVP complete])
     end
@@ -56,7 +56,7 @@ flowchart TD
     class I1,I2 idea
 ```
 
-Green is done, amber is next, blue is the rest of the MVP, grey is after the MVP, and dashed boxes are ideas.
+Green is done, amber is in progress or next, blue is the rest of the MVP, grey is after the MVP, and dashed boxes are ideas.
 
 ## MVP progress
 
@@ -65,7 +65,7 @@ Green is done, amber is next, blue is the rest of the MVP, grey is after the MVP
 | 1. Users and sign-in; a project with members | Done |
 | 2. Boards with kanban cards, a general chat, and multiple chats | Done: boards, cards, chats, chat messages (#44) and live updates (#45) |
 | 3. Card and chat linking, the "Create a card?" prompt and retroactive creation | Done |
-| 4. File upload attached to a card or message | Not started (needs MinIO) |
+| 4. File upload attached to a card or message | In progress: files on cards are built in PR A (this pull request, not merged yet; storage is SeaweedFS). Files on messages and screenshots in the message box are PR B |
 | 5. AI provider layer with chat summaries and project questions, off by default | Not started |
 
 ## Suggested order to finish the MVP
@@ -76,7 +76,9 @@ Each step gets its own plan, approved before building, as usual.
 2. **Chat messages and live updates**, in two pull requests (agreed 2026-11-09). Messages come before attachments and AI because both depend on them. Done.
    - **Chat messages:** built in #44. Sending, editing, deleting, Markdown, card-number and website links.
    - **Live updates (WebSockets):** built in #45. They cover messages, board cards, the open card panel and the sidebar's chat list, and the 30-second reload is gone ([web-app.md](web-app.md) section 6, [api.md](api.md) "Live updates", [ADR 0002](adr/0002-live-updates-signals-then-reload.md)). Older messages kept on screen now show other people's edits and deletes.
-3. **File attachments** (next) on a card or on a message, stored in MinIO, 100 MB per file by default ([card-features.md](card-features.md)).
+3. **Files** (in progress) on a card or on a message, kept in SeaweedFS through the S3 API, 100 MB per file by default ([card-features.md](card-features.md) section 8, [ADR 0003](adr/0003-files-in-seaweedfs-through-the-s3-api.md)). Two pull requests, one after the other (agreed 2026-11-14):
+   - **PR A, files on cards** (this pull request, not merged yet): file storage, and attaching, listing, downloading, previewing and removing files on a card, with the Files section in the card panel and the choice of what to do with the files when a card is deleted.
+   - **PR B, files on messages** (next): attaching files to messages (up to 10), pasting and dropping screenshots into the message box, the "from chat" files in a card's Files section, and removing a message's files when the message is deleted (decided 2026-11-14).
 4. **AI**: the provider layer (Claude first), turning AI on per project by a project admin, summarising a chat and answering questions about a project.
 
 ## Done so far
@@ -99,6 +101,7 @@ Each step gets its own plan, approved before building, as usual.
 Not yet ordered. Each gets its own plan when its turn comes.
 
 - **Chat extras**: thread replies opening in their own sub-window, reactions, and typed links between chats, cards and messages (types kept by a project admin, see [CONTEXT.md](../CONTEXT.md) "Link"). Card-to-card links ("blocks", "relates to") from [card-features.md](card-features.md) may share the same list of types.
+- **Local disk file storage**: an option to keep files in a folder on the server's own disk instead of an S3 store. The `FileStore` interface in the API is made for it ([ADR 0003](adr/0003-files-in-seaweedfs-through-the-s3-api.md); agreed 2026-11-14).
 - **Accounts and setup**: email invitations and "forgot password" (needs email sending), renaming a project and changing its description, remembering panel layout in the account instead of the browser, and a ready-to-run self-host package (Docker Compose for the whole app).
 - **Chat panel**: a floating window and a separate browser window.
 - **Planning views**: task table, Gantt chart (needs start dates on cards), milestones and task dependencies.
