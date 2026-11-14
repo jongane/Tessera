@@ -1,5 +1,6 @@
 import {
   type BoardCard,
+  CHANGED_AT_THE_SAME_TIME_MESSAGE,
   CHOOSE_WHAT_HAPPENS_TO_FILES,
   formatMinutes,
   type RelatedCard,
@@ -484,7 +485,11 @@ function isFilesChoiceRefusal(error: unknown): boolean {
 
 // Someone changed the card, or its files, while the dialog was open.
 function isChangedMeanwhile(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 409;
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.message === CHANGED_AT_THE_SAME_TIME_MESSAGE
+  );
 }
 
 function deleteError(error: Error | null): Error | null {
