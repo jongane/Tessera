@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { takeNextCardNumber, takeNextSubtaskNumber } from './card-numbering.js';
+import { lockCardsInOrder } from './card-access.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
 
 // The deepest a card can be: 0 is top level, so 4 means 5 levels in all.
@@ -54,6 +55,13 @@ export async function moveSubtree(
   card: Card,
   newParent: Card | null,
 ): Promise<Card> {
+  // Lock in id order, as a delete does, so the two never wait on each other.
+  const unlocked = await loadSubtree(tx, card.id);
+  await lockCardsInOrder(tx, [
+    ...unlocked.map((member) => member.id),
+    ...(card.parentId ? [card.parentId] : []),
+    ...(newParent ? [newParent.id] : []),
+  ]);
   const subtree = await loadSubtree(tx, card.id);
   if (newParent && subtree.some((member) => member.id === newParent.id)) {
     throw new ConflictException(

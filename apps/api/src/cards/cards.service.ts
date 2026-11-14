@@ -20,7 +20,7 @@ import {
 import { loadSubtree, moveSubtree } from './card-tree.js';
 import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
-import { lockCard } from './card-access.js';
+import { lockCard, lockCardsInOrder } from './card-access.js';
 import { cardRef, dueRef, recordActivity } from '../activity/activity.js';
 import { ALREADY_LINKED, refuseGeneralChat } from '../chats/chat-rules.js';
 
@@ -585,20 +585,6 @@ function checkChoicesCoverSubtasks(
       missingSubtaskIds: missing.map((subtask) => subtask.id),
       unknownSubtaskIds: unknown,
     });
-  }
-}
-
-// Locks the cards in id order, and answers "not found" if one is already gone
-// (deleted by a request that got there first).
-async function lockCardsInOrder(
-  tx: Prisma.TransactionClient,
-  ids: string[],
-): Promise<void> {
-  const wanted = [...new Set(ids)];
-  const locked = await tx.$queryRaw<{ id: string }[]>`
-    SELECT id FROM cards WHERE id = ANY(${wanted}::uuid[]) ORDER BY id FOR UPDATE`;
-  if (locked.length !== wanted.length) {
-    throw new NotFoundException('Card not found');
   }
 }
 

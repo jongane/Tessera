@@ -30,3 +30,17 @@ export async function lockCard(
   await tx.$queryRaw`SELECT id FROM cards WHERE id = ${cardId}::uuid FOR UPDATE`;
   return tx.card.findUniqueOrThrow({ where: { id: cardId } });
 }
+
+// Locks the cards in id order, and answers "not found" if one is already gone
+// (deleted by a request that got there first).
+export async function lockCardsInOrder(
+  tx: Prisma.TransactionClient,
+  ids: string[],
+): Promise<void> {
+  const wanted = [...new Set(ids)];
+  const locked = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM cards WHERE id = ANY(${wanted}::uuid[]) ORDER BY id FOR UPDATE`;
+  if (locked.length !== wanted.length) {
+    throw new NotFoundException('Card not found');
+  }
+}
