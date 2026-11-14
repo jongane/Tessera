@@ -119,3 +119,8 @@ export const cardSearchQuerySchema = z.strictObject({
 });
 
 export type CardSearchQuery = z.infer<typeof cardSearchQuerySchema>;
+
+// The 409 message when two changes to one card collide (docs/api.md, "Two
+// people at once"). The web app tells it apart from other 409s by this text.
+export const CHANGED_AT_THE_SAME_TIME_MESSAGE =
+  'Someone changed this card at the same time. Try again.';

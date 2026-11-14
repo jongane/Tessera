@@ -1,8 +1,8 @@
 import { ConflictException } from '@nestjs/common';
+import { CHANGED_AT_THE_SAME_TIME_MESSAGE } from '@tessera/shared';
 import { Prisma } from '../generated/prisma/client.js';
 
 const RETRIES = 3;
-const MESSAGE = 'Someone changed this card at the same time. Try again.';
 const COLLISION_CODES = ['40P01', '40001'];
 
 // The PostgreSQL code of a failed raw query: Prisma puts it in `meta.code`,
@@ -19,7 +19,8 @@ function databaseCode(error: Prisma.PrismaClientKnownRequestError): unknown {
 
 function isCollision(error: unknown): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  if (error.code === 'P2034') return true;
+  // P2034: write conflict; P2028: the transaction expired while it waited.
+  if (error.code === 'P2034' || error.code === 'P2028') return true;
   if (error.code !== 'P2010') return false;
   const code = databaseCode(error);
   return typeof code === 'string' && COLLISION_CODES.includes(code);
@@ -36,7 +37,7 @@ export async function retryOnCollision<T>(
       return await change();
     } catch (error) {
       if (!isCollision(error)) throw error;
-      if (retry >= RETRIES) throw new ConflictException(MESSAGE);
+      if (retry >= RETRIES) throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
     }
   }
 }
