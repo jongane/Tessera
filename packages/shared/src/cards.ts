@@ -74,6 +74,14 @@ export const deleteCardSchema = z
   })
   .optional();
 
+// DELETE /api/cards/:cardId?moveFilesTo=<cardId>: the card that takes the
+// files of the card being deleted. Left out, the files are deleted too.
+export const deleteCardQuerySchema = z.strictObject({
+  moveFilesTo: z.uuid().optional(),
+});
+
+export type DeleteCardQuery = z.infer<typeof deleteCardQuerySchema>;
+
 // Makes an assignee the card's owner.
 export const ownerChangeSchema = z.strictObject({ userId: z.uuid() });
 
