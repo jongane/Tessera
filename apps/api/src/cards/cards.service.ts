@@ -588,7 +588,20 @@ function checkChoicesCoverSubtasks(
   }
 }
 
-// The card's chat is kept, unlinked, so its history is not lost.
+// Locks the cards in id order, and answers "not found" if one is already gone
+// (deleted by a request that got there first).
+async function lockCardsInOrder(
+  tx: Prisma.TransactionClient,
+  ids: string[],
+): Promise<void> {
+  const wanted = [...new Set(ids)];
+  const locked = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM cards WHERE id = ANY(${wanted}::uuid[]) ORDER BY id FOR UPDATE`;
+  if (locked.length !== wanted.length) {
+    throw new NotFoundException('Card not found');
+  }
+}
+
 // Takes the files of the cards about to be deleted. Locks those cards first,
 // so an upload to one of them either lands before (and is taken here) or
 // finds the card gone. With `moveFilesTo`, the files go to that card, which
@@ -601,9 +614,19 @@ async function takeFiles(
   projectId: string,
   moveFilesTo: string | undefined,
 ): Promise<string[]> {
-  for (const id of cardIds) {
-    await lockCard(tx, id);
-  }
+  // One statement, in id order, so two deletes never wait on each other. The
+  // parents are locked too: deleting a subtask writes a history line on its
+  // parent, so a delete of the subtask alone also needs the parent.
+  const parents = await tx.card.findMany({
+    where: { id: { in: cardIds }, parentId: { not: null } },
+    select: { parentId: true },
+  });
+  const lockIds = [
+    ...cardIds,
+    ...parents.map((p) => p.parentId!),
+    ...(moveFilesTo === undefined ? [] : [moveFilesTo]),
+  ];
+  await lockCardsInOrder(tx, lockIds);
   if (moveFilesTo === undefined) {
     const files = await tx.file.findMany({
       where: { cardId: { in: cardIds } },
@@ -619,13 +642,6 @@ async function takeFiles(
     select: { id: true, projectId: true },
   });
   if (!target) {
-    throw new NotFoundException('Card not found');
-  }
-  // Waits for another delete of the picked card, then sees it gone.
-  const locked = await tx.$queryRaw<
-    { id: string }[]
-  >`SELECT id FROM cards WHERE id = ${target.id}::uuid FOR UPDATE`;
-  if (locked.length === 0) {
     throw new NotFoundException('Card not found');
   }
   const files = await tx.file.findMany({
@@ -651,6 +667,7 @@ async function takeFiles(
   return [];
 }
 
+// The card's chat is kept, unlinked, so its history is not lost.
 async function deleteKeepingChat(
   tx: Prisma.TransactionClient,
   cardId: string,
