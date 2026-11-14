@@ -302,16 +302,18 @@ export function useDeleteCard(boardId: string, cardId: string) {
     mutationFn: ({
       body,
       moveFilesTo,
+      deleteFiles,
     }: {
       body: DeleteCardBody
       moveFilesTo?: string
-    }) =>
-      api<void>(
-        moveFilesTo
-          ? `/cards/${cardId}?moveFilesTo=${moveFilesTo}`
-          : `/cards/${cardId}`,
-        { method: 'DELETE', body },
-      ),
+      deleteFiles?: boolean
+    }) => {
+      const query = new URLSearchParams()
+      if (deleteFiles) query.set('files', 'delete')
+      if (moveFilesTo) query.set('moveFilesTo', moveFilesTo)
+      const suffix = query.size > 0 ? `?${query}` : ''
+      return api<void>(`/cards/${cardId}${suffix}`, { method: 'DELETE', body })
+    },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: boardKey(boardId) }),
   })

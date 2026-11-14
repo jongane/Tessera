@@ -5,7 +5,8 @@ import {
 } from '@tessera/shared'
 import { useEffect, useId, useState } from 'react'
 import { useMe } from '../api/auth'
-import { useCardFiles } from '../api/files'
+import { cardFilesKey, useCardFiles } from '../api/files'
+import { useQueryClient } from '@tanstack/react-query'
 import { useCardSearch } from '../api/subtasks'
 import { ApiError } from '../api/client'
 import { useMembers } from '../api/members'
@@ -48,6 +49,7 @@ export function DeleteCardDialog({
   // Everything below the card goes with it, so none of it can be a new parent.
   const below = useCardRelatives(card.boardId, card.id)
   const ownFiles = useCardFiles(card.id)
+  const queryClient = useQueryClient()
   const [fileChoice, setFileChoice] = useState<FileChoice | null>(null)
   // The card the files move to, once chosen.
   const [fileTarget, setFileTarget] = useState<RelatedCard | null>(null)
@@ -115,7 +117,21 @@ export function DeleteCardDialog({
       : undefined
     const moveFilesTo =
       fileCount > 0 && fileChoice === 'move' ? target?.id : undefined
-    remove.mutateAsync({ body, moveFilesTo }).then(onDeleted, () => {})
+    const deleteFiles = fileCount > 0 && fileChoice === 'delete'
+    remove
+      .mutateAsync({ body, moveFilesTo, deleteFiles })
+      .then(onDeleted, (error) => {
+        if (isFilesChoiceRefusal(error)) reloadFileCounts()
+      })
+  }
+
+  // A file was attached after the dialog loaded: count the files again, for
+  // this card and its subtasks, so the choice shows.
+  function reloadFileCounts() {
+    const ids = [card.id, ...subtasks.subtasks.map(({ subtask }) => subtask.id)]
+    for (const id of ids) {
+      void queryClient.invalidateQueries({ queryKey: cardFilesKey(id) })
+    }
   }
 
   return (
@@ -439,6 +455,14 @@ function loggedTimeRefusal(error: Error | null): number | null {
     return error.details.loggedMinutes
   }
   return null
+}
+
+function isFilesChoiceRefusal(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 400 &&
+    error.message.includes('Choose what happens to this card’s files')
+  )
 }
 
 function deleteError(error: Error | null): Error | null {
