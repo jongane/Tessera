@@ -1227,6 +1227,41 @@ describe("Deleting a card that has files (criterion 31)", () => {
     expect(await within(dialog).findByText(/4 files/)).toBeInTheDocument();
   });
 
+  // 31 (reviewer minor): only a same-moment 409 means the counts may be stale.
+  // A refusal for logged time says nothing about files, so the counts stay.
+  it("does not count the files again when the delete is refused for logged time", async () => {
+    const { user, dialog, files } = await openDeleteDialog();
+    await within(dialog).findByText(/3 files/);
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Delete the files too" }),
+    );
+    files.serverNowHas([...threeFiles(), cardFile("d.pdf")]);
+    server.use(
+      http.delete(`/api/cards/${login.id}`, () =>
+        HttpResponse.json(
+          {
+            statusCode: 409,
+            message: "Cards with logged time cannot be deleted",
+            loggedMinutes: 200,
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    expect(
+      await within(dialog).findByText(/logged/, { exact: false }),
+    ).toBeInTheDocument();
+    // Give a wrongly started reload time to show.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(within(dialog).queryByText(/4 files/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/3 files/)).toBeInTheDocument();
+  });
+
   // 31
   it("moves the files to the card picked from a search, sending moveFilesTo", async () => {
     const { user, dialog, urls } = await openDeleteDialog();

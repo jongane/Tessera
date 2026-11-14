@@ -37,6 +37,15 @@ function adapterError(originalCode: string) {
   });
 }
 
+// Prisma's error for a transaction that waited so long for a lock that its
+// time limit ran out (or that was closed under it).
+function transactionExpired() {
+  return new Prisma.PrismaClientKnownRequestError('Transaction expired', {
+    code: 'P2028',
+    clientVersion: 'test',
+  });
+}
+
 describe('retryOnCollision', () => {
   it('returns the result of a change that works first time, running it once', async () => {
     const change = vi.fn().mockResolvedValue('done');
@@ -47,6 +56,7 @@ describe('retryOnCollision', () => {
 
   it.each([
     ['a write conflict (P2034)', writeConflict],
+    ['a transaction that expired while waiting (P2028)', transactionExpired],
     ['a deadlock (40P01)', deadlock],
     ['a serialization failure (40001)', serializationFailure],
     ['a driver-adapter deadlock (40P01)', () => adapterError('40P01')],
@@ -73,6 +83,16 @@ describe('retryOnCollision', () => {
     expect(change).toHaveBeenCalledTimes(4);
     expect(failure).toBeInstanceOf(ConflictException);
     expect((failure as ConflictException).getStatus()).toBe(409);
+    expect((failure as ConflictException).message).toBe(MESSAGE);
+  });
+
+  it('answers 409 with the message when a transaction keeps expiring (P2028)', async () => {
+    const change = vi.fn().mockRejectedValue(transactionExpired());
+
+    const failure = await retryOnCollision(change).catch((e: unknown) => e);
+
+    expect(change).toHaveBeenCalledTimes(4);
+    expect(failure).toBeInstanceOf(ConflictException);
     expect((failure as ConflictException).message).toBe(MESSAGE);
   });
 
