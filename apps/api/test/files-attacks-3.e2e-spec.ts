@@ -408,7 +408,7 @@ describe('Card changes at the same moment, attacks round 3 (e2e)', () => {
     });
     const answers = [await first, await second];
     expect(
-      answers.map((a) => a.status).sort(),
+      answers.map((a) => a.status).sort((x, y) => x - y),
       JSON.stringify(answers.map((a) => a.body)),
     ).toEqual([201, 404]);
     expect(await prisma.card.count({ where: { parentId: card.id } })).toBe(1);
