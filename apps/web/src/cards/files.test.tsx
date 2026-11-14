@@ -457,6 +457,26 @@ describe("Attaching files (criteria 38 to 40, 43)", () => {
   });
 
   // 39
+  it("shows an error for each of two too-big files with the same name", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { user } = openFiles([]);
+    const panel = await cardPanel();
+    const section = await filesSection();
+    await within(section).findByText("No files yet");
+
+    await user.upload(chooser(panel), [
+      pickedFile("plan.mov", 101 * MB, "video/quicktime"),
+      pickedFile("plan.mov", 102 * MB, "video/quicktime"),
+    ]);
+
+    expect(
+      await within(section).findAllByText("plan.mov is bigger than 100 MB"),
+    ).toHaveLength(2);
+    // React warns when two list items share a key, and may then lose one.
+    expect(errors).not.toHaveBeenCalled();
+  });
+
+  // 39
   it("accepts a file exactly at the limit, and names the limit from the server’s setting", async () => {
     const { user } = openFiles([], { limit: 25 * MB });
     const panel = await cardPanel();

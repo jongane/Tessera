@@ -320,6 +320,18 @@ describe('File rules (database)', () => {
       await expect(line(ids, 'FILE_REMOVED')).resolves.toBe(1);
     });
 
+    // 31
+    it('has the kind FILE_MOVED', async () => {
+      const { ana, project, card } = await setUp();
+
+      await expect(
+        line(
+          { cardId: card.id, projectId: project.id, actorId: ana.id },
+          'FILE_MOVED',
+        ),
+      ).resolves.toBe(1);
+    });
+
     // 32
     it('keeps the history of files append-only', async () => {
       const { ana, project, card } = await setUp();
