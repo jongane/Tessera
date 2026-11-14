@@ -36,16 +36,26 @@ export async function lockCard(
   return card;
 }
 
-// Locks the cards in id order, and answers "not found" if one is already gone
-// (deleted by a request that got there first).
-export async function lockCardsInOrder(
+// The cards a change needs locked. `must` cards have to exist: one that is
+// gone (deleted by a request that got there first) is "not found". `may`
+// cards were read from the tree around them (subtasks, old parent); one that
+// vanished while this waited is simply no longer part of it.
+export interface CardsToLock {
+  must: string[];
+  may: string[];
+}
+
+// Locks the cards in id order, and answers "not found" if one that must exist
+// is already gone.
+async function lockCardsInOrder(
   tx: Prisma.TransactionClient,
   ids: string[],
+  must: Set<string>,
 ): Promise<void> {
-  const wanted = [...new Set(ids)];
   const locked = await tx.$queryRaw<{ id: string }[]>`
-    SELECT id FROM cards WHERE id = ANY(${wanted}::uuid[]) ORDER BY id FOR UPDATE`;
-  if (locked.length !== wanted.length) {
+    SELECT id FROM cards WHERE id = ANY(${ids}::uuid[]) ORDER BY id FOR UPDATE`;
+  const found = new Set(locked.map((row) => row.id));
+  if ([...must].some((id) => ids.includes(id) && !found.has(id))) {
     throw new NotFoundException('Card not found');
   }
 }
@@ -56,17 +66,18 @@ export async function lockCardsInOrder(
 // whatever `idsNeeded` read in its last round is current.
 export async function lockUntilCovered(
   tx: Prisma.TransactionClient,
-  idsNeeded: () => Promise<string[]>,
+  idsNeeded: () => Promise<CardsToLock>,
 ): Promise<void> {
   const held = new Set<string>();
   for (;;) {
-    const missing = [...new Set(await idsNeeded())].filter(
+    const { must, may } = await idsNeeded();
+    const missing = [...new Set([...must, ...may])].filter(
       (id) => !held.has(id),
     );
     if (missing.length === 0) {
       return;
     }
-    await lockCardsInOrder(tx, missing);
+    await lockCardsInOrder(tx, missing, new Set(must));
     missing.forEach((id) => held.add(id));
   }
 }

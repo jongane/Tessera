@@ -4,6 +4,10 @@ import { takeNextCardNumber, takeNextSubtaskNumber } from './card-numbering.js';
 import { lockUntilCovered } from './card-access.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
 
+// Moving or deleting a card with many subtasks can take longer than Prisma's
+// 5 seconds for a transaction; there is no limit on subtasks.
+export const LARGE_CHANGE_TIMEOUT_MS = 30_000;
+
 // The deepest a card can be: 0 is top level, so 4 means 5 levels in all.
 export const MAX_DEPTH = 4;
 
@@ -52,22 +56,31 @@ export async function loadAncestorIds(
 //
 // Takes ids, not cards: everything is read again once the cards are locked
 // (in id order, as a delete does, so the two never wait on each other), so a
-// move that waited works from what the other change left.
+// move that waited works from what the other change left. A caller that
+// already holds the locks on all the cards involved (a delete of the card's
+// parent) says so with `alreadyLocked`, and the locking rounds are skipped.
 export async function moveSubtree(
   tx: Prisma.TransactionClient,
   actorId: string,
   cardId: string,
   newParentId: string | null,
+  alreadyLocked = false,
 ): Promise<Card> {
   let state!: MoveState;
-  await lockUntilCovered(tx, async () => {
+  if (alreadyLocked) {
     state = await readMoveState(tx, cardId, newParentId);
-    return [
-      ...state.subtree.map((member) => member.id),
-      ...(state.card.parentId ? [state.card.parentId] : []),
-      ...(newParentId ? [newParentId] : []),
-    ];
-  });
+  } else {
+    await lockUntilCovered(tx, async () => {
+      state = await readMoveState(tx, cardId, newParentId);
+      return {
+        must: [cardId, ...(newParentId ? [newParentId] : [])],
+        may: [
+          ...state.subtree.map((member) => member.id),
+          ...(state.card.parentId ? [state.card.parentId] : []),
+        ],
+      };
+    });
+  }
   const { card, oldParent, newParent, subtree } = state;
   if (card.parentId === (newParent?.id ?? null)) {
     return card;
@@ -149,7 +162,10 @@ async function readMoveState(
   const card = await findCard(tx, cardId);
   return {
     card,
-    oldParent: card.parentId ? await findCard(tx, card.parentId) : null,
+    // Not an error if it is gone: the card is then top level or moving.
+    oldParent: card.parentId
+      ? await tx.card.findUnique({ where: { id: card.parentId } })
+      : null,
     newParent: newParentId ? await findCard(tx, newParentId) : null,
     subtree: await loadSubtree(tx, cardId),
   };

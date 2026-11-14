@@ -18,6 +18,7 @@ import {
   loadAncestorIds,
   loadSubtree,
   MAX_DEPTH,
+  LARGE_CHANGE_TIMEOUT_MS,
   moveSubtree,
 } from './card-tree.js';
 import { isDueAfter } from './card-fields.js';
@@ -89,8 +90,9 @@ export class SubtasksService {
       : null;
 
     return retryOnCollision(() =>
-      this.prisma.$transaction((tx) =>
-        moveSubtree(tx, userId, card.id, newParent?.id ?? null),
+      this.prisma.$transaction(
+        (tx) => moveSubtree(tx, userId, card.id, newParent?.id ?? null),
+        { timeout: LARGE_CHANGE_TIMEOUT_MS },
       ),
     );
   }
