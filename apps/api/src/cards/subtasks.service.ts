@@ -27,6 +27,7 @@ import {
   subtaskProgressOf,
 } from './subtask-progress.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 
 export interface DueDateWarnings {
   // The card is due after its parent.
@@ -66,8 +67,10 @@ export class SubtasksService {
     card: NewCard,
   ): Promise<Card> {
     const parent = await this.findVisibleCard(userId, parentId);
-    return this.prisma.$transaction((tx) =>
-      insertSubtask(tx, userId, parent, columnId, card),
+    return retryOnCollision(() =>
+      this.prisma.$transaction((tx) =>
+        insertSubtask(tx, userId, parent, columnId, card),
+      ),
     );
   }
 
@@ -87,8 +90,10 @@ export class SubtasksService {
       return card;
     }
 
-    return this.prisma.$transaction((tx) =>
-      moveSubtree(tx, userId, card, newParent),
+    return retryOnCollision(() =>
+      this.prisma.$transaction((tx) =>
+        moveSubtree(tx, userId, card, newParent),
+      ),
     );
   }
 

@@ -10,6 +10,7 @@ import {
   recordActivity,
   timeEntryRef,
 } from '../activity/activity.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 
 export interface NewTimeEntry {
   minutes: number;
@@ -47,20 +48,22 @@ export class TimeEntriesService {
       new Date(),
       await projectTimeZone(this.prisma, card.projectId),
     );
-    return this.prisma.$transaction(async (tx) => {
-      const saved = await tx.timeEntry.create({
-        data: {
-          projectId: card.projectId,
-          cardId: card.id,
-          userId,
-          minutes,
-          workDate,
-          note: entry.note,
-        },
-      });
-      await recordTimeLogged(tx, saved, userId, false);
-      return saved;
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const saved = await tx.timeEntry.create({
+          data: {
+            projectId: card.projectId,
+            cardId: card.id,
+            userId,
+            minutes,
+            workDate,
+            note: entry.note,
+          },
+        });
+        await recordTimeLogged(tx, saved, userId, false);
+        return saved;
+      }),
+    );
   }
 
   // Every entry on the card, latest day first.
@@ -98,49 +101,59 @@ export class TimeEntriesService {
             new Date(),
             await projectTimeZone(this.prisma, entry.projectId),
           );
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM time_entries WHERE id = ${entry.id}::uuid FOR UPDATE`;
-      const before = await tx.timeEntry.findUniqueOrThrow({
-        where: { id: entry.id },
-      });
-      const after = await tx.timeEntry.update({
-        where: { id: entry.id },
-        data: {
-          minutes,
-          workDate,
-          note: changes.note,
-          // Any edit, even one that changes nothing, confirms the entry.
-          needsReview: false,
-        },
-      });
-      const from = timeEntryRef(before);
-      const to = timeEntryRef(after);
-      if (JSON.stringify(from) !== JSON.stringify(to)) {
-        await recordActivity(tx, cardOf(after), userId, 'TIME_ENTRY_EDITED', {
-          entryId: after.id,
-          user: await personRef(tx, after.userId),
-          from,
-          to,
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM time_entries WHERE id = ${entry.id}::uuid FOR UPDATE`;
+        const before = await tx.timeEntry.findUniqueOrThrow({
+          where: { id: entry.id },
         });
-      }
-      return after;
-    });
+        const after = await tx.timeEntry.update({
+          where: { id: entry.id },
+          data: {
+            minutes,
+            workDate,
+            note: changes.note,
+            // Any edit, even one that changes nothing, confirms the entry.
+            needsReview: false,
+          },
+        });
+        const from = timeEntryRef(before);
+        const to = timeEntryRef(after);
+        if (JSON.stringify(from) !== JSON.stringify(to)) {
+          await recordActivity(tx, cardOf(after), userId, 'TIME_ENTRY_EDITED', {
+            entryId: after.id,
+            user: await personRef(tx, after.userId),
+            from,
+            to,
+          });
+        }
+        return after;
+      }),
+    );
   }
 
   async deleteEntry(userId: string, entryId: string): Promise<void> {
     const entry = await findChangeableEntry(this.prisma, userId, entryId);
-    await this.prisma.$transaction(async (tx) => {
-      const removed = await tx.timeEntry.deleteMany({
-        where: { id: entry.id },
-      });
-      if (removed.count > 0) {
-        await recordActivity(tx, cardOf(entry), userId, 'TIME_ENTRY_DELETED', {
-          entryId: entry.id,
-          user: await personRef(tx, entry.userId),
-          ...timeEntryRef(entry),
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const removed = await tx.timeEntry.deleteMany({
+          where: { id: entry.id },
         });
-      }
-    });
+        if (removed.count > 0) {
+          await recordActivity(
+            tx,
+            cardOf(entry),
+            userId,
+            'TIME_ENTRY_DELETED',
+            {
+              entryId: entry.id,
+              user: await personRef(tx, entry.userId),
+              ...timeEntryRef(entry),
+            },
+          );
+        }
+      }),
+    );
   }
 }
 

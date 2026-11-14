@@ -25,6 +25,7 @@ import {
   refuseAnnouncedSize,
   type StoredUpload,
 } from './read-upload.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 
 const FILE_NOT_FOUND = 'File not found';
 const NOT_ALLOWED_TO_REMOVE =
@@ -61,8 +62,10 @@ export class FilesService {
     refuseAnnouncedSize(req, this.limit);
     const upload = await readUpload(req, this.store, this.limit);
     try {
-      const row = await this.prisma.$transaction((tx) =>
-        this.saveRow(tx, card, user.id, upload),
+      const row = await retryOnCollision(() =>
+        this.prisma.$transaction((tx) =>
+          this.saveRow(tx, card, user.id, upload),
+        ),
       );
       return toCardFile(row);
     } catch (error) {
@@ -144,20 +147,22 @@ export class FilesService {
   async remove(user: SignedInUser, fileId: string): Promise<void> {
     const file = await this.findVisible(user.id, fileId);
     await this.checkMayRemove(user.id, file);
-    await this.prisma.$transaction(async (tx) => {
-      // Of two removals at once, only one finds the row.
-      const cardId = await lockFileAndItsCard(tx, file.id);
-      await tx.file.delete({ where: { id: file.id } });
-      if (cardId) {
-        await recordActivity(
-          tx,
-          { id: cardId, projectId: file.projectId },
-          user.id,
-          'FILE_REMOVED',
-          fileRef(file),
-        );
-      }
-    });
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        // Of two removals at once, only one finds the row.
+        const cardId = await lockFileAndItsCard(tx, file.id);
+        await tx.file.delete({ where: { id: file.id } });
+        if (cardId) {
+          await recordActivity(
+            tx,
+            { id: cardId, projectId: file.projectId },
+            user.id,
+            'FILE_REMOVED',
+            fileRef(file),
+          );
+        }
+      }),
+    );
     await this.deleteObject(file.storageKey);
   }
 

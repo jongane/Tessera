@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import { findVisibleCard } from '../cards/card-access.js';
 import { recordActivity } from '../activity/activity.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 
 const MAX_NAME_LENGTH = 50;
 
@@ -90,19 +91,25 @@ export class LabelsService {
     if (!label) {
       throw new NotFoundException('Label not found');
     }
-    await this.prisma.$transaction(async (tx) => {
-      const added = await tx.cardLabel.createMany({
-        data: { cardId: card.id, labelId: label.id, projectId: card.projectId },
-        skipDuplicates: true,
-      });
-      if (added.count > 0) {
-        await recordActivity(tx, card, userId, 'LABEL_ADDED', {
-          labelId: label.id,
-          name: label.name,
-          colour: label.colour,
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const added = await tx.cardLabel.createMany({
+          data: {
+            cardId: card.id,
+            labelId: label.id,
+            projectId: card.projectId,
+          },
+          skipDuplicates: true,
         });
-      }
-    });
+        if (added.count > 0) {
+          await recordActivity(tx, card, userId, 'LABEL_ADDED', {
+            labelId: label.id,
+            name: label.name,
+            colour: label.colour,
+          });
+        }
+      }),
+    );
   }
 
   async removeLabelFromCard(
@@ -111,21 +118,23 @@ export class LabelsService {
     labelId: string,
   ): Promise<void> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
-    await this.prisma.$transaction(async (tx) => {
-      const removed = await tx.cardLabel.deleteMany({
-        where: { cardId: card.id, labelId },
-      });
-      if (removed.count > 0) {
-        const label = await tx.label.findUniqueOrThrow({
-          where: { id: labelId },
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const removed = await tx.cardLabel.deleteMany({
+          where: { cardId: card.id, labelId },
         });
-        await recordActivity(tx, card, userId, 'LABEL_REMOVED', {
-          labelId: label.id,
-          name: label.name,
-          colour: label.colour,
-        });
-      }
-    });
+        if (removed.count > 0) {
+          const label = await tx.label.findUniqueOrThrow({
+            where: { id: labelId },
+          });
+          await recordActivity(tx, card, userId, 'LABEL_REMOVED', {
+            labelId: label.id,
+            name: label.name,
+            colour: label.colour,
+          });
+        }
+      }),
+    );
   }
 
   async labelsForCard(userId: string, cardId: string): Promise<Label[]> {

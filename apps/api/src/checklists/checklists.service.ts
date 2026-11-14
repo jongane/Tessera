@@ -22,6 +22,7 @@ import { findVisibleCard } from '../cards/card-access.js';
 import { insertSubtask } from '../cards/subtasks.service.js';
 import { recordActivity } from '../activity/activity.js';
 import { reorder } from '../common/reorder.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 // Past this many checklists the screen suggests splitting the work into a
 // new card. It is only a suggestion; there is no limit.
 const SUGGEST_NEW_CARD_AFTER = 10;
@@ -65,29 +66,31 @@ export class ChecklistsService {
   ): Promise<NewChecklist> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
     const checkedName = requireName(name);
-    return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.checklist.aggregate({
-        where: { cardId: card.id },
-        _count: true,
-        _max: { position: true },
-      });
-      const checklist = await tx.checklist.create({
-        data: {
-          cardId: card.id,
-          projectId: card.projectId,
-          name: checkedName,
-          position: (existing._max.position ?? -1) + 1,
-        },
-      });
-      await recordActivity(tx, card, userId, 'CHECKLIST_ADDED', {
-        checklistId: checklist.id,
-        name: checklist.name,
-      });
-      return {
-        ...checklist,
-        suggestNewCard: existing._count + 1 > SUGGEST_NEW_CARD_AFTER,
-      };
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const existing = await tx.checklist.aggregate({
+          where: { cardId: card.id },
+          _count: true,
+          _max: { position: true },
+        });
+        const checklist = await tx.checklist.create({
+          data: {
+            cardId: card.id,
+            projectId: card.projectId,
+            name: checkedName,
+            position: (existing._max.position ?? -1) + 1,
+          },
+        });
+        await recordActivity(tx, card, userId, 'CHECKLIST_ADDED', {
+          checklistId: checklist.id,
+          name: checklist.name,
+        });
+        return {
+          ...checklist,
+          suggestNewCard: existing._count + 1 > SUGGEST_NEW_CARD_AFTER,
+        };
+      }),
+    );
   }
 
   async listChecklists(
@@ -116,21 +119,23 @@ export class ChecklistsService {
   ): Promise<Checklist> {
     const checkedName = requireName(name);
     const visible = await this.findVisibleChecklist(userId, checklistId);
-    return this.prisma.$transaction(async (tx) => {
-      const list = await lockChecklist(tx, visible.id);
-      if (list.name === checkedName) {
-        return list;
-      }
-      await recordActivity(tx, cardOf(list), userId, 'CHECKLIST_RENAMED', {
-        checklistId: list.id,
-        from: list.name,
-        to: checkedName,
-      });
-      return tx.checklist.update({
-        where: { id: list.id },
-        data: { name: checkedName },
-      });
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const list = await lockChecklist(tx, visible.id);
+        if (list.name === checkedName) {
+          return list;
+        }
+        await recordActivity(tx, cardOf(list), userId, 'CHECKLIST_RENAMED', {
+          checklistId: list.id,
+          from: list.name,
+          to: checkedName,
+        });
+        return tx.checklist.update({
+          where: { id: list.id },
+          data: { name: checkedName },
+        });
+      }),
+    );
   }
 
   // Moves the checklist to `toIndex` among its card's checklists (0 is first).
@@ -140,29 +145,33 @@ export class ChecklistsService {
     toIndex: number,
   ): Promise<void> {
     const list = await this.findVisibleChecklist(userId, checklistId);
-    await this.prisma.$transaction(async (tx) => {
-      const lists = await tx.checklist.findMany({
-        where: { cardId: list.cardId },
-        orderBy: { position: 'asc' },
-        select: { id: true },
-      });
-      for (const [position, id] of reorder(lists, list.id, toIndex)) {
-        await tx.checklist.update({ where: { id }, data: { position } });
-      }
-    });
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const lists = await tx.checklist.findMany({
+          where: { cardId: list.cardId },
+          orderBy: { position: 'asc' },
+          select: { id: true },
+        });
+        for (const [position, id] of reorder(lists, list.id, toIndex)) {
+          await tx.checklist.update({ where: { id }, data: { position } });
+        }
+      }),
+    );
   }
 
   // Also deletes its items.
   async deleteChecklist(userId: string, checklistId: string): Promise<void> {
     const visible = await this.findVisibleChecklist(userId, checklistId);
-    await this.prisma.$transaction(async (tx) => {
-      const list = await lockChecklist(tx, visible.id);
-      await tx.checklist.delete({ where: { id: list.id } });
-      await recordActivity(tx, cardOf(list), userId, 'CHECKLIST_DELETED', {
-        checklistId: list.id,
-        name: list.name,
-      });
-    });
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const list = await lockChecklist(tx, visible.id);
+        await tx.checklist.delete({ where: { id: list.id } });
+        await recordActivity(tx, cardOf(list), userId, 'CHECKLIST_DELETED', {
+          checklistId: list.id,
+          name: list.name,
+        });
+      }),
+    );
   }
 
   // A new item goes to the bottom of the checklist.
@@ -173,25 +182,27 @@ export class ChecklistsService {
   ): Promise<ChecklistItem> {
     const list = await this.findVisibleChecklist(userId, checklistId);
     const checkedText = requireText(text);
-    return this.prisma.$transaction(async (tx) => {
-      // Two items added at the same moment must not take it past the limit.
-      await tx.$queryRaw`SELECT id FROM checklists WHERE id = ${list.id}::uuid FOR UPDATE`;
-      const items = await tx.checklistItem.aggregate({
-        where: { checklistId: list.id },
-        _count: true,
-        _max: { position: true },
-      });
-      if (items._count >= MAX_CHECKLIST_ITEMS) {
-        throw new ConflictException(CHECKLIST_FULL_MESSAGE);
-      }
-      return tx.checklistItem.create({
-        data: {
-          checklistId: list.id,
-          text: checkedText,
-          position: (items._max.position ?? -1) + 1,
-        },
-      });
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        // Two items added at the same moment must not take it past the limit.
+        await tx.$queryRaw`SELECT id FROM checklists WHERE id = ${list.id}::uuid FOR UPDATE`;
+        const items = await tx.checklistItem.aggregate({
+          where: { checklistId: list.id },
+          _count: true,
+          _max: { position: true },
+        });
+        if (items._count >= MAX_CHECKLIST_ITEMS) {
+          throw new ConflictException(CHECKLIST_FULL_MESSAGE);
+        }
+        return tx.checklistItem.create({
+          data: {
+            checklistId: list.id,
+            text: checkedText,
+            position: (items._max.position ?? -1) + 1,
+          },
+        });
+      }),
+    );
   }
 
   // Edits, ticks and/or moves the item. Either every change is saved or,
@@ -204,15 +215,17 @@ export class ChecklistsService {
     const text =
       changes.text === undefined ? undefined : requireText(changes.text);
     const item = await this.findVisibleItem(userId, itemId);
-    return this.prisma.$transaction(async (tx) => {
-      if (changes.position !== undefined) {
-        await moveItemTo(tx, item, changes.position);
-      }
-      return tx.checklistItem.update({
-        where: { id: item.id },
-        data: { text, isDone: changes.isDone },
-      });
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        if (changes.position !== undefined) {
+          await moveItemTo(tx, item, changes.position);
+        }
+        return tx.checklistItem.update({
+          where: { id: item.id },
+          data: { text, isDone: changes.isDone },
+        });
+      }),
+    );
   }
 
   // Moves the item to `toIndex` in its checklist (0 is the top).
@@ -222,7 +235,9 @@ export class ChecklistsService {
     toIndex: number,
   ): Promise<void> {
     const item = await this.findVisibleItem(userId, itemId);
-    await this.prisma.$transaction((tx) => moveItemTo(tx, item, toIndex));
+    await retryOnCollision(() =>
+      this.prisma.$transaction((tx) => moveItemTo(tx, item, toIndex)),
+    );
   }
 
   async deleteItem(userId: string, itemId: string): Promise<void> {
@@ -238,18 +253,20 @@ export class ChecklistsService {
     const card = await this.prisma.card.findUniqueOrThrow({
       where: { id: item.checklist.cardId },
     });
-    return this.prisma.$transaction(async (tx) => {
-      const subtask = await insertSubtask(
-        tx,
-        userId,
-        card,
-        card.columnId,
-        { title: item.text },
-        { id: item.checklist.id, name: item.checklist.name },
-      );
-      await tx.checklistItem.delete({ where: { id: item.id } });
-      return subtask;
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const subtask = await insertSubtask(
+          tx,
+          userId,
+          card,
+          card.columnId,
+          { title: item.text },
+          { id: item.checklist.id, name: item.checklist.name },
+        );
+        await tx.checklistItem.delete({ where: { id: item.id } });
+        return subtask;
+      }),
+    );
   }
 
   private async findVisibleChecklist(
