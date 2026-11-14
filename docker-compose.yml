@@ -23,5 +23,29 @@ services:
       timeout: 5s
       retries: 10
 
+  # File storage. One process runs everything SeaweedFS needs, with an S3
+  # gateway on port 8333. The API talks to it through the S3 API only.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.51
+    command:
+      - mini
+      - -dir=/data
+      # The local-only sign-in for the S3 gateway (see the file).
+      - -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      # Only reachable from this computer, not the rest of the network.
+      - '127.0.0.1:8333:8333'
+    volumes:
+      - seaweedfs-data:/data
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      # Any answer from the S3 gateway (even "access denied") means it is up.
+      test: ['CMD-SHELL', 'curl -s -o /dev/null http://localhost:8333/']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
 volumes:
   postgres-data:
+  seaweedfs-data:
