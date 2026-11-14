@@ -43,6 +43,9 @@ export class S3FileStore implements FileStore {
     const upload = new Upload({
       client: this.client,
       params: { Bucket: this.bucket, Key: key, Body: body },
+      // 5 MB parts, 2 at a time: about 10 MB held in memory per upload.
+      partSize: 5 * 1024 * 1024,
+      queueSize: 2,
     });
     await upload.done();
   }
