@@ -5,7 +5,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CHOOSE_WHAT_HAPPENS_TO_FILES } from '@tessera/shared';
+import {
+  CHANGED_AT_THE_SAME_TIME_MESSAGE,
+  CHOOSE_WHAT_HAPPENS_TO_FILES,
+} from '@tessera/shared';
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { retryOnCollision } from '../common/retry-on-collision.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -30,9 +33,6 @@ import { cardRef, dueRef, recordActivity } from '../activity/activity.js';
 import { ALREADY_LINKED, refuseGeneralChat } from '../chats/chat-rules.js';
 
 const MAX_TITLE_LENGTH = 200;
-
-const CHANGED_AT_THE_SAME_TIME =
-  'Someone changed this card at the same time. Try again.';
 
 type SubtaskWithCount = Card & { _count: { subtasks: number } };
 
@@ -453,7 +453,7 @@ export class CardsService {
           const card = await findCard(tx, visible.id);
           const subtasks = await this.directSubtasks(tx, card.id);
           if (!sameSubtasks(asked, subtasks)) {
-            throw new ConflictException(CHANGED_AT_THE_SAME_TIME);
+            throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
           }
           const toDelete = [
             card,
@@ -693,7 +693,7 @@ async function checkFilesSeen(
   }
   const now = await tx.file.count({ where: { cardId: { in: cardIds } } });
   if (now !== filesSeen) {
-    throw new ConflictException(CHANGED_AT_THE_SAME_TIME);
+    throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
   }
 }
 

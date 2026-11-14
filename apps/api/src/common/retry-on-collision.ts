@@ -37,7 +37,8 @@ export async function retryOnCollision<T>(
       return await change();
     } catch (error) {
       if (!isCollision(error)) throw error;
-      if (retry >= RETRIES) throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
+      if (retry >= RETRIES)
+        throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
     }
   }
 }
