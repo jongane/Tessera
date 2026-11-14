@@ -108,7 +108,12 @@ export function DeleteCardDialog({
   );
 
   function onConfirm() {
-    const body = hasSubtasks
+    const moveFilesTo =
+      fileCount > 0 && fileChoice === "move" ? target?.id : undefined;
+    const deleteFiles = fileCount > 0 && fileChoice === "delete";
+    // The files are only counted by the API when they are deleted or moved.
+    const filesSeen = deleteFiles || moveFilesTo ? fileCount : undefined;
+    const subtaskChoices = hasSubtasks
       ? {
           subtasks: Object.fromEntries(
             subtasks.subtasks.map(({ subtask }) => [
@@ -117,14 +122,20 @@ export function DeleteCardDialog({
             ]),
           ),
         }
-      : undefined;
-    const moveFilesTo =
-      fileCount > 0 && fileChoice === "move" ? target?.id : undefined;
-    const deleteFiles = fileCount > 0 && fileChoice === "delete";
+      : {};
+    const body =
+      hasSubtasks || filesSeen !== undefined
+        ? {
+            ...subtaskChoices,
+            ...(filesSeen === undefined ? {} : { filesSeen }),
+          }
+        : undefined;
     remove
       .mutateAsync({ body, moveFilesTo, deleteFiles })
       .then(onDeleted, (error) => {
-        if (isFilesChoiceRefusal(error)) reloadFileCounts();
+        if (isFilesChoiceRefusal(error) || isChangedMeanwhile(error)) {
+          reloadFileCounts();
+        }
       });
   }
 
@@ -469,6 +480,11 @@ function isFilesChoiceRefusal(error: unknown): boolean {
     error.status === 400 &&
     error.message.includes(CHOOSE_WHAT_HAPPENS_TO_FILES)
   );
+}
+
+// Someone changed the card, or its files, while the dialog was open.
+function isChangedMeanwhile(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409;
 }
 
 function deleteError(error: Error | null): Error | null {
