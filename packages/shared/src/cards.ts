@@ -71,6 +71,9 @@ const subtaskChoiceSchema = z.discriminatedUnion('action', [
 export const deleteCardSchema = z
   .strictObject({
     subtasks: z.record(z.uuid(), subtaskChoiceSchema).optional(),
+    // How many files the person saw on the cards about to be deleted. Only
+    // checked when the files are deleted or moved.
+    filesSeen: z.number().int().min(0).optional(),
   })
   .optional();
 

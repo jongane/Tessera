@@ -17,7 +17,12 @@ import {
   placeCardAt,
   takeNextCardNumber,
 } from './card-numbering.js';
-import { findCard, loadSubtree, moveSubtree } from './card-tree.js';
+import {
+  findCard,
+  LARGE_CHANGE_TIMEOUT_MS,
+  loadSubtree,
+  moveSubtree,
+} from './card-tree.js';
 import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
 import { lockCard, lockUntilCovered } from './card-access.js';
@@ -418,6 +423,7 @@ export class CardsService {
     choices: Record<string, SubtaskChoice> = {},
     moveFilesTo?: string,
     deleteFiles = false,
+    filesSeen?: number,
   ): Promise<string[]> {
     const visible = await this.findVisibleCard(userId, cardId);
     // What the request was built from. Checked again once the cards are
@@ -426,85 +432,99 @@ export class CardsService {
     checkChoicesCoverSubtasks(asked, choices);
 
     return retryOnCollision(() =>
-      this.prisma.$transaction(async (tx) => {
-        await lockUntilCovered(tx, async () => {
+      this.prisma.$transaction(
+        async (tx) => {
+          await lockUntilCovered(tx, async () => {
+            const card = await findCard(tx, visible.id);
+            return {
+              must: [
+                card.id,
+                ...(moveFilesTo === undefined ? [] : [moveFilesTo]),
+                ...Object.values(choices).flatMap((choice) =>
+                  choice.action === 'move' ? [choice.parentId] : [],
+                ),
+              ],
+              may: [
+                ...(await loadSubtree(tx, card.id)).map((member) => member.id),
+                ...(card.parentId ? [card.parentId] : []),
+              ],
+            };
+          });
           const card = await findCard(tx, visible.id);
-          return [
-            ...(await loadSubtree(tx, card.id)).map((member) => member.id),
-            ...(card.parentId ? [card.parentId] : []),
-            ...(moveFilesTo === undefined ? [] : [moveFilesTo]),
-            ...Object.values(choices).flatMap((choice) =>
-              choice.action === 'move' ? [choice.parentId] : [],
+          const subtasks = await this.directSubtasks(tx, card.id);
+          if (!sameSubtasks(asked, subtasks)) {
+            throw new ConflictException(CHANGED_AT_THE_SAME_TIME);
+          }
+          const toDelete = [
+            card,
+            ...subtasks.filter(
+              (subtask) => choices[subtask.id]!.action === 'delete',
             ),
           ];
-        });
-        const card = await findCard(tx, visible.id);
-        const subtasks = await this.directSubtasks(tx, card.id);
-        if (!sameSubtasks(asked, subtasks)) {
-          throw new ConflictException(CHANGED_AT_THE_SAME_TIME);
-        }
-        const toDelete = [
-          card,
-          ...subtasks.filter(
-            (subtask) => choices[subtask.id]!.action === 'delete',
-          ),
-        ];
-        await this.checkMayDelete(tx, userId, card.projectId, toDelete);
-        const beingDeleted = new Set(
-          (await loadSubtree(tx, card.id)).map((member) => member.id),
-        );
-        const storageKeys = await takeFiles(
-          tx,
-          userId,
-          toDelete.map((c) => c.id),
-          card.projectId,
-          moveFilesTo,
-          deleteFiles,
-        );
-        for (const subtask of subtasks) {
-          const choice = choices[subtask.id]!;
-          if (choice.action === 'delete') {
-            if (subtask._count.subtasks > 0) {
-              throw new ConflictException(
-                'A subtask that has its own subtasks cannot be deleted here; ' +
-                  'decide what happens to its subtasks first',
-              );
-            }
-            await deleteKeepingChat(tx, subtask.id);
-          } else if (choice.action === 'standalone') {
-            await moveSubtree(tx, userId, subtask.id, null);
-          } else {
-            if (beingDeleted.has(choice.parentId)) {
-              throw new BadRequestException(
-                'A subtask cannot move under the card being deleted or its subtasks',
-              );
-            }
-            const newParent = await tx.card.findFirst({
-              where: {
-                id: choice.parentId,
-                projectId: card.projectId,
-                board: boardsVisibleTo(userId),
-              },
-              select: { id: true },
-            });
-            if (!newParent) {
-              throw new NotFoundException('Card not found');
-            }
-            await moveSubtree(tx, userId, subtask.id, newParent.id);
-          }
-        }
-        await deleteKeepingChat(tx, card.id);
-        if (card.parentId) {
-          await recordActivity(
-            tx,
-            { id: card.parentId, projectId: card.projectId },
-            userId,
-            'SUBTASK_REMOVED',
-            { subtask: cardRef(card), deleted: true },
+          await this.checkMayDelete(tx, userId, card.projectId, toDelete);
+          const beingDeleted = new Set(
+            (await loadSubtree(tx, card.id)).map((member) => member.id),
           );
-        }
-        return storageKeys;
-      }),
+          await checkFilesSeen(
+            tx,
+            toDelete.map((c) => c.id),
+            filesSeen,
+            deleteFiles || moveFilesTo !== undefined,
+          );
+          const storageKeys = await takeFiles(
+            tx,
+            userId,
+            toDelete.map((c) => c.id),
+            card.projectId,
+            moveFilesTo,
+            deleteFiles,
+          );
+          for (const subtask of subtasks) {
+            const choice = choices[subtask.id]!;
+            if (choice.action === 'delete') {
+              if (subtask._count.subtasks > 0) {
+                throw new ConflictException(
+                  'A subtask that has its own subtasks cannot be deleted here; ' +
+                    'decide what happens to its subtasks first',
+                );
+              }
+              await deleteKeepingChat(tx, subtask.id);
+            } else if (choice.action === 'standalone') {
+              await moveSubtree(tx, userId, subtask.id, null, true);
+            } else {
+              if (beingDeleted.has(choice.parentId)) {
+                throw new BadRequestException(
+                  'A subtask cannot move under the card being deleted or its subtasks',
+                );
+              }
+              const newParent = await tx.card.findFirst({
+                where: {
+                  id: choice.parentId,
+                  projectId: card.projectId,
+                  board: boardsVisibleTo(userId),
+                },
+                select: { id: true },
+              });
+              if (!newParent) {
+                throw new NotFoundException('Card not found');
+              }
+              await moveSubtree(tx, userId, subtask.id, newParent.id, true);
+            }
+          }
+          await deleteKeepingChat(tx, card.id);
+          if (card.parentId) {
+            await recordActivity(
+              tx,
+              { id: card.parentId, projectId: card.projectId },
+              userId,
+              'SUBTASK_REMOVED',
+              { subtask: cardRef(card), deleted: true },
+            );
+          }
+          return storageKeys;
+        },
+        { timeout: LARGE_CHANGE_TIMEOUT_MS },
+      ),
     );
   }
 
@@ -542,9 +562,13 @@ export class CardsService {
     projectId: string,
     toDelete: Card[],
   ): Promise<void> {
-    const membership = await tx.projectMember.findUniqueOrThrow({
+    const membership = await tx.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId } },
     });
+    // Removed from the project while this waited: like any outsider.
+    if (!membership) {
+      throw new NotFoundException('Card not found');
+    }
     if (
       membership.role !== 'ADMIN' &&
       toDelete.some((c) => c.createdById !== userId)
@@ -652,6 +676,24 @@ async function checkNoLoggedTime(
       message: 'Cards with logged time cannot be deleted',
       loggedMinutes,
     });
+  }
+}
+
+// The delete dialog says how many files it showed on the cards that will be
+// deleted. If there are others now, nothing is changed. Skipped when the
+// files are not being deleted or moved, or no number was sent.
+async function checkFilesSeen(
+  tx: Prisma.TransactionClient,
+  cardIds: string[],
+  filesSeen: number | undefined,
+  takingFiles: boolean,
+): Promise<void> {
+  if (filesSeen === undefined || !takingFiles) {
+    return;
+  }
+  const now = await tx.file.count({ where: { cardId: { in: cardIds } } });
+  if (now !== filesSeen) {
+    throw new ConflictException(CHANGED_AT_THE_SAME_TIME);
   }
 }
 

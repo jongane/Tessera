@@ -162,6 +162,7 @@ export class CardsController {
       body?.subtasks ?? {},
       query.moveFilesTo,
       query.files === 'delete',
+      body?.filesSeen,
     );
     await this.files.deleteObjects(storageKeys);
   }
