@@ -1,5 +1,5 @@
 import type { RelatedCard } from '@tessera/shared'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useCardRelatives } from '../api/cards'
 import { useCardSearch } from '../api/subtasks'
 import { Alert } from '../ui/Alert'
@@ -7,20 +7,9 @@ import { Button } from '../ui/Button'
 import { Dialog, DialogClose } from '../ui/Dialog'
 import { DEEPEST_PARENT, TOO_DEEP } from './depth'
 import { TextField } from '../ui/TextField'
+import { useDebounced } from './use-debounced'
 
 export const PICKER_TITLE = 'Move to another parent'
-
-// How long to wait after the last key before searching.
-const SEARCH_DELAY_MS = 250
-
-function useDebounced(value: string): string {
-  const [settled, setSettled] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), SEARCH_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [value])
-  return settled
-}
 
 // Finds the card to become another card's parent, by number or title, on
 // any board of the project (docs/card-features.md, section 4). The card

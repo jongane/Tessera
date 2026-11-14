@@ -104,6 +104,10 @@ const SAYINGS: { [K in ActivityKind]: Say<K> } = {
   CHECKLIST_DELETED: (d) => `deleted the checklist ${quote(d.name)}`,
   CHECKLIST_ITEM_TO_SUBTASK: (d, c) =>
     `turned ${quote(d.subtask.title)} from ${d.checklistName} into ${number(c, d.subtask.numberPath)}`,
+  FILE_ADDED: (d) => `attached the file ${quote(d.name)}`,
+  FILE_REMOVED: (d) => `removed the file ${quote(d.name)}`,
+  FILE_MOVED: (d, c) =>
+    `moved the file ${quote(d.name)} here from ${number(c, d.from.numberPath)}, which was deleted`,
 }
 
 // "Jon moved this from To do to In progress".

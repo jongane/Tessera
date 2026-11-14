@@ -22,7 +22,7 @@ export function ConfirmDialog({
   onCancel: () => void
   pending?: boolean
   error?: Error | null
-  returnFocusTo?: HTMLElement | null
+  returnFocusTo?: HTMLElement | null | (() => HTMLElement | null)
 }) {
   return (
     <Dialog

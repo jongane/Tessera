@@ -8,8 +8,11 @@ interface DialogProps {
   children: ReactNode
   // False for a window opened over another one, so that one stays readable.
   modal?: boolean
-  // Gets focus back on close. Else whatever had focus when it opened.
-  returnFocusTo?: HTMLElement | null
+  // Wider, for content such as an image.
+  wide?: boolean
+  // Gets focus back on close. Else whatever had focus when it opened. A
+  // function is asked when the window closes, for a place that depends on how.
+  returnFocusTo?: HTMLElement | null | (() => HTMLElement | null)
 }
 
 // A window over the page. Radix keeps the keyboard inside it and closes it on
@@ -21,6 +24,7 @@ export function Dialog({
   title,
   children,
   modal = true,
+  wide = false,
   returnFocusTo,
 }: DialogProps) {
   const opener = useRef<Element | null>(
@@ -31,7 +35,11 @@ export function Dialog({
   useEffect(() => {
     back.current = returnFocusTo
   })
-  const target = () => back.current ?? opener.current
+  const target = () => {
+    const place =
+      typeof back.current === 'function' ? back.current() : back.current
+    return place ?? opener.current
+  }
   useEffect(() => () => focusBack(target()), [])
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange} modal={modal}>
@@ -43,7 +51,7 @@ export function Dialog({
             event.preventDefault()
             focusBack(target())
           }}
-          className={`fixed top-1/2 left-1/2 flex w-[calc(100%-32px)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl bg-surface p-6 shadow-lg ${modal ? '' : 'border border-line-strong'}`}
+          className={`fixed top-1/2 left-1/2 flex w-[calc(100%-32px)] ${wide ? 'max-w-3xl' : 'max-w-md'} -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl bg-surface p-6 shadow-lg ${modal ? '' : 'border border-line-strong'}`}
         >
           <RadixDialog.Title className="text-lg font-semibold">
             {title}

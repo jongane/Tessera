@@ -5,6 +5,8 @@ import {
 } from '@tessera/shared'
 import { useEffect, useId, useState } from 'react'
 import { useMe } from '../api/auth'
+import { useCardFiles } from '../api/files'
+import { useCardSearch } from '../api/subtasks'
 import { ApiError } from '../api/client'
 import { useMembers } from '../api/members'
 import {
@@ -15,10 +17,14 @@ import {
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Button } from '../ui/Button'
 import { Loading } from '../ui/Loading'
+import { TextField } from '../ui/TextField'
 import { ParentPickerDialog } from './ParentPickerDialog'
+import { useDebounced } from './use-debounced'
 import { entriesHeadingId } from './time-ids'
 
 type Choice = 'delete' | 'standalone' | 'move'
+// What happens to the files of the cards being deleted.
+type FileChoice = 'delete' | 'move'
 
 // "Are you sure?" before deleting a card. A card with subtasks needs a
 // choice for each direct subtask: delete it, make it a card of its own, or
@@ -41,6 +47,10 @@ export function DeleteCardDialog({
   const remove = useDeleteCard(card.boardId, card.id)
   // Everything below the card goes with it, so none of it can be a new parent.
   const below = useCardRelatives(card.boardId, card.id)
+  const ownFiles = useCardFiles(card.id)
+  const [fileChoice, setFileChoice] = useState<FileChoice | null>(null)
+  // The card the files move to, once chosen.
+  const [fileTarget, setFileTarget] = useState<RelatedCard | null>(null)
   const [choices, setChoices] = useState<Record<string, Choice>>({})
   // The new parent of each subtask that is to move, once chosen.
   const [parents, setParents] = useState<Record<string, RelatedCard>>({})
@@ -72,6 +82,21 @@ export function DeleteCardDialog({
     setPicking(choice === 'move' ? id : null)
   }
 
+  // The cards that go with this one: it, and the subtasks chosen for deletion.
+  const deleted = subtasks.subtasks.filter(
+    ({ subtask }) => choiceFor(subtask.id) === 'delete',
+  )
+  const deletedIds = [card.id, ...deleted.map(({ subtask }) => subtask.id)]
+  const fileCount =
+    (ownFiles.data?.files.length ?? 0) +
+    deleted.reduce((sum, { fileCount: n }) => sum + n, 0)
+  const target =
+    fileTarget && !deletedIds.includes(fileTarget.id) ? fileTarget : null
+  // With files, a choice is needed: nothing is picked for the person.
+  const filesUndecided =
+    fileCount > 0 &&
+    (fileChoice === null || (fileChoice === 'move' && target === null))
+
   const unplaced = subtasks.subtasks.some(
     ({ subtask }) => choiceFor(subtask.id) === 'move' && !parents[subtask.id],
   )
@@ -88,7 +113,9 @@ export function DeleteCardDialog({
           ),
         }
       : undefined
-    remove.mutateAsync(body).then(onDeleted, () => {})
+    const moveFilesTo =
+      fileCount > 0 && fileChoice === 'move' ? target?.id : undefined
+    remove.mutateAsync({ body, moveFilesTo }).then(onDeleted, () => {})
   }
 
   return (
@@ -104,10 +131,14 @@ export function DeleteCardDialog({
         subtasks.pending ||
         subtasks.error !== null ||
         (hasSubtasks && below.isPending) ||
+        ownFiles.isPending ||
+        ownFiles.isError ||
+        filesUndecided ||
         unplaced
       }
       error={
         deleteError(remove.error) ??
+        ownFiles.error ??
         subtasks.error ??
         (hasSubtasks ? below.error : null)
       }
@@ -156,6 +187,18 @@ export function DeleteCardDialog({
               ))}
             </fieldset>
           ))}
+        {fileCount > 0 && (
+          <FilesChoice
+            count={fileCount}
+            withSubtasks={fileCount > (ownFiles.data?.files.length ?? 0)}
+            projectId={card.projectId}
+            choice={fileChoice}
+            target={target}
+            leaveOut={deletedIds}
+            onChoice={setFileChoice}
+            onTarget={setFileTarget}
+          />
+        )}
         {picked && below.data && (
           <ParentPickerDialog
             projectId={card.projectId}
@@ -175,6 +218,133 @@ export function DeleteCardDialog({
         )}
       </div>
     </ConfirmDialog>
+  )
+}
+
+const plural = (count: number) => `${count} ${count === 1 ? 'file' : 'files'}`
+
+// The card's files, and what to do with them: delete them with the card or
+// move them to another card of the project (docs/card-features.md, section 8).
+function FilesChoice({
+  count,
+  withSubtasks,
+  projectId,
+  choice,
+  target,
+  leaveOut,
+  onChoice,
+  onTarget,
+}: {
+  count: number
+  // True when subtasks chosen for deletion have files too.
+  withSubtasks: boolean
+  projectId: string
+  choice: FileChoice | null
+  target: RelatedCard | null
+  leaveOut: string[]
+  onChoice: (choice: FileChoice) => void
+  onTarget: (card: RelatedCard | null) => void
+}) {
+  const group = useId()
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-1 font-semibold">
+        {`${withSubtasks ? 'This card and its subtasks being deleted have' : 'This card has'} ${plural(count)}. What happens to them?`}
+      </legend>
+      <label className="flex min-h-8 items-center gap-1.5">
+        <input
+          type="radio"
+          name={group}
+          checked={choice === 'delete'}
+          onChange={() => onChoice('delete')}
+        />
+        Delete the files too
+      </label>
+      <label className="flex min-h-8 items-center gap-1.5">
+        <input
+          type="radio"
+          name={group}
+          checked={choice === 'move'}
+          onChange={() => onChoice('move')}
+        />
+        Move them to another card
+      </label>
+      {choice === 'move' &&
+        (target ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span>{`The files move to ${target.number} ${target.title}`}</span>
+            <Button
+              variant="link"
+              className="min-h-8"
+              onClick={() => onTarget(null)}
+            >
+              Change
+            </Button>
+          </div>
+        ) : (
+          <CardFinder
+            projectId={projectId}
+            leaveOut={leaveOut}
+            onPick={onTarget}
+          />
+        ))}
+    </fieldset>
+  )
+}
+
+// Finds a card of the project by number or title. The cards being deleted
+// are left out.
+function CardFinder({
+  projectId,
+  leaveOut,
+  onPick,
+}: {
+  projectId: string
+  leaveOut: string[]
+  onPick: (card: RelatedCard) => void
+}) {
+  const [typed, setTyped] = useState('')
+  const search = useDebounced(typed.trim())
+  const found = useCardSearch(projectId, search)
+  const cards = (found.data?.cards ?? []).filter(
+    (card) => !leaveOut.includes(card.id),
+  )
+  return (
+    <div className="flex flex-col gap-2">
+      <TextField
+        label="Find a card"
+        hint="Type a card number or words from its title."
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
+      />
+      {found.error && <p className="text-danger">{found.error.message}</p>}
+      {search !== '' && found.isPending && (
+        <p role="status" className="text-muted">
+          Searching…
+        </p>
+      )}
+      {search !== '' && found.data && cards.length === 0 && (
+        <p role="status" className="text-muted">
+          No cards found
+        </p>
+      )}
+      <ul className="flex max-h-48 flex-col gap-0.5 overflow-y-auto">
+        {cards.map((card) => (
+          <li key={card.id}>
+            <button
+              type="button"
+              onClick={() => onPick(card)}
+              className="flex min-h-11 w-full flex-col items-start justify-center rounded-md px-2 text-left hover:bg-subtle"
+            >
+              <span>
+                {card.number} {card.title}
+              </span>
+              <span className="text-xs text-muted">{card.boardName}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

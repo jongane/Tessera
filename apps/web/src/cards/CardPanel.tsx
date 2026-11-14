@@ -5,7 +5,14 @@ import type {
   Project,
 } from '@tessera/shared'
 import * as Tabs from '@radix-ui/react-tabs'
-import { type KeyboardEvent, lazy, Suspense, useState } from 'react'
+import {
+  type DragEvent,
+  type KeyboardEvent,
+  lazy,
+  Suspense,
+  useRef,
+  useState,
+} from 'react'
 import { useBlocker } from 'react-router'
 import { useMe } from '../api/auth'
 import { ApiError } from '../api/client'
@@ -28,6 +35,7 @@ import {
 } from './CardFields'
 import { DeleteCardDialog } from './DeleteCardDialog'
 import { Checklists } from './Checklists'
+import { Files } from './Files'
 import { ActivityTab } from './ActivityTab'
 import { ActionsMenu } from './ActionsMenu'
 import { MoveToParent } from './MoveToParent'
@@ -36,6 +44,7 @@ import { AssigneesField, LabelsField } from './PeopleAndLabels'
 import { RelatedElsewhere } from './RelatedElsewhere'
 import { Subtasks } from './Subtasks'
 import { TimeSection } from './TimeSection'
+import { type Uploads, useUploads } from './use-uploads'
 
 type Section = 'details' | 'activity'
 
@@ -78,21 +87,35 @@ export interface CardPanelProps {
 // dialog or onto its own page later (docs/web-app.md, section 3). It reads
 // the card from the board, which reloads when the server says it changed.
 export default function CardPanel(props: CardPanelProps) {
+  // A different card starts afresh, with no uploads of the last one's.
+  return <CardPanelFrame key={props.cardId} {...props} />
+}
+
+function CardPanelFrame(props: CardPanelProps) {
   const found = findCard(props.view, props.cardId)
+  const uploads = useUploads(props.cardId)
+  const drop = useFileDrop(uploads.attach)
   return (
     <aside
       aria-label={found ? `Card ${found.card.number}` : 'Card'}
       onKeyDown={(event) => closeOnEscape(event, props.onClose)}
-      className="flex h-full min-h-0 flex-col bg-surface"
+      {...drop.handlers}
+      className="relative flex h-full min-h-0 flex-col bg-surface"
     >
+      {drop.dragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-accent bg-surface/80">
+          <p className="rounded-lg bg-surface px-4 py-2 text-lg font-semibold text-ink">
+            Drop files to attach
+          </p>
+        </div>
+      )}
       {found ? (
         <CardDetails
-          // A different card starts afresh.
-          key={found.card.id}
           {...props}
           card={found.card}
           columnId={found.column.id}
           columnName={found.column.name}
+          uploads={uploads}
         />
       ) : (
         <div className="flex flex-col gap-3 p-4">
@@ -108,6 +131,47 @@ export default function CardPanel(props: CardPanelProps) {
       )}
     </aside>
   )
+}
+
+// Files dropped anywhere on the panel are attached to the card. While files
+// are dragged over it, `dragging` is true, to show an outline. The counter
+// copes with the drag entering and leaving the panel's own parts.
+function useFileDrop(attach: (files: File[]) => void) {
+  const [dragging, setDragging] = useState(false)
+  const depth = useRef(0)
+
+  const hasFiles = (event: DragEvent) =>
+    Array.from(event.dataTransfer?.types ?? []).includes('Files')
+
+  return {
+    dragging,
+    handlers: {
+      onDragEnter(event: DragEvent) {
+        if (!hasFiles(event)) return
+        depth.current += 1
+        setDragging(true)
+      },
+      onDragOver(event: DragEvent) {
+        if (!hasFiles(event)) return
+        // Allows the drop.
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setDragging(true)
+      },
+      onDragLeave(event: DragEvent) {
+        if (!hasFiles(event)) return
+        depth.current = Math.max(0, depth.current - 1)
+        if (depth.current === 0) setDragging(false)
+      },
+      onDrop(event: DragEvent) {
+        if (!hasFiles(event)) return
+        event.preventDefault()
+        depth.current = 0
+        setDragging(false)
+        attach(Array.from(event.dataTransfer.files))
+      },
+    },
+  }
 }
 
 // Escape closes the panel, unless it was pressed in a box being typed in,
@@ -138,7 +202,13 @@ function CardDetails({
   onOpenChat,
   onCreateCard,
   onDeleted,
-}: CardPanelProps & { card: BoardCard; columnId: string; columnName: string }) {
+  uploads,
+}: CardPanelProps & {
+  card: BoardCard
+  columnId: string
+  columnName: string
+  uploads: Uploads
+}) {
   const [saveFailed, setSaveFailed] = useState<string>()
   const [unsavedDescription, setUnsavedDescription] = useState(false)
   const [section, setSection] = useState<Section>('details')
@@ -231,6 +301,7 @@ function CardDetails({
               }}
             />
           </Suspense>
+          <Files cardId={card.id} projectId={project.id} uploads={uploads} />
           <Subtasks card={card} track={track} />
           <Checklists card={card} track={track} onCreateCard={onCreateCard} />
           <TimeSection card={card} project={project} track={track} />

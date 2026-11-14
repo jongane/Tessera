@@ -2,6 +2,7 @@ import type {
   BoardCard,
   BoardView,
   CardChangesBody,
+  CardFileList,
   CardRelatives,
   CardView,
   CompleteCardResult,
@@ -17,6 +18,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { api } from './client'
+import { cardFilesKey } from './files'
 import { boardEditKey, boardKey } from './query-keys'
 
 // Changes to one card, made from the card panel. Each shows on screen
@@ -293,18 +295,30 @@ export function useReopenCard(boardId: string, cardId: string) {
 }
 
 // Not shown before it is saved: deleting asks first, and can be refused.
+// The card's files are deleted with it, or move to the card `moveFilesTo`.
 export function useDeleteCard(boardId: string, cardId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (body: DeleteCardBody) =>
-      api<void>(`/cards/${cardId}`, { method: 'DELETE', body }),
+    mutationFn: ({
+      body,
+      moveFilesTo,
+    }: {
+      body: DeleteCardBody
+      moveFilesTo?: string
+    }) =>
+      api<void>(
+        moveFilesTo
+          ? `/cards/${cardId}?moveFilesTo=${moveFilesTo}`
+          : `/cards/${cardId}`,
+        { method: 'DELETE', body },
+      ),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: boardKey(boardId) }),
   })
 }
 
 // The card's direct subtasks, and for each whether it has subtasks of its
-// own, for the delete choices.
+// own and how many files, for the delete choices.
 export function useSubtasksForDelete(cardId: string, enabled: boolean) {
   const list = useQuery({
     queryKey: ['cards', cardId, 'subtasks'],
@@ -318,14 +332,22 @@ export function useSubtasksForDelete(cardId: string, enabled: boolean) {
       queryFn: () => api<SubtaskList>(`/cards/${subtask.id}/subtasks`),
     })),
   })
-  const pending = list.isPending || own.some((query) => query.isPending)
-  const error = list.error ?? own.find((query) => query.error)?.error ?? null
+  const files = useQueries({
+    queries: subtasks.map((subtask) => ({
+      queryKey: cardFilesKey(subtask.id),
+      queryFn: () => api<CardFileList>(`/cards/${subtask.id}/files`),
+    })),
+  })
+  const all = [...own, ...files]
+  const pending = list.isPending || all.some((query) => query.isPending)
+  const error = list.error ?? all.find((query) => query.error)?.error ?? null
   return {
     pending: enabled && pending,
     error,
     subtasks: subtasks.map((subtask, index) => ({
       subtask,
       hasSubtasks: (own[index]?.data?.progress.total ?? 0) > 0,
+      fileCount: files[index]?.data?.files.length ?? 0,
     })),
   }
 }
