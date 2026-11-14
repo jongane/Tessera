@@ -84,6 +84,14 @@ export class FilesService {
     if (locked.length === 0) {
       throw new NotFoundException('Card not found');
     }
+    const member = await tx.projectMember.findUnique({
+      where: {
+        projectId_userId: { projectId: card.projectId, userId },
+      },
+    });
+    if (!member) {
+      throw new NotFoundException('Card not found');
+    }
     const row = await tx.file.create({
       data: {
         projectId: card.projectId,
@@ -137,19 +145,13 @@ export class FilesService {
     const file = await this.findVisible(user.id, fileId);
     await this.checkMayRemove(user.id, file);
     await this.prisma.$transaction(async (tx) => {
-      if (file.cardId) {
-        // Waits for a delete of the card that is running.
-        await tx.$queryRaw`SELECT id FROM cards WHERE id = ${file.cardId}::uuid FOR UPDATE`;
-      }
       // Of two removals at once, only one finds the row.
-      const { count } = await tx.file.deleteMany({ where: { id: file.id } });
-      if (count === 0) {
-        throw new NotFoundException(FILE_NOT_FOUND);
-      }
-      if (file.cardId) {
+      const cardId = await lockFileAndItsCard(tx, file.id);
+      await tx.file.delete({ where: { id: file.id } });
+      if (cardId) {
         await recordActivity(
           tx,
-          { id: file.cardId, projectId: file.projectId },
+          { id: cardId, projectId: file.projectId },
           user.id,
           'FILE_REMOVED',
           fileRef(file),
@@ -197,6 +199,34 @@ export class FilesService {
     if (membership?.role !== 'ADMIN') {
       throw new ForbiddenException(NOT_ALLOWED_TO_REMOVE);
     }
+  }
+}
+
+// Locks the card that holds the file, then the file, and answers the card's
+// id. The card is locked first (as a delete of a card does), so the two never
+// wait on each other. If the file moved to another card meanwhile, tries again.
+async function lockFileAndItsCard(
+  tx: Prisma.TransactionClient,
+  fileId: string,
+): Promise<string | null> {
+  for (;;) {
+    const seen = await tx.$queryRaw<
+      { card_id: string | null }[]
+    >`SELECT card_id FROM files WHERE id = ${fileId}::uuid`;
+    if (seen.length === 0) {
+      throw new NotFoundException(FILE_NOT_FOUND);
+    }
+    const seenCardId = seen[0]!.card_id;
+    if (seenCardId) {
+      await tx.$queryRaw`SELECT id FROM cards WHERE id = ${seenCardId}::uuid FOR UPDATE`;
+    }
+    const now = await tx.$queryRaw<
+      { card_id: string | null }[]
+    >`SELECT card_id FROM files WHERE id = ${fileId}::uuid FOR UPDATE`;
+    if (now.length === 0) {
+      throw new NotFoundException(FILE_NOT_FOUND);
+    }
+    if (now[0]!.card_id === seenCardId) return seenCardId;
   }
 }
 
