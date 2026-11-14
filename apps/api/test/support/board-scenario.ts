@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types.js';
 import { signedUpAs } from './test-app.js';
 
-interface Column {
+export interface Column {
   id: string;
   name: string;
 }

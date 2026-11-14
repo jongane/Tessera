@@ -28,6 +28,15 @@ function serializationFailure() {
   });
 }
 
+// The real pg driver adapter nests the PostgreSQL code deeper.
+function adapterError(originalCode: string) {
+  return new Prisma.PrismaClientKnownRequestError('adapter failure', {
+    code: 'P2010',
+    clientVersion: 'test',
+    meta: { driverAdapterError: { cause: { originalCode } } },
+  });
+}
+
 describe('retryOnCollision', () => {
   it('returns the result of a change that works first time, running it once', async () => {
     const change = vi.fn().mockResolvedValue('done');
@@ -40,6 +49,11 @@ describe('retryOnCollision', () => {
     ['a write conflict (P2034)', writeConflict],
     ['a deadlock (40P01)', deadlock],
     ['a serialization failure (40001)', serializationFailure],
+    ['a driver-adapter deadlock (40P01)', () => adapterError('40P01')],
+    [
+      'a driver-adapter serialization failure (40001)',
+      () => adapterError('40001'),
+    ],
   ])('tries again after %s and returns the result', async (_name, make) => {
     const change = vi
       .fn()

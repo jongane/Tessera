@@ -65,16 +65,18 @@ describe('Files on cards, attacks round 2 (e2e)', () => {
   }
 
   it('deletes a subtask while its parent is being moved under another card, without a deadlock or a 500', async () => {
-    const { ana, card, newCard, newSubtask } = await fileScenario(app);
+    const { ana, newCard } = await fileScenario(app);
     const other = await newCard('New parent');
     // A subtask whose id sorts before its parent's, so the delete locks the
-    // subtask first and then the parent.
-    let sub: { id: string } | undefined;
-    for (let i = 0; i < 20 && !sub; i++) {
-      const s = await newSubtask(card.id, `Sub ${i}`);
-      if (s.id < card.id) sub = s;
-    }
-    expect(sub, 'no subtask id sorted before the parent').toBeDefined();
+    // subtask first and then the parent. Ids are random, so make two cards,
+    // let the smaller id be the subtask and the larger the parent.
+    const [first, second] = [await newCard('One'), await newCard('Two')];
+    const [sub, card] =
+      first.id < second.id ? [first, second] : [second, first];
+    await ana.agent
+      .put(`/api/cards/${sub.id}/parent`)
+      .send({ parentId: card.id })
+      .expect(200);
     const before = await deadlocks();
 
     let moveParent!: Promise<{ status: number; body: unknown }>;
@@ -86,7 +88,7 @@ describe('Files on cards, attacks round 2 (e2e)', () => {
         .send({ parentId: other.id })
         .then((r) => r);
       await waitersOnLocks(1);
-      deleteSub = ana.agent.delete(`/api/cards/${sub!.id}`).then((r) => r);
+      deleteSub = ana.agent.delete(`/api/cards/${sub.id}`).then((r) => r);
       await waitersOnLocks(2);
     });
 
@@ -105,7 +107,6 @@ describe('Files on cards, attacks round 2 (e2e)', () => {
     const { ana, card, newCard, newSubtask } = await fileScenario(app);
     const other = await newCard('Other parent');
     const sub = await newSubtask(card.id, 'Sub');
-    const before = await deadlocks();
 
     let moveSub!: Promise<{ status: number; body: unknown }>;
     let deleteCard!: Promise<{ status: number; body: unknown }>;
