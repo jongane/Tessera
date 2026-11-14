@@ -1146,6 +1146,87 @@ describe("Deleting a card that has files (criterion 31)", () => {
     ).toBeDisabled();
   });
 
+  // 31 (approved 2026-11-14): the dialog sends how many files it showed, as
+  // `filesSeen` in the JSON body, so the API can refuse when they changed.
+  it("sends the number of files it showed as filesSeen with files=delete", async () => {
+    const { user, dialog } = await openDeleteDialog();
+    const bodies: string[] = [];
+    server.use(
+      http.delete(`/api/cards/${login.id}`, async ({ request }) => {
+        bodies.push(await request.text());
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await within(dialog).findByText(/3 files/);
+
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Delete the files too" }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(JSON.parse(bodies[0] || "null")).toMatchObject({ filesSeen: 3 });
+  });
+
+  // 31 (approved 2026-11-14)
+  it("sends the number of files it showed as filesSeen when the files are moved", async () => {
+    const { user, dialog } = await openDeleteDialog();
+    const bodies: string[] = [];
+    server.use(
+      http.delete(`/api/cards/${login.id}`, async ({ request }) => {
+        bodies.push(await request.text());
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    await within(dialog).findByText(/3 files/);
+
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Move them to another card" }),
+    );
+    const box = await screen.findByLabelText("Find a card");
+    box.focus();
+    await user.type(box, "icon", { skipClick: true });
+    await user.click(
+      await screen.findByRole("button", { name: /WEB-14 Icon set/ }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(JSON.parse(bodies[0] || "null")).toMatchObject({ filesSeen: 3 });
+  });
+
+  // 31 (approved 2026-11-14)
+  it("shows the server's message and the new number of files when the files changed after the person chose", async () => {
+    const { user, dialog, files } = await openDeleteDialog();
+    await within(dialog).findByText(/3 files/);
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Delete the files too" }),
+    );
+    // Someone attaches a fourth file, and the server refuses the delete.
+    files.serverNowHas([...threeFiles(), cardFile("d.pdf")]);
+    server.use(
+      http.delete(`/api/cards/${login.id}`, () =>
+        apiError(409, "Someone changed this card at the same time. Try again."),
+      ),
+    );
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        "Someone changed this card at the same time. Try again.",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+    expect(await within(dialog).findByText(/4 files/)).toBeInTheDocument();
+  });
+
   // 31
   it("moves the files to the card picked from a search, sending moveFilesTo", async () => {
     const { user, dialog, urls } = await openDeleteDialog();

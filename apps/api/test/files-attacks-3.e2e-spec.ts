@@ -7,11 +7,11 @@ import { closeAllSockets, startLiveApp } from './support/live.js';
 import { emptyBucket } from './support/storage.js';
 
 // Antagonist, round 3: card changes that wait on a card lock and then carry
-// on with what they read before they waited. Expected results (Jon, 2026-11-14,
-// pending his final word): a change to a card that is deleted while it waits
-// answers 404 "Card not found"; a card delete whose subtasks changed while it
-// waited answers 409 and changes nothing; moves and subtask adds that collide
-// both end with correct numbers and depths.
+// on with what they read before they waited. Expected results (Jon,
+// 2026-11-14): a change to a card that is deleted while it waits answers 404
+// "Card not found"; a card delete whose subtasks changed while it waited
+// answers 409 and changes nothing; moves and subtask adds that collide both
+// end with correct numbers and depths.
 describe('Card changes at the same moment, attacks round 3 (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
