@@ -103,7 +103,7 @@ describe('Files on cards, attacks round 2 (e2e)', () => {
     expect(await deadlocks(), 'deadlocks detected').toBe(before);
   }, 20_000);
 
-  it('deletes a card whose subtask becomes a card of its own while someone moves that subtask, without a deadlock or a 500', async () => {
+  it('refuses to delete a card whose subtask is moved elsewhere at the same moment, without a deadlock or a 500', async () => {
     const { ana, card, newCard, newSubtask } = await fileScenario(app);
     const other = await newCard('Other parent');
     const sub = await newSubtask(card.id, 'Sub');
@@ -135,7 +135,16 @@ describe('Files on cards, attacks round 2 (e2e)', () => {
     expect(
       [moved.status, deleted.status],
       JSON.stringify([moved.body, deleted.body]),
-    ).toEqual([200, 204]);
+    ).toEqual([200, 409]);
+    expect((deleted.body as { message?: unknown }).message).toBe(
+      'Someone changed this card at the same time. Try again.',
+    );
+    // Nothing changed: the card stays and the subtask is under the card it was moved to.
+    expect(await prisma.card.count({ where: { id: card.id } })).toBe(1);
+    const s = await prisma.card.findUniqueOrThrow({ where: { id: sub.id } });
+    const o = await prisma.card.findUniqueOrThrow({ where: { id: other.id } });
+    expect(s.parentId).toBe(other.id);
+    expect(s.numberPath.startsWith(`${o.numberPath}.`)).toBe(true);
   }, 20_000);
 
   it('stops a timer while its card is deleted, without a 500', async () => {
