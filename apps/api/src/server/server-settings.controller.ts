@@ -3,9 +3,11 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Inject,
   Patch,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FILE_SIZE_LIMIT } from '../storage/storage.module.js';
 import { ZodPipe } from '../common/zod-pipe.js';
 import {
   CurrentUser,
@@ -19,6 +21,8 @@ import {
 
 export interface ServerSettingsView {
   signUpOpen: boolean;
+  // The largest file in bytes (FILE_SIZE_LIMIT_MB).
+  fileSizeLimitBytes: number;
 }
 
 // Settings for the whole server. Anyone can read them (the sign-up page
@@ -26,7 +30,10 @@ export interface ServerSettingsView {
 // them.
 @Controller('server/settings')
 export class ServerSettingsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(FILE_SIZE_LIMIT) private readonly fileSizeLimitBytes: number,
+  ) {}
 
   @Public()
   @Get()
@@ -34,7 +41,10 @@ export class ServerSettingsController {
     const settings = await this.prisma.serverSettings.findUniqueOrThrow({
       where: { id: 1 },
     });
-    return { signUpOpen: settings.signUpOpen };
+    return {
+      signUpOpen: settings.signUpOpen,
+      fileSizeLimitBytes: this.fileSizeLimitBytes,
+    };
   }
 
   @Patch()
@@ -52,6 +62,9 @@ export class ServerSettingsController {
       where: { id: 1 },
       data: body,
     });
-    return { signUpOpen: settings.signUpOpen };
+    return {
+      signUpOpen: settings.signUpOpen,
+      fileSizeLimitBytes: this.fileSizeLimitBytes,
+    };
   }
 }

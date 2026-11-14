@@ -24,6 +24,8 @@ import { ALREADY_LINKED, refuseGeneralChat } from '../chats/chat-rules.js';
 
 const MAX_TITLE_LENGTH = 200;
 
+const PICK_A_CARD_NOT_BEING_DELETED = 'Pick a card that is not being deleted';
+
 export interface NewCard {
   title: string;
   description?: string;
@@ -387,11 +389,17 @@ export class CardsService {
   // Cards with logged time are never deleted, so hours never disappear.
   // Only the person who created a card, or an admin, can delete it; the
   // same goes for each subtask chosen for deletion.
+  //
+  // The files of the cards deleted go with them, unless `moveFilesTo` names
+  // another card of the project, which takes them (nothing in the file store
+  // changes). Answers with the storage keys of the files that were deleted:
+  // the caller deletes their stored objects once this has committed.
   async deleteCard(
     userId: string,
     cardId: string,
     choices: Record<string, SubtaskChoice> = {},
-  ): Promise<void> {
+    moveFilesTo?: string,
+  ): Promise<string[]> {
     const card = await this.findVisibleCard(userId, cardId);
     const subtasks = await this.prisma.card.findMany({
       where: { parentId: card.id },
@@ -405,9 +413,16 @@ export class CardsService {
     await this.checkMayDelete(userId, card.projectId, toDelete);
     await this.checkNoLoggedTime(toDelete.map((c) => c.id));
 
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const beingDeleted = new Set(
         (await loadSubtree(tx, card.id)).map((member) => member.id),
+      );
+      const storageKeys = await takeFiles(
+        tx,
+        userId,
+        toDelete.map((c) => c.id),
+        card.projectId,
+        moveFilesTo,
       );
       for (const subtask of subtasks) {
         const choice = choices[subtask.id]!;
@@ -450,6 +465,7 @@ export class CardsService {
           { subtask: cardRef(card), deleted: true },
         );
       }
+      return storageKeys;
     });
   }
 
@@ -573,6 +589,68 @@ function checkChoicesCoverSubtasks(
 }
 
 // The card's chat is kept, unlinked, so its history is not lost.
+// Takes the files of the cards about to be deleted. Locks those cards first,
+// so an upload to one of them either lands before (and is taken here) or
+// finds the card gone. With `moveFilesTo`, the files go to that card, which
+// gets a history line for each; else their storage keys are answered, for
+// the caller to delete the stored objects.
+async function takeFiles(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  cardIds: string[],
+  projectId: string,
+  moveFilesTo: string | undefined,
+): Promise<string[]> {
+  for (const id of cardIds) {
+    await lockCard(tx, id);
+  }
+  if (moveFilesTo === undefined) {
+    const files = await tx.file.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { storageKey: true },
+    });
+    return files.map((file) => file.storageKey);
+  }
+  if (cardIds.includes(moveFilesTo)) {
+    throw new BadRequestException(PICK_A_CARD_NOT_BEING_DELETED);
+  }
+  const target = await tx.card.findFirst({
+    where: { id: moveFilesTo, projectId },
+    select: { id: true, projectId: true },
+  });
+  if (!target) {
+    throw new NotFoundException('Card not found');
+  }
+  // Waits for another delete of the picked card, then sees it gone.
+  const locked = await tx.$queryRaw<
+    { id: string }[]
+  >`SELECT id FROM cards WHERE id = ${target.id}::uuid FOR UPDATE`;
+  if (locked.length === 0) {
+    throw new NotFoundException('Card not found');
+  }
+  const files = await tx.file.findMany({
+    where: { cardId: { in: cardIds } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    include: { card: { select: { numberPath: true, title: true } } },
+  });
+  await tx.file.updateMany({
+    where: { cardId: { in: cardIds } },
+    data: { cardId: target.id },
+  });
+  for (const file of files) {
+    await recordActivity(tx, target, userId, 'FILE_MOVED', {
+      fileId: file.id,
+      name: file.name,
+      size: Number(file.size),
+      from: {
+        numberPath: file.card!.numberPath,
+        title: file.card!.title,
+      },
+    });
+  }
+  return [];
+}
+
 async function deleteKeepingChat(
   tx: Prisma.TransactionClient,
   cardId: string,

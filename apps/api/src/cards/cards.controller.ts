@@ -24,6 +24,8 @@ import {
   type CompletionBody,
   completionSchema,
   type DeleteCardBody,
+  type DeleteCardQuery,
+  deleteCardQuerySchema,
   deleteCardSchema,
   type MoveCardBody,
   moveCardSchema,
@@ -36,12 +38,14 @@ import {
   type CompleteCardResult,
 } from './cards.service.js';
 import { CardSearchService } from './card-search.service.js';
+import { FilesService } from '../files/files.service.js';
 
 @Controller()
 export class CardsController {
   constructor(
     private readonly cards: CardsService,
     private readonly cardSearch: CardSearchService,
+    private readonly files: FilesService,
   ) {}
 
   // Goes to the bottom of the column, with the project's next number and
@@ -140,14 +144,23 @@ export class CardsController {
   }
 
   // The card's creator or an admin. A card with subtasks needs a choice for
-  // each direct subtask in the body; a card with logged time gets 409.
+  // each direct subtask in the body; a card with logged time gets 409. The
+  // card's files are deleted with it (and their stored objects once the card
+  // is gone), or with ?moveFilesTo=<cardId> given to that card instead.
   @Delete('cards/:cardId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(
+  async remove(
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
     @Body(new ZodPipe(deleteCardSchema)) body: DeleteCardBody,
+    @Query(new ZodPipe(deleteCardQuerySchema)) query: DeleteCardQuery,
   ): Promise<void> {
-    return this.cards.deleteCard(user.id, cardId, body?.subtasks ?? {});
+    const storageKeys = await this.cards.deleteCard(
+      user.id,
+      cardId,
+      body?.subtasks ?? {},
+      query.moveFilesTo,
+    );
+    await this.files.deleteObjects(storageKeys);
   }
 }

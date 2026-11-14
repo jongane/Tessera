@@ -10,6 +10,7 @@ export interface RuleContext {
   params: Record<string, string>;
   body: Record<string, unknown> | undefined;
   cookies: Record<string, string> | undefined;
+  query: Record<string, unknown>;
   statusCode: () => number;
 }
 
@@ -126,9 +127,11 @@ export const liveRules: Record<string, Rule> = {
         string,
         { action?: string; parentId?: string }
       >;
-      const parents = Object.values(choices)
-        .map((choice) => choice.parentId)
-        .filter((id): id is string => typeof id === 'string');
+      // The card that took the files of the deleted card changes too.
+      const parents = [
+        ...Object.values(choices).map((choice) => choice.parentId),
+        c.query['moveFilesTo'],
+      ].filter((id): id is string => typeof id === 'string');
       const moved = await c.live.plan(parents, { board: true });
       c.live.send(c.by, c.live.merge(plan, moved));
     };
@@ -173,6 +176,11 @@ export const liveRules: Record<string, Rule> = {
       c.live.send(c.by, await c.live.plan(ids, { board: true, chats: true }));
     };
   },
+
+  'POST cards/:cardId/files': card(cardParam),
+  'DELETE files/:fileId': cardThrough((c) =>
+    c.live.cardOfFile(c.params['fileId']!),
+  ),
 
   'POST cards/:cardId/time-entries': card(cardParam),
   'PATCH time-entries/:entryId': cardThrough((c) =>

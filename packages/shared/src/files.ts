@@ -15,7 +15,19 @@ export const fileNameSchema = textWithoutNul()
       .max(FILE_NAME_MAX, `Use at most ${FILE_NAME_MAX} characters`),
   );
 
-export type ImageType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+// The only types a file is ever shown as (inline).
+export const IMAGE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+] as const;
+
+export type ImageType = (typeof IMAGE_TYPES)[number];
+
+export function isImageType(type: string): type is ImageType {
+  return (IMAGE_TYPES as readonly string[]).includes(type);
+}
 
 const startsWith = (bytes: Uint8Array, signature: number[], offset = 0) =>
   signature.every((byte, i) => bytes[offset + i] === byte);
