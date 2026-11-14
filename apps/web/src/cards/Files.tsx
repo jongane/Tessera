@@ -261,6 +261,8 @@ function FileItem({
   const mayRemove =
     isAdmin || (file.uploader !== null && file.uploader.id === me.data?.id)
 
+  const nameId = useId()
+
   return (
     <li className={itemClass}>
       <div className="flex items-start gap-2">
@@ -279,7 +281,9 @@ function FileItem({
           </button>
         )}
         <div className="flex min-w-0 flex-col">
-          <span className="break-all font-semibold">{file.name}</span>
+          <span id={nameId} className="break-all font-semibold">
+            {file.name}
+          </span>
           <span className="text-sm text-muted">
             {formatFileSize(file.size)}
           </span>
@@ -292,7 +296,7 @@ function FileItem({
       <div className="flex gap-3">
         <a
           href={`/api/files/${file.id}/download`}
-          aria-label={`Download ${file.name}`}
+          aria-describedby={nameId}
           className={actionLink}
         >
           Download
@@ -301,7 +305,7 @@ function FileItem({
           <Button
             variant="link"
             className="min-h-8 text-danger"
-            aria-label={`Remove ${file.name}`}
+            aria-describedby={nameId}
             onClick={(event) => onRemove(file, event.currentTarget)}
           >
             Remove

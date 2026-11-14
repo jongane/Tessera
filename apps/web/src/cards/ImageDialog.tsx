@@ -26,7 +26,6 @@ export function ImageDialog({
       <div className="flex justify-end gap-2">
         <a
           href={`/api/files/${file.id}/download`}
-          aria-label={`Download ${file.name}`}
           className="inline-flex min-h-11 items-center rounded-lg border border-line bg-surface px-4 font-semibold text-accent hover:bg-subtle"
         >
           Download
