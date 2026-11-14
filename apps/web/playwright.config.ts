@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 
 // Browser tests: the real web app, served by the real API, on a real
 // database. They use the test database (TEST_DATABASE_URL in
-// apps/api/.env, or set by CI), never the development one.
+// apps/api/.env, or set by CI), never the development one. Files go to a
+// real SeaweedFS, in the bucket TEST_S3_BUCKET.
 if (existsSync('../api/.env')) {
   process.loadEnvFile('../api/.env')
 }
@@ -40,7 +41,15 @@ export default defineConfig({
     ].join(' && '),
     cwd: '../..',
     url: `http://localhost:${port}/api`,
-    env: { DATABASE_URL: databaseUrl, PORT: String(port) },
+    env: {
+      DATABASE_URL: databaseUrl,
+      PORT: String(port),
+      // The file storage settings (S3_*) come from apps/api/.env or CI, but
+      // the API uses the tests' own bucket, never the development one.
+      ...(process.env.TEST_S3_BUCKET
+        ? { S3_BUCKET: process.env.TEST_S3_BUCKET }
+        : {}),
+    },
     timeout: 180_000,
     reuseExistingServer: false,
   },

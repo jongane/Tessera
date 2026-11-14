@@ -64,6 +64,8 @@ const ALL_KINDS = [
   'CHECKLIST_RENAMED',
   'CHECKLIST_DELETED',
   'CHECKLIST_ITEM_TO_SUBTASK',
+  'FILE_ADDED',
+  'FILE_REMOVED',
 ] as const satisfies readonly ActivityKind[]
 
 type Missing = Exclude<ActivityKind, (typeof ALL_KINDS)[number]>
@@ -302,6 +304,25 @@ const CASES: [ActivityKind, ActivityLine, string][] = [
     ),
     "Jon turned 'Write tests' from Testing into WEB-12.3",
   ],
+  // Files on cards, PR A, criterion 33.
+  [
+    'FILE_ADDED',
+    activityLine(
+      'FILE_ADDED',
+      { fileId: 'f1', name: 'plan.pdf', size: 12 },
+      { actor: jon },
+    ),
+    "Jon attached the file 'plan.pdf'",
+  ],
+  [
+    'FILE_REMOVED',
+    activityLine(
+      'FILE_REMOVED',
+      { fileId: 'f1', name: 'plan.pdf', size: 12 },
+      { actor: jon },
+    ),
+    "Jon removed the file 'plan.pdf'",
+  ],
 ]
 
 describe('The sentence for a history line', () => {
@@ -311,7 +332,7 @@ describe('The sentence for a history line', () => {
     expect(CASES.map(([kind]) => kind)).toEqual(
       expect.arrayContaining([...ALL_KINDS]),
     )
-    expect(new Set(CASES.map(([kind]) => kind)).size).toBe(25)
+    expect(new Set(CASES.map(([kind]) => kind)).size).toBe(27)
   })
 
   // 39
@@ -620,5 +641,27 @@ describe('A due date in another year (agreed 2026-11-08)', () => {
     expect(
       activitySentence(line, { ...context, timeZone: 'Pacific/Auckland' }),
     ).toContain('1 Jan 2027')
+  })
+})
+
+// Files on cards, PR A, criterion 33.
+describe('Sentences about files', () => {
+  const details = { fileId: 'f1', name: 'Résumé 日本 🎉.pdf', size: 12 }
+
+  // 33
+  it('keeps the file name exactly, in any language', () => {
+    expect(sentence(activityLine('FILE_ADDED', details, { actor: jon }))).toBe(
+      "Jon attached the file 'Résumé 日本 🎉.pdf'",
+    )
+  })
+
+  // 33
+  it('says "Former member" for a deleted account', () => {
+    expect(sentence(activityLine('FILE_ADDED', details, { actor: null }))).toBe(
+      "Former member attached the file 'Résumé 日本 🎉.pdf'",
+    )
+    expect(
+      sentence(activityLine('FILE_REMOVED', details, { actor: null })),
+    ).toBe("Former member removed the file 'Résumé 日本 🎉.pdf'")
   })
 })
