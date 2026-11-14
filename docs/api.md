@@ -35,9 +35,13 @@ sequenceDiagram
 | 401 | Not signed in, or the session has ended |
 | 403 | Signed in, but not allowed (for example, not a project admin) |
 | 404 | Not found, or in a project you are not a member of. The two are not told apart, so nobody can find out which projects exist |
-| 409 | Clashes with something, for example the email already has an account |
+| 409 | Clashes with something, for example the email already has an account, or someone changed the same card at the same time (see "Two people at once") |
 | 413 | A file is bigger than the limit (see "Files") |
 | 429 | Too many failed sign-ins; wait and try again |
+
+## Two people at once
+
+Every request that changes a card runs as one database transaction. When it collides with another person's change (the database reports a deadlock or a serialization failure), the API quietly runs the whole change again, up to 3 more times (`retryOnCollision` in `apps/api/src/common`). If it still collides, the answer is 409 "Someone changed this card at the same time. Try again." and nothing was changed. Nothing needs to be done differently in the request; sending it again is safe. To make collisions rare, deleting a card and moving a card tree both lock the cards they touch in id order.
 
 ## Text with a hidden character
 
@@ -172,9 +176,9 @@ Email invitations and "forgot password" need the server to send email, so they c
 | `POST /api/cards/:cardId/move` | Members | Body `{ columnId, position?, confirmOpenSubtasks? }`. Moves the card to another column on its board, or to another place in its own column. `position` 0 is the top; past the end, or left out, is the bottom. Into a done column completes it; out of one reopens it. Moving between columns is recorded in the card's history; reordering within a column is not |
 | `POST /api/cards/:cardId/complete` | Members | Body `{ confirmOpenSubtasks? }`. Completes the card. Answers `{ card, doneColumnId }`: the done column to offer moving it to, or null |
 | `POST /api/cards/:cardId/reopen` | Members | Reopens the card |
-| `DELETE /api/cards/:cardId` | The card's creator, or a project admin | Deletes the card; its chat is kept, unlinked. A card with subtasks needs body `{ subtasks: { "<subtask id>": { "action": "delete" or "standalone" } or { "action": "move", "parentId": "..." } } }` with a choice for each direct subtask. When the card, or a subtask chosen for deletion, has files, the request must say what happens to them, with exactly one of the queries `?files=delete` or `?moveFilesTo=<cardId>`; without one the answer is 400 "Choose what happens to this card’s files", and nothing is deleted (giving both, or any other value of `files`, gets the same 400). With `files=delete` the files are deleted with the card (their stored objects too, once the card is gone). With `moveFilesTo` they move to that card instead, in the same transaction as the delete, and that card's Activity gets a `FILE_MOVED` line for each. The card must be in the same project and not be one of the cards being deleted: else 404 "Card not found" or 400 "Pick a card that is not being deleted", and nothing is deleted. The files of subtasks chosen for deletion are handled the same way |
+| `DELETE /api/cards/:cardId` | The card's creator, or a project admin | Deletes the card; its chat is kept, unlinked. A card with subtasks needs body `{ subtasks: { "<subtask id>": { "action": "delete" or "standalone" } or { "action": "move", "parentId": "..." } } }` with a choice for each direct subtask. When the card, or a subtask chosen for deletion, has files, the request must say what happens to them, with exactly one of the queries `?files=delete` or `?moveFilesTo=<cardId>`; without one the answer is 400 "Choose what happens to this card’s files", and nothing is deleted. Bad queries keep their own messages: giving both gets 400 "Choose either to delete the files or to move them, not both", and any `files` value other than `delete`, or `files` given twice, gets 400 "files: Invalid input: expected \"delete\"". With `files=delete` the files are deleted with the card (their stored objects too, once the card is gone). With `moveFilesTo` they move to that card instead, in the same transaction as the delete, and that card's Activity gets a `FILE_MOVED` line for each. The card must be in the same project and not be one of the cards being deleted: else 404 "Card not found" or 400 "Pick a card that is not being deleted", and nothing is deleted. The files of subtasks chosen for deletion are handled the same way |
 
-Completing a card, or moving it into a done column, while some of its direct subtasks are open gets 409 with `openSubtasks` (how many). Send the request again with `confirmOpenSubtasks: true` to go ahead. Deleting a card with logged time gets 409 with `loggedMinutes`.
+Completing a card, or moving it into a done column, while some of its direct subtasks are open gets 409 with `openSubtasks` (how many). Send the request again with `confirmOpenSubtasks: true` to go ahead. Deleting a card with logged time gets 409 "Cards with logged time cannot be deleted" with `loggedMinutes`. The check runs inside the delete transaction, with the cards locked, so a timer stopped at the same moment gets this 409, never a 500.
 
 ### Chats
 
