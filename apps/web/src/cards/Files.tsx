@@ -72,8 +72,8 @@ export function Files({
           }}
         />
       </div>
-      {uploads.tooBig.map((message) => (
-        <Alert key={message}>{message}</Alert>
+      {uploads.tooBig.map((message, index) => (
+        <Alert key={`${index}-${message}`}>{message}</Alert>
       ))}
       {list.isPending && <Loading />}
       {list.isError && !list.data && (

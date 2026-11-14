@@ -73,7 +73,7 @@ Green is done, amber is in progress or next, blue is the rest of the MVP, grey i
 Each step gets its own plan, approved before building, as usual.
 
 1. **Refuse hidden NUL characters** in every text field. A small clean-up left from web PR 7. Done in #43.
-2. **Chat messages and live updates**, in two pull requests (agreed 2026-11-09). Messages come before attachments and AI because both depend on them. Done.
+2. **Chat messages and live updates**, in two pull requests (agreed 2026-11-09). Messages come before files and AI because both depend on them. Done.
    - **Chat messages:** built in #44. Sending, editing, deleting, Markdown, card-number and website links.
    - **Live updates (WebSockets):** built in #45. They cover messages, board cards, the open card panel and the sidebar's chat list, and the 30-second reload is gone ([web-app.md](web-app.md) section 6, [api.md](api.md) "Live updates", [ADR 0002](adr/0002-live-updates-signals-then-reload.md)). Older messages kept on screen now show other people's edits and deletes.
 3. **Files** (in progress) on a card or on a message, kept in SeaweedFS through the S3 API, 100 MB per file by default ([card-features.md](card-features.md) section 8, [ADR 0003](adr/0003-files-in-seaweedfs-through-the-s3-api.md)). Two pull requests, one after the other (agreed 2026-11-14):
