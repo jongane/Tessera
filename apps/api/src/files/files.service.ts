@@ -145,12 +145,14 @@ export class FilesService {
   // and the object after: if the object cannot be deleted, nobody can reach
   // it any more, and the person still sees the file gone.
   async remove(user: SignedInUser, fileId: string): Promise<void> {
-    const file = await this.findVisible(user.id, fileId);
-    await this.checkMayRemove(user.id, file);
-    await retryOnCollision(() =>
+    const visible = await this.findVisible(user.id, fileId);
+    const file = await retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
         // Of two removals at once, only one finds the row.
-        const cardId = await lockFileAndItsCard(tx, file.id);
+        const cardId = await lockFileAndItsCard(tx, visible.id);
+        const file = await tx.file.findUnique({ where: { id: visible.id } });
+        if (!file) throw new NotFoundException(FILE_NOT_FOUND);
+        await this.checkMayRemove(tx, user.id, file);
         await tx.file.delete({ where: { id: file.id } });
         if (cardId) {
           await recordActivity(
@@ -161,6 +163,7 @@ export class FilesService {
             fileRef(file),
           );
         }
+        return file;
       }),
     );
     await this.deleteObject(file.storageKey);
@@ -196,9 +199,13 @@ export class FilesService {
     return file;
   }
 
-  private async checkMayRemove(userId: string, file: File): Promise<void> {
+  private async checkMayRemove(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    file: File,
+  ): Promise<void> {
     if (file.uploaderId === userId) return;
-    const membership = await this.prisma.projectMember.findUnique({
+    const membership = await tx.projectMember.findUnique({
       where: { projectId_userId: { projectId: file.projectId, userId } },
     });
     if (membership?.role !== 'ADMIN') {
