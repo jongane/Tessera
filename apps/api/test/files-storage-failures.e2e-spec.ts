@@ -207,7 +207,7 @@ describe('Files when storage or the database fails (e2e)', () => {
     vi.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
 
-    await ana.agent.delete(`/api/cards/${card.id}`).expect(204);
+    await ana.agent.delete(`/api/cards/${card.id}?files=delete`).expect(204);
 
     expect([...store.deleted].sort()).toEqual(keys);
     expect(cardStillThere).toBe(false);

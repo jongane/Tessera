@@ -17,7 +17,7 @@ import {
 } from "../test/fake-files";
 import { live } from "../test/fake-live";
 import { recordRequests } from "../test/requests";
-import { server } from "../test/server";
+import { apiError, server } from "../test/server";
 
 // Files on cards, PR A (plan "file storage and files on cards"): the Files
 // section of the card panel, its dialogs, uploading, removing, and the
@@ -1054,7 +1054,7 @@ describe("Deleting a card that has files (criterion 31)", () => {
   });
 
   // 31
-  it('deletes the card and its files when "Delete the files too" is chosen: no moveFilesTo', async () => {
+  it('deletes the card and its files when "Delete the files too" is chosen: sends files=delete and no moveFilesTo', async () => {
     const { user, dialog, urls } = await openDeleteDialog();
     await within(dialog).findByText(/3 files/);
 
@@ -1067,7 +1067,83 @@ describe("Deleting a card that has files (criterion 31)", () => {
 
     await waitFor(() => expect(urls).toHaveLength(1));
     expect(new URL(urls[0]!).pathname).toBe(`/api/cards/${login.id}`);
+    expect(new URL(urls[0]!).searchParams.get("files")).toBe("delete");
     expect(new URL(urls[0]!).searchParams.has("moveFilesTo")).toBe(false);
+  });
+
+  // 31
+  it("sends neither files nor moveFilesTo for a card with no files", async () => {
+    const { user, dialog, urls } = await openDeleteDialog([]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    await waitFor(() => expect(urls).toHaveLength(1));
+    const params = new URL(urls[0]!).searchParams;
+    expect(params.has("files")).toBe(false);
+    expect(params.has("moveFilesTo")).toBe(false);
+  });
+
+  // 31
+  it("sends moveFilesTo and not files=delete when the files are moved", async () => {
+    const { user, dialog, urls } = await openDeleteDialog();
+    await within(dialog).findByText(/3 files/);
+
+    await user.click(
+      within(dialog).getByRole("radio", { name: "Move them to another card" }),
+    );
+    const box = await screen.findByLabelText("Find a card");
+    box.focus();
+    await user.type(box, "icon", { skipClick: true });
+    await user.click(
+      await screen.findByRole("button", { name: /WEB-14 Icon set/ }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    await waitFor(() => expect(urls).toHaveLength(1));
+    expect(new URL(urls[0]!).searchParams.has("files")).toBe(false);
+  });
+
+  // 31 (approved 2026-11-14)
+  it("shows the server's message and then the files choice when a file was attached after the dialog opened", async () => {
+    // The dialog opens when the card has no files ...
+    const { user, dialog, files } = await openDeleteDialog([]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(
+      within(dialog).queryByRole("radio", { name: "Delete the files too" }),
+    ).toBe(null);
+    // ... then someone attaches three, and the server refuses the delete.
+    files.serverNowHas(threeFiles());
+    server.use(
+      http.delete(`/api/cards/${login.id}`, () =>
+        apiError(400, "Choose what happens to this card’s files"),
+      ),
+    );
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        "Choose what happens to this card’s files",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+    expect(await within(dialog).findByText(/3 files/)).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("radio", { name: "Delete the files too" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("radio", { name: "Move them to another card" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    ).toBeDisabled();
   });
 
   // 31

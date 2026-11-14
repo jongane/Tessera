@@ -867,17 +867,126 @@ describe('Files on cards (e2e)', () => {
     }
 
     // 31
-    it('deletes the files too when no choice is given: rows and storage objects', async () => {
+    it('deletes the files too when files=delete is given: rows and storage objects', async () => {
       const { ana, card } = await withFiles();
       expect(await listKeys()).toHaveLength(2);
 
-      await ana.agent.delete(`/api/cards/${card.id}`).expect(204);
+      await ana.agent.delete(`/api/cards/${card.id}?files=delete`).expect(204);
 
       expect(await listKeys()).toEqual([]);
       const rows = await prisma.$queryRaw<
         { n: bigint }[]
       >`SELECT count(*) AS n FROM files`;
       expect(Number(rows[0]!.n)).toBe(0);
+    });
+
+    const CHOOSE = 'Choose what happens to this card’s files';
+
+    async function expectNothingDeleted(
+      ana: Awaited<ReturnType<typeof withFiles>>['ana'],
+      cardId: string,
+      keys: number,
+    ) {
+      await ana.agent.get(`/api/cards/${cardId}`).expect(200);
+      const list = await ana.agent.get(`/api/cards/${cardId}/files`);
+      expect(list.body.files).toHaveLength(keys);
+      expect(await listKeys()).toHaveLength(keys);
+    }
+
+    // 31 (approved 2026-11-14: the choice is required)
+    it('refuses with 400 "Choose what happens to this card’s files" when the card has files and neither files=delete nor moveFilesTo is given, and deletes nothing', async () => {
+      const { ana, card } = await withFiles();
+
+      const response = await ana.agent.delete(`/api/cards/${card.id}`);
+
+      expect(response.status).toBe(400);
+      expect(String(response.body.message)).toContain(CHOOSE);
+      await expectNothingDeleted(ana, card.id, 2);
+    });
+
+    // 31
+    it('refuses with the same 400 when only a subtask chosen for deletion has files', async () => {
+      const { ana, card, newSubtask } = await setUp();
+      const subtask = await newSubtask(card.id, 'Form');
+      await attach(ana, subtask.id, 'form.pdf', Buffer.from('form'));
+
+      const response = await ana.agent
+        .delete(`/api/cards/${card.id}`)
+        .send({ subtasks: { [subtask.id]: { action: 'delete' } } });
+
+      expect(response.status).toBe(400);
+      expect(String(response.body.message)).toContain(CHOOSE);
+      await ana.agent.get(`/api/cards/${subtask.id}`).expect(200);
+      expect(await listKeys()).toHaveLength(1);
+    });
+
+    // 31
+    it('needs no choice when the only subtask with files is kept as its own card', async () => {
+      const { ana, card, newSubtask } = await setUp();
+      const subtask = await newSubtask(card.id, 'Form');
+      await attach(ana, subtask.id, 'form.pdf', Buffer.from('form'));
+
+      await ana.agent
+        .delete(`/api/cards/${card.id}`)
+        .send({ subtasks: { [subtask.id]: { action: 'standalone' } } })
+        .expect(204);
+
+      expect(await listKeys()).toHaveLength(1);
+    });
+
+    // 31
+    it('refuses with 400 when both files=delete and moveFilesTo are given, and deletes nothing', async () => {
+      const { ana, card, newCard } = await withFiles();
+      const target = await newCard('Target');
+
+      const response = await ana.agent.delete(
+        `/api/cards/${card.id}?files=delete&moveFilesTo=${target.id}`,
+      );
+
+      expect(response.status).toBe(400);
+      await expectNothingDeleted(ana, card.id, 2);
+    });
+
+    // 31
+    it('refuses a files value other than delete', async () => {
+      const { ana, card } = await withFiles();
+
+      await ana.agent.delete(`/api/cards/${card.id}?files=keep`).expect(400);
+
+      await expectNothingDeleted(ana, card.id, 2);
+    });
+
+    // 31
+    it('accepts files=delete for a card with no files', async () => {
+      const { ana, newCard } = await setUp();
+      const empty = await newCard('Empty');
+
+      await ana.agent.delete(`/api/cards/${empty.id}?files=delete`).expect(204);
+
+      await ana.agent.get(`/api/cards/${empty.id}`).expect(404);
+    });
+
+    // 31
+    it('deletes a card with no files when neither is given', async () => {
+      const { ana, newCard } = await setUp();
+      const empty = await newCard('Empty');
+
+      await ana.agent.delete(`/api/cards/${empty.id}`).expect(204);
+
+      await ana.agent.get(`/api/cards/${empty.id}`).expect(404);
+    });
+
+    // 31
+    it('refuses with 400, not 204, when a file was attached after the person looked (the choice is checked inside the delete)', async () => {
+      const { ana, card } = await setUp();
+      // The card had no files when the dialog opened; now it has one.
+      await attach(ana, card.id, 'late.pdf', Buffer.from('late'));
+
+      const response = await ana.agent.delete(`/api/cards/${card.id}`);
+
+      expect(response.status).toBe(400);
+      expect(String(response.body.message)).toContain(CHOOSE);
+      await expectNothingDeleted(ana, card.id, 1);
     });
 
     // 31
@@ -890,7 +999,7 @@ describe('Files on cards (e2e)', () => {
       expect(await listKeys()).toHaveLength(4);
 
       await ana.agent
-        .delete(`/api/cards/${card.id}`)
+        .delete(`/api/cards/${card.id}?files=delete`)
         .send({ subtasks: { [subtask.id]: { action: 'delete' } } })
         .expect(204);
 
@@ -906,7 +1015,7 @@ describe('Files on cards (e2e)', () => {
       await attach(ana, subtask.id, 'form.pdf', Buffer.from('form'));
 
       await ana.agent
-        .delete(`/api/cards/${card.id}`)
+        .delete(`/api/cards/${card.id}?files=delete`)
         .send({ subtasks: { [subtask.id]: { action: 'standalone' } } })
         .expect(204);
 
