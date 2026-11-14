@@ -103,7 +103,7 @@ The File table (migration `add_files`) holds a file's details. Its bytes are in 
 - `mime_type` keeps its name but holds the type the API **detected** from the file's first bytes, never the browser's claim: one of `image/png`, `image/jpeg`, `image/gif` or `image/webp`, or `application/octet-stream` for everything else. Only the four image types are ever shown inline.
 - Deleting the uploader's account keeps the file and empties `uploader_id`.
 - Deleting a card or a project deletes its file rows (and a message's files go with the message row, in the same way). Only the API can delete the stored objects, so it does that itself when a card is deleted (or its files are moved to another card first). A deleted message keeps its row and text (rule 5); in PR B, deleting a message will remove its files too (decided 2026-11-14, not built yet), and rule 5 will say so then. Deleting boards and projects is not built yet; when it is, it must delete their files' stored objects as well.
-- The Activity kinds `FILE_ADDED`, `FILE_REMOVED` and `FILE_MOVED` are part of the `activity_kind` type. History stays append-only.
+- The Activity kinds `FILE_ADDED`, `FILE_REMOVED` and `FILE_MOVED` are part of the `activity_kind` type. History stays append-only. A `FILE_MOVED` line is written on the card that took the file, and a `FILE_REMOVED` for a file removed while its card is deleted with a move goes on that same card.
 
 ## Behaviour decided so far
 

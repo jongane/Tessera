@@ -22,6 +22,6 @@ Files attached to cards (and, in the next pull request, to messages) are kept in
 ## Consequences
 
 - `docker compose up -d` now starts SeaweedFS as well as PostgreSQL, and the API refuses to start if a storage setting is missing. Database, end-to-end and browser tests need both running, and CI starts SeaweedFS from the same compose file.
-- A 100 MB upload is streamed, never held whole in the API's memory. It still has to finish inside Node's request time limit (5 minutes by default), so a very slow connection can fail.
+- A 100 MB upload is streamed, never held whole in the API's memory: each upload holds about 10 MB (5 MB parts, 2 sent at a time), so memory use grows with the number of uploads at once, not with file size. It still has to finish inside Node's request time limit (5 minutes by default), so a very slow connection can fail.
 - Deleting a board or a project (not built yet) must also delete the stored objects of its files. The database removes the rows, but only the API can remove objects.
 - There is no clean-up job for orphaned objects yet.
