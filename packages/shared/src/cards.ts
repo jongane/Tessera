@@ -74,11 +74,18 @@ export const deleteCardSchema = z
   })
   .optional();
 
-// DELETE /api/cards/:cardId?moveFilesTo=<cardId>: the card that takes the
-// files of the card being deleted. Left out, the files are deleted too.
-export const deleteCardQuerySchema = z.strictObject({
-  moveFilesTo: z.uuid().optional(),
-});
+// DELETE /api/cards/:cardId?files=delete or ?moveFilesTo=<cardId>: what
+// happens to the files of the cards deleted. Needed when there are any; one
+// of the two, never both.
+export const deleteCardQuerySchema = z
+  .strictObject({
+    files: z.literal('delete').optional(),
+    moveFilesTo: z.uuid().optional(),
+  })
+  .refine(
+    (query) => query.files === undefined || query.moveFilesTo === undefined,
+    { message: 'Choose either to delete the files or to move them, not both' },
+  );
 
 export type DeleteCardQuery = z.infer<typeof deleteCardQuerySchema>;
 

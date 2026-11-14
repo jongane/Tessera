@@ -145,8 +145,9 @@ export class CardsController {
 
   // The card's creator or an admin. A card with subtasks needs a choice for
   // each direct subtask in the body; a card with logged time gets 409. The
-  // card's files are deleted with it (and their stored objects once the card
-  // is gone), or with ?moveFilesTo=<cardId> given to that card instead.
+  // card's files (and those of subtasks deleted) need a choice: ?files=delete
+  // deletes them (and their stored objects once the card is gone),
+  // ?moveFilesTo=<cardId> gives them to that card. Without files, none is needed.
   @Delete('cards/:cardId')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
@@ -160,6 +161,7 @@ export class CardsController {
       cardId,
       body?.subtasks ?? {},
       query.moveFilesTo,
+      query.files === 'delete',
     );
     await this.files.deleteObjects(storageKeys);
   }

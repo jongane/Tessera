@@ -390,15 +390,16 @@ export class CardsService {
   // Only the person who created a card, or an admin, can delete it; the
   // same goes for each subtask chosen for deletion.
   //
-  // The files of the cards deleted go with them, unless `moveFilesTo` names
-  // another card of the project, which takes them (nothing in the file store
-  // changes). Answers with the storage keys of the files that were deleted:
+  // When the cards deleted have files, the caller must choose: `deleteFiles`
+  // deletes them with the cards, `moveFilesTo` names another card of the
+  // project that takes them (nothing in the file store changes). Else 400. Answers with the storage keys of the files that were deleted:
   // the caller deletes their stored objects once this has committed.
   async deleteCard(
     userId: string,
     cardId: string,
     choices: Record<string, SubtaskChoice> = {},
     moveFilesTo?: string,
+    deleteFiles = false,
   ): Promise<string[]> {
     const card = await this.findVisibleCard(userId, cardId);
     const subtasks = await this.prisma.card.findMany({
@@ -423,6 +424,7 @@ export class CardsService {
         toDelete.map((c) => c.id),
         card.projectId,
         moveFilesTo,
+        deleteFiles,
       );
       for (const subtask of subtasks) {
         const choice = choices[subtask.id]!;
@@ -602,6 +604,8 @@ async function lockCardsInOrder(
   }
 }
 
+const CHOOSE_WHAT_HAPPENS_TO_FILES = 'Choose what happens to this card’s files';
+
 // Takes the files of the cards about to be deleted. Locks those cards first,
 // so an upload to one of them either lands before (and is taken here) or
 // finds the card gone. With `moveFilesTo`, the files go to that card, which
@@ -613,6 +617,7 @@ async function takeFiles(
   cardIds: string[],
   projectId: string,
   moveFilesTo: string | undefined,
+  deleteFiles: boolean,
 ): Promise<string[]> {
   // One statement, in id order, so two deletes never wait on each other. The
   // parents are locked too: deleting a subtask writes a history line on its
@@ -632,6 +637,9 @@ async function takeFiles(
       where: { cardId: { in: cardIds } },
       select: { storageKey: true },
     });
+    if (files.length > 0 && !deleteFiles) {
+      throw new BadRequestException(CHOOSE_WHAT_HAPPENS_TO_FILES);
+    }
     return files.map((file) => file.storageKey);
   }
   if (cardIds.includes(moveFilesTo)) {
