@@ -954,9 +954,16 @@ describe('Files on cards (e2e)', () => {
         .expect(204);
 
       const after = (await ana.agent.get(`/api/cards/${target.id}/activity`))
-        .body.items as { details: { fileId?: string; name?: string } }[];
+        .body.items as {
+        kind: string;
+        details: { fileId?: string; name?: string };
+      }[];
       const added = after.slice(0, after.length - before);
       expect(added).toHaveLength(2);
+      expect(added.map((line) => line.kind)).toEqual([
+        'FILE_MOVED',
+        'FILE_MOVED',
+      ]);
       expect(added.map((line) => line.details.fileId).sort(byText)).toEqual(
         [one.id, two.id].sort(byText),
       );
@@ -1012,17 +1019,21 @@ describe('Files on cards (e2e)', () => {
       const { ana, card, newSubtask } = await withFiles();
       const subtask = await newSubtask(card.id, 'Form');
 
-      const toItself = await ana.agent.delete(
-        `/api/cards/${card.id}?moveFilesTo=${card.id}`,
-      );
+      const toItself = await ana.agent
+        .delete(`/api/cards/${card.id}?moveFilesTo=${card.id}`)
+        .send({ subtasks: { [subtask.id]: { action: 'standalone' } } });
       const toSubtask = await ana.agent
         .delete(`/api/cards/${card.id}?moveFilesTo=${subtask.id}`)
         .send({ subtasks: { [subtask.id]: { action: 'delete' } } });
 
-      expect(toItself.status).toBeGreaterThanOrEqual(400);
-      expect(toItself.status).toBeLessThan(500);
-      expect(toSubtask.status).toBeGreaterThanOrEqual(400);
-      expect(toSubtask.status).toBeLessThan(500);
+      expect(toItself.status).toBe(400);
+      expect(String(toItself.body.message)).toContain(
+        'Pick a card that is not being deleted',
+      );
+      expect(toSubtask.status).toBe(400);
+      expect(String(toSubtask.body.message)).toContain(
+        'Pick a card that is not being deleted',
+      );
       await ana.agent.get(`/api/cards/${card.id}`).expect(200);
       expect(await listKeys()).toHaveLength(2);
     });

@@ -96,10 +96,12 @@ describe('Accounts and sign-in (e2e)', () => {
       await admin
         .patch('/api/server/settings')
         .send({ signUpOpen: false })
-        .expect(200, { signUpOpen: false });
-      await browser().get('/api/server/settings').expect(200, {
-        signUpOpen: false,
-      });
+        .expect(200)
+        .expect((res) => expect(res.body.signUpOpen).toBe(false));
+      const settings = await browser().get('/api/server/settings').expect(200);
+      expect(settings.body.signUpOpen).toBe(false);
+      // Files on cards, criterion 5: the settings also carry the file size limit.
+      expect(settings.body.fileSizeLimitBytes).toEqual(expect.any(Number));
 
       await browser()
         .post('/api/auth/sign-up')

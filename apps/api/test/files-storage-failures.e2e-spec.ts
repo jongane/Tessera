@@ -33,6 +33,14 @@ class FakeStore {
   // Runs when a delete is asked for.
   onDelete: (key: string) => Promise<void> = async () => {};
 
+  reset(): void {
+    this.objects = new Map();
+    this.deleted = [];
+    this.failDeletes = false;
+    this.afterPut = async () => {};
+    this.onDelete = async () => {};
+  }
+
   async put(key: string, body: Readable): Promise<void> {
     const chunks: Buffer[] = [];
     for await (const chunk of body) chunks.push(Buffer.from(chunk as Buffer));
@@ -57,7 +65,9 @@ class FakeStore {
 describe('Files when storage or the database fails (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
-  let store: FakeStore;
+  // One store for the whole run: the app gets it at compile time, so it is
+  // reset in beforeEach, not replaced.
+  const store = new FakeStore();
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -71,7 +81,7 @@ describe('Files when storage or the database fails (e2e)', () => {
   });
 
   beforeEach(async () => {
-    store = new FakeStore();
+    store.reset();
     await resetDatabase(prisma);
   });
 
