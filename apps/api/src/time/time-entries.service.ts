@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma, TimeEntry, User } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { findVisibleCard } from '../cards/card-access.js';
+import { findVisibleCard, lockCard } from '../cards/card-access.js';
 import { projectTimeZone } from '../projects/project-access.js';
 import { findChangeableEntry } from './time-access.js';
 import { requireEntryMinutes, requireWorkDate } from './time-input.js';
@@ -50,6 +50,7 @@ export class TimeEntriesService {
     );
     return retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
+        await lockCard(tx, card.id);
         const saved = await tx.timeEntry.create({
           data: {
             projectId: card.projectId,
@@ -104,9 +105,12 @@ export class TimeEntriesService {
     return retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM time_entries WHERE id = ${entry.id}::uuid FOR UPDATE`;
-        const before = await tx.timeEntry.findUniqueOrThrow({
+        const before = await tx.timeEntry.findUnique({
           where: { id: entry.id },
         });
+        if (!before) {
+          throw new NotFoundException('Time entry not found');
+        }
         const after = await tx.timeEntry.update({
           where: { id: entry.id },
           data: {

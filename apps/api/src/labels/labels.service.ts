@@ -11,7 +11,7 @@ import {
   type ProjectMember,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { findVisibleCard } from '../cards/card-access.js';
+import { findVisibleCard, lockCard } from '../cards/card-access.js';
 import { recordActivity } from '../activity/activity.js';
 import { retryOnCollision } from '../common/retry-on-collision.js';
 
@@ -93,6 +93,7 @@ export class LabelsService {
     }
     await retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
+        await lockCard(tx, card.id);
         const added = await tx.cardLabel.createMany({
           data: {
             cardId: card.id,
@@ -120,6 +121,7 @@ export class LabelsService {
     const card = await findVisibleCard(this.prisma, userId, cardId);
     await retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
+        await lockCard(tx, card.id);
         const removed = await tx.cardLabel.deleteMany({
           where: { cardId: card.id, labelId },
         });

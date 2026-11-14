@@ -18,7 +18,7 @@ import type {
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
-import { findVisibleCard } from '../cards/card-access.js';
+import { findVisibleCard, lockCard } from '../cards/card-access.js';
 import { insertSubtask } from '../cards/subtasks.service.js';
 import { recordActivity } from '../activity/activity.js';
 import { reorder } from '../common/reorder.js';
@@ -68,6 +68,7 @@ export class ChecklistsService {
     const checkedName = requireName(name);
     return retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
+        await lockCard(tx, card.id);
         const existing = await tx.checklist.aggregate({
           where: { cardId: card.id },
           _count: true,
@@ -185,7 +186,7 @@ export class ChecklistsService {
     return retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
         // Two items added at the same moment must not take it past the limit.
-        await tx.$queryRaw`SELECT id FROM checklists WHERE id = ${list.id}::uuid FOR UPDATE`;
+        await lockChecklist(tx, list.id);
         const items = await tx.checklistItem.aggregate({
           where: { checklistId: list.id },
           _count: true,
@@ -250,20 +251,27 @@ export class ChecklistsService {
   // if the subtask cannot be made (5 levels deep already) the item stays.
   async turnItemIntoSubtask(userId: string, itemId: string): Promise<Card> {
     const item = await this.findVisibleItem(userId, itemId);
-    const card = await this.prisma.card.findUniqueOrThrow({
-      where: { id: item.checklist.cardId },
-    });
     return retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
+        // The card first, then the item as it is now: another request may
+        // have turned it into a subtask, edited it or deleted it meanwhile.
+        const card = await lockCard(tx, item.checklist.cardId);
+        const current = await tx.checklistItem.findUnique({
+          where: { id: item.id },
+          include: { checklist: { select: { id: true, name: true } } },
+        });
+        if (!current) {
+          throw new NotFoundException('Checklist item not found');
+        }
         const subtask = await insertSubtask(
           tx,
           userId,
-          card,
+          card.id,
           card.columnId,
-          { title: item.text },
-          { id: item.checklist.id, name: item.checklist.name },
+          { title: current.text },
+          { id: current.checklist.id, name: current.checklist.name },
         );
-        await tx.checklistItem.delete({ where: { id: item.id } });
+        await tx.checklistItem.delete({ where: { id: current.id } });
         return subtask;
       }),
     );

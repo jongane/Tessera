@@ -9,7 +9,7 @@ import {
   type TimeEntry,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { findVisibleCard } from '../cards/card-access.js';
+import { findVisibleCard, lockCard } from '../cards/card-access.js';
 import { projectTimeZone } from '../projects/project-access.js';
 import { localDate, timerMinutes } from './time-input.js';
 import { recordTimeLogged } from './time-entries.service.js';
@@ -51,6 +51,7 @@ export class TimerService {
     try {
       return await retryOnCollision(() =>
         this.prisma.$transaction(async (tx) => {
+          await lockCard(tx, card.id);
           const running = await tx.runningTimer.findUnique({
             where: { userId },
           });
