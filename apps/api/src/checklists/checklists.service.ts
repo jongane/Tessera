@@ -253,9 +253,11 @@ export class ChecklistsService {
     const item = await this.findVisibleItem(userId, itemId);
     return retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
-        // The card first, then the item as it is now: another request may
-        // have turned it into a subtask, edited it or deleted it meanwhile.
+        // The card first, then the item (held, so a delete cannot slip in)
+        // as it is now: another request may have turned it into a subtask,
+        // edited it or deleted it meanwhile.
         const card = await lockCard(tx, item.checklist.cardId);
+        await tx.$queryRaw`SELECT id FROM checklist_items WHERE id = ${item.id}::uuid FOR UPDATE`;
         const current = await tx.checklistItem.findUnique({
           where: { id: item.id },
           include: { checklist: { select: { id: true, name: true } } },

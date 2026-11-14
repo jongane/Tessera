@@ -204,11 +204,13 @@ export class FilesService {
     userId: string,
     file: File,
   ): Promise<void> {
-    if (file.uploaderId === userId) return;
     const membership = await tx.projectMember.findUnique({
       where: { projectId_userId: { projectId: file.projectId, userId } },
     });
-    if (membership?.role !== 'ADMIN') {
+    // Removed from the project while this waited: like any outsider.
+    if (!membership) throw new NotFoundException('Card not found');
+    if (file.uploaderId === userId) return;
+    if (membership.role !== 'ADMIN') {
       throw new ForbiddenException(NOT_ALLOWED_TO_REMOVE);
     }
   }

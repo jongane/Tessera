@@ -8,6 +8,7 @@ import {
 import {
   type Label,
   LabelColour,
+  type Prisma,
   type ProjectMember,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -85,15 +86,12 @@ export class LabelsService {
     labelId: string,
   ): Promise<void> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
-    const label = await this.prisma.label.findFirst({
-      where: { id: labelId, projectId: card.projectId },
-    });
-    if (!label) {
-      throw new NotFoundException('Label not found');
-    }
+    await this.findLabel(this.prisma, labelId, card.projectId);
     await retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
         await lockCard(tx, card.id);
+        // As it is now: it may have been deleted or renamed while this waited.
+        const label = await this.findLabel(tx, labelId, card.projectId);
         const added = await tx.cardLabel.createMany({
           data: {
             cardId: card.id,
@@ -111,6 +109,20 @@ export class LabelsService {
         }
       }),
     );
+  }
+
+  private async findLabel(
+    db: Pick<Prisma.TransactionClient, 'label'>,
+    labelId: string,
+    projectId: string,
+  ) {
+    const label = await db.label.findFirst({
+      where: { id: labelId, projectId },
+    });
+    if (!label) {
+      throw new NotFoundException('Label not found');
+    }
+    return label;
   }
 
   async removeLabelFromCard(
