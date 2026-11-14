@@ -74,6 +74,11 @@ export const deleteCardSchema = z
   })
   .optional();
 
+// The refusal when a card with files is deleted without saying what to do
+// with them. The API sends it and the delete dialog recognises it.
+export const CHOOSE_WHAT_HAPPENS_TO_FILES =
+  'Choose what happens to this card’s files';
+
 // DELETE /api/cards/:cardId?files=delete or ?moveFilesTo=<cardId>: what
 // happens to the files of the cards deleted. Needed when there are any; one
 // of the two, never both.
