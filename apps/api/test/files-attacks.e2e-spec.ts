@@ -137,7 +137,7 @@ describe('Files on cards, attacks (e2e)', () => {
     expect(await listKeys()).toHaveLength(2);
   });
 
-  it('answers 404, never 500, when a subtask chosen for deletion is deleted at the same moment', async () => {
+  it('answers 409 Someone changed this card at the same time, never 500, and changes nothing, when a subtask chosen for deletion is deleted at the same moment', async () => {
     const { ana, card, newSubtask } = await fileScenario(app);
     const sub = await newSubtask(card.id, 'Sub');
 
@@ -157,7 +157,14 @@ describe('Files on cards, attacks (e2e)', () => {
     const subAnswer = await deleteSub;
     const parentAnswer = await deleteParent;
     expect(subAnswer.status, JSON.stringify(subAnswer.body)).toBe(204);
-    expect(parentAnswer.status, JSON.stringify(parentAnswer.body)).toBe(404);
+    expect(parentAnswer.status, JSON.stringify(parentAnswer.body)).toBe(409);
+    expect((parentAnswer.body as { message?: string }).message).toBe(
+      'Someone changed this card at the same time. Try again.',
+    );
+    // The parent card is still there.
+    expect(
+      await prisma.card.findUnique({ where: { id: card.id } }),
+    ).not.toBeNull();
   });
 
   it('answers a form sent as application/x-www-form-urlencoded instead of hanging', async () => {
