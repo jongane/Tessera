@@ -90,6 +90,11 @@ export class LabelsService {
     await retryOnCollision(() =>
       this.prisma.$transaction(async (tx) => {
         await lockCard(tx, card.id);
+        // Hold the label while the link is made, so it cannot be deleted
+        // between the check and the insert.
+        const held = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id FROM labels WHERE id = ${labelId}::uuid FOR SHARE`;
+        if (held.length === 0) throw new NotFoundException('Label not found');
         // As it is now: it may have been deleted or renamed while this waited.
         const label = await this.findLabel(tx, labelId, card.projectId);
         const added = await tx.cardLabel.createMany({
