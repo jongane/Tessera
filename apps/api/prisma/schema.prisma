@@ -32,6 +32,7 @@ model User {
   runningTimer    RunningTimer?
   messages        Message[]       @relation("MessageAuthor")
   deletedMessages Message[]       @relation("MessageDeletedBy")
+  files           File[]
 
   @@map("users")
 }
@@ -62,6 +63,7 @@ model Project {
   timeEntries     TimeEntry[]
   runningTimers   RunningTimer[]
   labels          Label[]
+  files           File[]
 
   @@map("projects")
 }
@@ -196,6 +198,7 @@ model Card {
   oldNumbers        CardNumberAlias[]
   timeEntries       TimeEntry[]
   runningTimers     RunningTimer[]
+  files             File[]
 
   // Lets chats point at (card, board) together. See Chat.card.
   @@unique([id, boardId])
@@ -275,6 +278,7 @@ model Message {
   chat        Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
   author      User?     @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   deletedBy   User?     @relation("MessageDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  files       File[]
 
   // Pages of a chat's messages, in the order they are shown.
   @@index([chatId, createdAt, id])
@@ -420,6 +424,40 @@ model CardLabel {
   @@map("card_labels")
 }
 
+// A file attached to a card or, from the next release, to a message
+// (docs/card-features.md, section 8). The bytes are in the file store under
+// storage_key; this row is the only way to reach them. Rules checked by
+// constraints in the migration: exactly one of card_id and message_id, a name
+// of 1 to 255 characters, and a size of 0 or more.
+model File {
+  id         String   @id @default(uuid()) @db.Uuid
+  projectId  String   @map("project_id") @db.Uuid
+  cardId     String?  @map("card_id") @db.Uuid
+  messageId  String?  @map("message_id") @db.Uuid
+  // Null once the uploader's account has been deleted.
+  uploaderId String?  @map("uploader_id") @db.Uuid
+  name       String
+  size       BigInt
+  // The type the API found by reading the file's first bytes: one of the
+  // four image types, or application/octet-stream. Never the browser's claim.
+  mimeType   String   @map("mime_type")
+  // Random ("files/<uuid>"), never made from the name.
+  storageKey String   @unique @map("storage_key")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Points at (card, project) so the file is in its card's project. Deleting
+  // the card deletes its file rows; the API deletes the stored objects.
+  card       Card?    @relation(fields: [cardId, projectId], references: [id, projectId], onDelete: Cascade)
+  message    Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploader   User?    @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+
+  @@index([cardId, createdAt])
+  @@index([messageId])
+  @@index([projectId])
+  @@index([uploaderId])
+  @@map("files")
+}
+
 // A named checklist on a card (docs/card-features.md, section 2). A card can
 // have several, shown in `position` order. The name is 1 to 100 characters
 // (check constraint in the migration).
@@ -481,6 +519,9 @@ enum ActivityKind {
   CHECKLIST_RENAMED
   CHECKLIST_DELETED
   CHECKLIST_ITEM_TO_SUBTASK
+  FILE_ADDED
+  FILE_REMOVED
+  FILE_MOVED
 
   @@map("activity_kind")
 }
