@@ -53,6 +53,10 @@ A card's history: one line for each change made to it, with who made it and when
 An amount of time a person logged on a card for one day, typed in or saved from the timer. The day is the day in the project's time zone.
 _Avoid_: Timesheet line, log
 
+**File**:
+A file attached to a card or to a message (only to a card so far). Screens say "file": "Files", "Attach file", "Remove". The word covers any type; only PNG, JPEG, GIF and WebP images show as a preview. (Agreed 2026-11-14.)
+_Avoid_: Attachment, document, upload
+
 ## Conversation
 
 **Chat**:

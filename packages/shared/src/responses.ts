@@ -16,6 +16,30 @@ export interface Me {
 // GET /api/server/settings
 export interface ServerSettings {
   signUpOpen: boolean;
+  // The largest file in bytes (docs/api.md, "Files").
+  fileSizeLimitBytes: number;
+}
+
+// A file on a card (docs/api.md, "Files"). POST /api/cards/:cardId/files
+// answers with one; GET /api/cards/:cardId/files with a list.
+export interface CardFile {
+  id: string;
+  name: string;
+  size: number;
+  // Decided by the API from the file's first bytes: only a PNG, JPEG, GIF
+  // or WebP image can be shown inline (/preview).
+  isImage: boolean;
+  // Null once the uploader's account has been deleted.
+  uploader: { id: string; displayName: string } | null;
+  createdAt: string;
+  // Both null for a card's own file.
+  messageId: string | null;
+  chatId: string | null;
+}
+
+// GET /api/cards/:cardId/files, newest first.
+export interface CardFileList {
+  files: CardFile[];
 }
 
 export interface Project {
@@ -365,6 +389,12 @@ export interface ActivityTimeEntry {
   note: string | null;
 }
 
+export interface ActivityFile {
+  fileId: string;
+  name: string;
+  size: number;
+}
+
 // What each kind of history line records.
 export interface ActivityDetails {
   CREATED: { numberPath: string; title: string };
@@ -414,6 +444,13 @@ export interface ActivityDetails {
     checklistId: string;
     checklistName: string;
     subtask: ActivityCardRef;
+  };
+  FILE_ADDED: ActivityFile;
+  FILE_REMOVED: ActivityFile;
+  // Written on the card that took the file when the card it was on was
+  // deleted. `from` is the deleted card.
+  FILE_MOVED: ActivityFile & {
+    from: { numberPath: string; title: string };
   };
 }
 

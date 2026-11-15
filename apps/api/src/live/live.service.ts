@@ -265,6 +265,14 @@ export class LiveService implements OnModuleDestroy {
     return row?.cardId ?? null;
   }
 
+  async cardOfFile(fileId: string): Promise<string | null> {
+    const row = await this.prisma.file.findUnique({
+      where: { id: fileId },
+      select: { cardId: true },
+    });
+    return row?.cardId ?? null;
+  }
+
   async cardOfRunningTimer(userId: string): Promise<string | null> {
     const row = await this.prisma.runningTimer.findFirst({
       where: { userId },

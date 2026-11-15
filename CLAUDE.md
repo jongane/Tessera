@@ -20,7 +20,7 @@ This applies in design interviews and whenever the repository owner asks for a c
 - Once the repository owner decides, update every place that holds the old version in the same change, so the docs never disagree with each other.
 
 ## Stack
-TypeScript (strict, ES modules), NestJS, React (Vite), PostgreSQL, Prisma, MinIO, Docker Compose.
+TypeScript (strict, ES modules), NestJS, React (Vite), PostgreSQL, Prisma, SeaweedFS (file storage, reached through the S3 API), Docker Compose.
 Tests: Vitest (web tests also use jsdom and Testing Library). Linting: oxlint. Formatting: Prettier. Node version: see `.nvmrc`.
 Monorepo: `apps/api`, `apps/web`, `packages/shared`, `docs/`.
 
@@ -73,7 +73,7 @@ Rules for running them:
 ## Code standards
 - TypeScript strict mode. No `any` without a comment saying why.
 - Validate all input at the API boundary, with the zod rules in `packages/shared`, so the web app can check forms with the same rules.
-- Start every text field in `packages/shared` from `textWithoutNul()`, not `z.string()`. It refuses the invisible NUL character with the app's message; the API refuses one anywhere in a request too (`docs/api.md`). The only exceptions are the sign-in `password` and change-password `currentPassword`, which are marked with `@AllowNulIn` on their endpoints.
+- Start every text field in `packages/shared` from `textWithoutNul()`, not `z.string()`. It refuses the invisible NUL character with the app's message; the API refuses one in any text of a request too, including a file's name, but not in a file's contents, which are raw bytes (`docs/api.md`). The only exceptions are the sign-in `password` and change-password `currentPassword`, which are marked with `@AllowNulIn` on their endpoints.
 - Database changes go through Prisma migrations (`prisma/migrations`), never by editing tables by hand. Each table change comes with a database test (`*.db-spec.ts`) against a real PostgreSQL.
 - Check permissions on every request: a user only sees projects they belong to.
 - Never commit secrets (API keys, passwords, .env files). Hash passwords.
@@ -110,7 +110,7 @@ Run from the repository root in PowerShell. `-w apps/api` means "run inside the 
 | Format | `npm run format -w apps/api` |
 | Build | `npm run build -w apps/api` |
 
-Database and end-to-end tests need PostgreSQL running: `docker compose up -d` (from the repository root) and an `apps/api/.env` copied from `apps/api/.env.example`.
+Database and end-to-end tests need PostgreSQL and SeaweedFS (file storage) running: `docker compose up -d` (from the repository root) starts both. They also need an `apps/api/.env` copied from `apps/api/.env.example`, which holds the storage settings (`S3_*`, `TEST_S3_BUCKET`) and `FILE_SIZE_LIMIT_MB`. The API refuses to start if a storage setting is missing.
 
 The API listens on http://localhost:3000. Stop a running server with Ctrl+C.
 
@@ -125,7 +125,7 @@ Web app (`apps/web`), same pattern:
 | Build (type-checks, then packages) | `npm run build -w apps/web` |
 | Browser tests (Playwright) | `npm run test:browser -w apps/web` |
 
-The web app listens on http://localhost:5173 and passes `/api` on to the API, so run both. Browser tests need PostgreSQL running and, once, `npx playwright install chromium` (from `apps/web`). They build everything and start the API on port 3100 against the test database.
+The web app listens on http://localhost:5173 and passes `/api` on to the API, so run both. Browser tests need PostgreSQL and SeaweedFS running (`docker compose up -d`) and, once, `npx playwright install chromium` (from `apps/web`). They build everything and start the API on port 3100 against the test database and the test bucket.
 
 In production the API also serves the built web app: `npm run build -w apps/web`, `npm run build -w apps/api`, then `npm run start:prod -w apps/api` (http://localhost:3000).
 

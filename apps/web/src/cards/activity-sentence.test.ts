@@ -64,6 +64,9 @@ const ALL_KINDS = [
   'CHECKLIST_RENAMED',
   'CHECKLIST_DELETED',
   'CHECKLIST_ITEM_TO_SUBTASK',
+  'FILE_ADDED',
+  'FILE_REMOVED',
+  'FILE_MOVED',
 ] as const satisfies readonly ActivityKind[]
 
 type Missing = Exclude<ActivityKind, (typeof ALL_KINDS)[number]>
@@ -302,6 +305,40 @@ const CASES: [ActivityKind, ActivityLine, string][] = [
     ),
     "Jon turned 'Write tests' from Testing into WEB-12.3",
   ],
+  // Files on cards, PR A, criterion 33.
+  [
+    'FILE_ADDED',
+    activityLine(
+      'FILE_ADDED',
+      { fileId: 'f1', name: 'plan.pdf', size: 12 },
+      { actor: jon },
+    ),
+    "Jon attached the file 'plan.pdf'",
+  ],
+  [
+    'FILE_REMOVED',
+    activityLine(
+      'FILE_REMOVED',
+      { fileId: 'f1', name: 'plan.pdf', size: 12 },
+      { actor: jon },
+    ),
+    "Jon removed the file 'plan.pdf'",
+  ],
+  // Criterion 31 (shape of the details pending the repository owner's word).
+  [
+    'FILE_MOVED',
+    activityLine(
+      'FILE_MOVED',
+      {
+        fileId: 'f1',
+        name: 'x',
+        size: 12,
+        from: { numberPath: '12', title: 'Login' },
+      },
+      { actor: jon },
+    ),
+    "Jon moved the file 'x' here from WEB-12, which was deleted",
+  ],
 ]
 
 describe('The sentence for a history line', () => {
@@ -311,7 +348,7 @@ describe('The sentence for a history line', () => {
     expect(CASES.map(([kind]) => kind)).toEqual(
       expect.arrayContaining([...ALL_KINDS]),
     )
-    expect(new Set(CASES.map(([kind]) => kind)).size).toBe(25)
+    expect(new Set(CASES.map(([kind]) => kind)).size).toBe(28)
   })
 
   // 39
@@ -620,5 +657,44 @@ describe('A due date in another year (agreed 2026-11-08)', () => {
     expect(
       activitySentence(line, { ...context, timeZone: 'Pacific/Auckland' }),
     ).toContain('1 Jan 2027')
+  })
+})
+
+// Files on cards, PR A, criterion 33.
+describe('Sentences about files', () => {
+  const details = { fileId: 'f1', name: 'Résumé 日本 🎉.pdf', size: 12 }
+
+  // 33
+  it('keeps the file name exactly, in any language', () => {
+    expect(sentence(activityLine('FILE_ADDED', details, { actor: jon }))).toBe(
+      "Jon attached the file 'Résumé 日本 🎉.pdf'",
+    )
+  })
+
+  // 33
+  it('says "Former member" for a deleted account', () => {
+    expect(sentence(activityLine('FILE_ADDED', details, { actor: null }))).toBe(
+      "Former member attached the file 'Résumé 日本 🎉.pdf'",
+    )
+    expect(
+      sentence(activityLine('FILE_REMOVED', details, { actor: null })),
+    ).toBe("Former member removed the file 'Résumé 日本 🎉.pdf'")
+  })
+
+  // 31
+  it('says where a moved file came from, with the name kept exactly', () => {
+    const line = activityLine(
+      'FILE_MOVED',
+      {
+        fileId: 'f1',
+        name: 'Résumé 日本 🎉.pdf',
+        size: 12,
+        from: { numberPath: '12.3', title: 'Form' },
+      },
+      { actor: jon },
+    )
+    expect(sentence(line)).toBe(
+      "Jon moved the file 'Résumé 日本 🎉.pdf' here from WEB-12.3, which was deleted",
+    )
   })
 })

@@ -8,11 +8,13 @@ import {
 import {
   type Label,
   LabelColour,
+  type Prisma,
   type ProjectMember,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { findVisibleCard } from '../cards/card-access.js';
+import { findVisibleCard, lockCard } from '../cards/card-access.js';
 import { recordActivity } from '../activity/activity.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 
 const MAX_NAME_LENGTH = 50;
 
@@ -84,25 +86,48 @@ export class LabelsService {
     labelId: string,
   ): Promise<void> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
-    const label = await this.prisma.label.findFirst({
-      where: { id: labelId, projectId: card.projectId },
+    await this.findLabel(this.prisma, labelId, card.projectId);
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        await lockCard(tx, card.id);
+        // Hold the label while the link is made, so it cannot be deleted
+        // between the check and the insert.
+        const held = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id FROM labels WHERE id = ${labelId}::uuid FOR SHARE`;
+        if (held.length === 0) throw new NotFoundException('Label not found');
+        // As it is now: it may have been deleted or renamed while this waited.
+        const label = await this.findLabel(tx, labelId, card.projectId);
+        const added = await tx.cardLabel.createMany({
+          data: {
+            cardId: card.id,
+            labelId: label.id,
+            projectId: card.projectId,
+          },
+          skipDuplicates: true,
+        });
+        if (added.count > 0) {
+          await recordActivity(tx, card, userId, 'LABEL_ADDED', {
+            labelId: label.id,
+            name: label.name,
+            colour: label.colour,
+          });
+        }
+      }),
+    );
+  }
+
+  private async findLabel(
+    db: Pick<Prisma.TransactionClient, 'label'>,
+    labelId: string,
+    projectId: string,
+  ) {
+    const label = await db.label.findFirst({
+      where: { id: labelId, projectId },
     });
     if (!label) {
       throw new NotFoundException('Label not found');
     }
-    await this.prisma.$transaction(async (tx) => {
-      const added = await tx.cardLabel.createMany({
-        data: { cardId: card.id, labelId: label.id, projectId: card.projectId },
-        skipDuplicates: true,
-      });
-      if (added.count > 0) {
-        await recordActivity(tx, card, userId, 'LABEL_ADDED', {
-          labelId: label.id,
-          name: label.name,
-          colour: label.colour,
-        });
-      }
-    });
+    return label;
   }
 
   async removeLabelFromCard(
@@ -111,21 +136,24 @@ export class LabelsService {
     labelId: string,
   ): Promise<void> {
     const card = await findVisibleCard(this.prisma, userId, cardId);
-    await this.prisma.$transaction(async (tx) => {
-      const removed = await tx.cardLabel.deleteMany({
-        where: { cardId: card.id, labelId },
-      });
-      if (removed.count > 0) {
-        const label = await tx.label.findUniqueOrThrow({
-          where: { id: labelId },
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        await lockCard(tx, card.id);
+        const removed = await tx.cardLabel.deleteMany({
+          where: { cardId: card.id, labelId },
         });
-        await recordActivity(tx, card, userId, 'LABEL_REMOVED', {
-          labelId: label.id,
-          name: label.name,
-          colour: label.colour,
-        });
-      }
-    });
+        if (removed.count > 0) {
+          const label = await tx.label.findUniqueOrThrow({
+            where: { id: labelId },
+          });
+          await recordActivity(tx, card, userId, 'LABEL_REMOVED', {
+            labelId: label.id,
+            name: label.name,
+            colour: label.colour,
+          });
+        }
+      }),
+    );
   }
 
   async labelsForCard(userId: string, cardId: string): Promise<Label[]> {

@@ -5,7 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  CHANGED_AT_THE_SAME_TIME_MESSAGE,
+  CHOOSE_WHAT_HAPPENS_TO_FILES,
+} from '@tessera/shared';
 import type { Card, Prisma } from '../generated/prisma/client.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
 import { parseCardReference } from './card-number.js';
@@ -15,14 +20,23 @@ import {
   placeCardAt,
   takeNextCardNumber,
 } from './card-numbering.js';
-import { loadSubtree, moveSubtree } from './card-tree.js';
+import {
+  findCard,
+  LARGE_CHANGE_TIMEOUT_MS,
+  loadSubtree,
+  moveSubtree,
+} from './card-tree.js';
 import { requireEstimateMinutes } from '../time/time-input.js';
 import { type DueInput, parseDue, requirePriority } from './card-fields.js';
-import { lockCard } from './card-access.js';
+import { lockCard, lockUntilCovered } from './card-access.js';
 import { cardRef, dueRef, recordActivity } from '../activity/activity.js';
 import { ALREADY_LINKED, refuseGeneralChat } from '../chats/chat-rules.js';
 
 const MAX_TITLE_LENGTH = 200;
+
+type SubtaskWithCount = Card & { _count: { subtasks: number } };
+
+const PICK_A_CARD_NOT_BEING_DELETED = 'Pick a card that is not being deleted';
 
 export interface NewCard {
   title: string;
@@ -94,30 +108,32 @@ export class CardsService {
     const column = await this.findVisibleColumn(userId, columnId);
     const { projectId } = column.board;
 
-    return this.prisma.$transaction(async (tx) => {
-      const created = await tx.card.create({
-        data: {
-          ...card,
-          projectId,
-          createdById: userId,
-          boardId: column.boardId,
-          columnId,
-          numberPath: await takeNextCardNumber(tx, projectId),
-          position: await nextPosition(tx, columnId),
-          ...(chatId === undefined && {
-            chat: { create: { title: card.title } },
-          }),
-        },
-      });
-      if (chatId !== undefined) {
-        await takeChat(tx, chatId, created);
-      }
-      await recordActivity(tx, created, userId, 'CREATED', {
-        numberPath: created.numberPath,
-        title: created.title,
-      });
-      return created;
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const created = await tx.card.create({
+          data: {
+            ...card,
+            projectId,
+            createdById: userId,
+            boardId: column.boardId,
+            columnId,
+            numberPath: await takeNextCardNumber(tx, projectId),
+            position: await nextPosition(tx, columnId),
+            ...(chatId === undefined && {
+              chat: { create: { title: card.title } },
+            }),
+          },
+        });
+        if (chatId !== undefined) {
+          await takeChat(tx, chatId, created);
+        }
+        await recordActivity(tx, created, userId, 'CREATED', {
+          numberPath: created.numberPath,
+          title: created.title,
+        });
+        return created;
+      }),
+    );
   }
 
   // Changes any of the card's fields. Every value is checked before anything
@@ -146,56 +162,58 @@ export class CardsService {
         ? undefined
         : requireEstimateMinutes(changes.estimateMinutes);
     const visible = await this.findVisibleCard(userId, cardId);
-    return this.prisma.$transaction(async (tx) => {
-      const card = await lockCard(tx, visible.id);
-      const data: Prisma.CardUpdateInput = {};
-      if (title !== undefined && title !== card.title) {
-        await recordActivity(tx, card, userId, 'TITLE_CHANGED', {
-          from: card.title,
-          to: title,
-        });
-        data.title = title;
-      }
-      if (description !== undefined && description !== card.description) {
-        await recordActivity(tx, card, userId, 'DESCRIPTION_CHANGED', {
-          from: card.description,
-          to: description,
-        });
-        data.description = description;
-      }
-      if (priority !== undefined && priority !== card.priority) {
-        await recordActivity(tx, card, userId, 'PRIORITY_CHANGED', {
-          from: card.priority,
-          to: priority,
-        });
-        data.priority = priority;
-      }
-      if (due !== undefined) {
-        const from = dueRef(card);
-        const to = dueRef(due);
-        if (from.at !== to.at || from.hasTime !== to.hasTime) {
-          await recordActivity(tx, card, userId, 'DUE_DATE_CHANGED', {
-            from,
-            to,
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const card = await lockCard(tx, visible.id);
+        const data: Prisma.CardUpdateInput = {};
+        if (title !== undefined && title !== card.title) {
+          await recordActivity(tx, card, userId, 'TITLE_CHANGED', {
+            from: card.title,
+            to: title,
           });
-          Object.assign(data, due);
+          data.title = title;
         }
-      }
-      if (
-        estimateMinutes !== undefined &&
-        estimateMinutes !== card.estimateMinutes
-      ) {
-        await recordActivity(tx, card, userId, 'ESTIMATE_CHANGED', {
-          from: card.estimateMinutes,
-          to: estimateMinutes,
-        });
-        data.estimateMinutes = estimateMinutes;
-      }
-      if (Object.keys(data).length === 0) {
-        return card;
-      }
-      return tx.card.update({ where: { id: card.id }, data });
-    });
+        if (description !== undefined && description !== card.description) {
+          await recordActivity(tx, card, userId, 'DESCRIPTION_CHANGED', {
+            from: card.description,
+            to: description,
+          });
+          data.description = description;
+        }
+        if (priority !== undefined && priority !== card.priority) {
+          await recordActivity(tx, card, userId, 'PRIORITY_CHANGED', {
+            from: card.priority,
+            to: priority,
+          });
+          data.priority = priority;
+        }
+        if (due !== undefined) {
+          const from = dueRef(card);
+          const to = dueRef(due);
+          if (from.at !== to.at || from.hasTime !== to.hasTime) {
+            await recordActivity(tx, card, userId, 'DUE_DATE_CHANGED', {
+              from,
+              to,
+            });
+            Object.assign(data, due);
+          }
+        }
+        if (
+          estimateMinutes !== undefined &&
+          estimateMinutes !== card.estimateMinutes
+        ) {
+          await recordActivity(tx, card, userId, 'ESTIMATE_CHANGED', {
+            from: card.estimateMinutes,
+            to: estimateMinutes,
+          });
+          data.estimateMinutes = estimateMinutes;
+        }
+        if (Object.keys(data).length === 0) {
+          return card;
+        }
+        return tx.card.update({ where: { id: card.id }, data });
+      }),
+    );
   }
 
   async getCard(userId: string, cardId: string): Promise<CardView> {
@@ -270,47 +288,49 @@ export class CardsService {
       await this.checkOpenSubtasks(card.id, options);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const current = await lockCard(tx, card.id);
-      const fromColumn = await tx.column.findUniqueOrThrow({
-        where: { id: current.columnId },
-        select: { id: true, name: true, isDone: true },
-      });
-      await lockColumns(tx, [fromColumn.id, column.id]);
-      const completion = completionChange(
-        current,
-        fromColumn.isDone,
-        column.isDone,
-      );
-      let moved = await tx.card.update({
-        where: { id: card.id },
-        data: {
-          columnId: column.id,
-          position: await nextPosition(tx, column.id),
-          ...completion,
-        },
-      });
-      if (options.position !== undefined) {
-        await placeCardAt(tx, moved, options.position);
-        moved = await tx.card.findUniqueOrThrow({ where: { id: card.id } });
-      }
-      if (fromColumn.id !== column.id) {
-        await recordActivity(tx, card, userId, 'MOVED', {
-          from: { columnId: fromColumn.id, name: fromColumn.name },
-          to: { columnId: column.id, name: column.name },
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const current = await lockCard(tx, card.id);
+        const fromColumn = await tx.column.findUniqueOrThrow({
+          where: { id: current.columnId },
+          select: { id: true, name: true, isDone: true },
         });
-      }
-      if (completion.isComplete !== undefined) {
-        await recordActivity(
-          tx,
-          card,
-          userId,
-          completion.isComplete ? 'COMPLETED' : 'REOPENED',
-          {},
+        await lockColumns(tx, [fromColumn.id, column.id]);
+        const completion = completionChange(
+          current,
+          fromColumn.isDone,
+          column.isDone,
         );
-      }
-      return moved;
-    });
+        let moved = await tx.card.update({
+          where: { id: card.id },
+          data: {
+            columnId: column.id,
+            position: await nextPosition(tx, column.id),
+            ...completion,
+          },
+        });
+        if (options.position !== undefined) {
+          await placeCardAt(tx, moved, options.position);
+          moved = await tx.card.findUniqueOrThrow({ where: { id: card.id } });
+        }
+        if (fromColumn.id !== column.id) {
+          await recordActivity(tx, card, userId, 'MOVED', {
+            from: { columnId: fromColumn.id, name: fromColumn.name },
+            to: { columnId: column.id, name: column.name },
+          });
+        }
+        if (completion.isComplete !== undefined) {
+          await recordActivity(
+            tx,
+            card,
+            userId,
+            completion.isComplete ? 'COMPLETED' : 'REOPENED',
+            {},
+          );
+        }
+        return moved;
+      }),
+    );
   }
 
   // Ticks the card complete, and offers the board's done column if the card
@@ -324,17 +344,19 @@ export class CardsService {
     if (!card.isComplete) {
       await this.checkOpenSubtasks(card.id, options);
     }
-    const completed = await this.prisma.$transaction(async (tx) => {
-      const current = await lockCard(tx, card.id);
-      if (current.isComplete) {
-        return current;
-      }
-      await recordActivity(tx, card, userId, 'COMPLETED', {});
-      return tx.card.update({
-        where: { id: card.id },
-        data: { isComplete: true, completedAt: new Date() },
-      });
-    });
+    const completed = await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const current = await lockCard(tx, card.id);
+        if (current.isComplete) {
+          return current;
+        }
+        await recordActivity(tx, card, userId, 'COMPLETED', {});
+        return tx.card.update({
+          where: { id: card.id },
+          data: { isComplete: true, completedAt: new Date() },
+        });
+      }),
+    );
     const doneColumns = await this.prisma.column.findMany({
       where: { boardId: card.boardId, isDone: true },
       orderBy: { position: 'asc' },
@@ -368,17 +390,19 @@ export class CardsService {
 
   async reopenCard(userId: string, cardId: string): Promise<Card> {
     const visible = await this.findVisibleCard(userId, cardId);
-    return this.prisma.$transaction(async (tx) => {
-      const card = await lockCard(tx, visible.id);
-      if (!card.isComplete) {
-        return card;
-      }
-      await recordActivity(tx, card, userId, 'REOPENED', {});
-      return tx.card.update({
-        where: { id: card.id },
-        data: { isComplete: false, completedAt: null },
-      });
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const card = await lockCard(tx, visible.id);
+        if (!card.isComplete) {
+          return card;
+        }
+        await recordActivity(tx, card, userId, 'REOPENED', {});
+        return tx.card.update({
+          where: { id: card.id },
+          data: { isComplete: false, completedAt: null },
+        });
+      }),
+    );
   }
 
   // Deletes a card. A card with subtasks needs a choice for each direct
@@ -387,69 +411,127 @@ export class CardsService {
   // Cards with logged time are never deleted, so hours never disappear.
   // Only the person who created a card, or an admin, can delete it; the
   // same goes for each subtask chosen for deletion.
+  //
+  // When the cards deleted have files, the caller must choose: `deleteFiles`
+  // deletes them with the cards, `moveFilesTo` names another card of the
+  // project that takes them (nothing in the file store changes). Else 400.
+  // Answers with the storage keys of the files that were deleted: the caller
+  // deletes their stored objects once this has committed.
   async deleteCard(
     userId: string,
     cardId: string,
     choices: Record<string, SubtaskChoice> = {},
-  ): Promise<void> {
-    const card = await this.findVisibleCard(userId, cardId);
-    const subtasks = await this.prisma.card.findMany({
-      where: { parentId: card.id },
-      include: { _count: { select: { subtasks: true } } },
-    });
-    checkChoicesCoverSubtasks(subtasks, choices);
-    const toDelete = [
-      card,
-      ...subtasks.filter((subtask) => choices[subtask.id]!.action === 'delete'),
-    ];
-    await this.checkMayDelete(userId, card.projectId, toDelete);
-    await this.checkNoLoggedTime(toDelete.map((c) => c.id));
+    moveFilesTo?: string,
+    deleteFiles = false,
+    filesSeen?: number,
+  ): Promise<string[]> {
+    const visible = await this.findVisibleCard(userId, cardId);
+    // What the request was built from. Checked again once the cards are
+    // locked: if the subtasks changed meanwhile, nothing is changed.
+    const asked = await this.directSubtasks(this.prisma, visible.id);
+    checkChoicesCoverSubtasks(asked, choices);
 
-    await this.prisma.$transaction(async (tx) => {
-      const beingDeleted = new Set(
-        (await loadSubtree(tx, card.id)).map((member) => member.id),
-      );
-      for (const subtask of subtasks) {
-        const choice = choices[subtask.id]!;
-        if (choice.action === 'delete') {
-          if (subtask._count.subtasks > 0) {
-            throw new ConflictException(
-              'A subtask that has its own subtasks cannot be deleted here; ' +
-                'decide what happens to its subtasks first',
-            );
-          }
-          await deleteKeepingChat(tx, subtask.id);
-        } else if (choice.action === 'standalone') {
-          await moveSubtree(tx, userId, subtask, null);
-        } else {
-          if (beingDeleted.has(choice.parentId)) {
-            throw new BadRequestException(
-              'A subtask cannot move under the card being deleted or its subtasks',
-            );
-          }
-          const newParent = await tx.card.findFirst({
-            where: {
-              id: choice.parentId,
-              projectId: card.projectId,
-              board: boardsVisibleTo(userId),
-            },
+    return retryOnCollision(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          await lockUntilCovered(tx, async () => {
+            const card = await findCard(tx, visible.id);
+            return {
+              must: [
+                card.id,
+                ...(moveFilesTo === undefined ? [] : [moveFilesTo]),
+                ...Object.values(choices).flatMap((choice) =>
+                  choice.action === 'move' ? [choice.parentId] : [],
+                ),
+              ],
+              may: [
+                ...(await loadSubtree(tx, card.id)).map((member) => member.id),
+                ...(card.parentId ? [card.parentId] : []),
+              ],
+            };
           });
-          if (!newParent) {
-            throw new NotFoundException('Card not found');
+          const card = await findCard(tx, visible.id);
+          const subtasks = await this.directSubtasks(tx, card.id);
+          if (!sameSubtasks(asked, subtasks)) {
+            throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
           }
-          await moveSubtree(tx, userId, subtask, newParent);
-        }
-      }
-      await deleteKeepingChat(tx, card.id);
-      if (card.parentId) {
-        await recordActivity(
-          tx,
-          { id: card.parentId, projectId: card.projectId },
-          userId,
-          'SUBTASK_REMOVED',
-          { subtask: cardRef(card), deleted: true },
-        );
-      }
+          const toDelete = [
+            card,
+            ...subtasks.filter(
+              (subtask) => choices[subtask.id]!.action === 'delete',
+            ),
+          ];
+          await this.checkMayDelete(tx, userId, card.projectId, toDelete);
+          const beingDeleted = new Set(
+            (await loadSubtree(tx, card.id)).map((member) => member.id),
+          );
+          await checkFilesSeen(
+            tx,
+            toDelete.map((c) => c.id),
+            filesSeen,
+            deleteFiles || moveFilesTo !== undefined,
+          );
+          const storageKeys = await takeFiles(
+            tx,
+            userId,
+            toDelete.map((c) => c.id),
+            card.projectId,
+            moveFilesTo,
+            deleteFiles,
+          );
+          for (const subtask of subtasks) {
+            const choice = choices[subtask.id]!;
+            if (choice.action === 'delete') {
+              if (subtask._count.subtasks > 0) {
+                throw new ConflictException(
+                  'A subtask that has its own subtasks cannot be deleted here; ' +
+                    'decide what happens to its subtasks first',
+                );
+              }
+              await deleteKeepingChat(tx, subtask.id);
+            } else if (choice.action === 'standalone') {
+              await moveSubtree(tx, userId, subtask.id, null, true);
+            } else {
+              if (beingDeleted.has(choice.parentId)) {
+                throw new BadRequestException(
+                  'A subtask cannot move under the card being deleted or its subtasks',
+                );
+              }
+              const newParent = await tx.card.findFirst({
+                where: {
+                  id: choice.parentId,
+                  projectId: card.projectId,
+                  board: boardsVisibleTo(userId),
+                },
+                select: { id: true },
+              });
+              if (!newParent) {
+                throw new NotFoundException('Card not found');
+              }
+              await moveSubtree(tx, userId, subtask.id, newParent.id, true);
+            }
+          }
+          await deleteKeepingChat(tx, card.id);
+          if (card.parentId) {
+            await recordActivity(
+              tx,
+              { id: card.parentId, projectId: card.projectId },
+              userId,
+              'SUBTASK_REMOVED',
+              { subtask: cardRef(card), deleted: true },
+            );
+          }
+          return storageKeys;
+        },
+        { timeout: LARGE_CHANGE_TIMEOUT_MS },
+      ),
+    );
+  }
+
+  private directSubtasks(db: Prisma.TransactionClient, cardId: string) {
+    return db.card.findMany({
+      where: { parentId: cardId },
+      include: { _count: { select: { subtasks: true } } },
     });
   }
 
@@ -475,13 +557,18 @@ export class CardsService {
   }
 
   private async checkMayDelete(
+    tx: Prisma.TransactionClient,
     userId: string,
     projectId: string,
     toDelete: Card[],
   ): Promise<void> {
-    const membership = await this.prisma.projectMember.findUniqueOrThrow({
+    const membership = await tx.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId } },
     });
+    // Removed from the project while this waited: like any outsider.
+    if (!membership) {
+      throw new NotFoundException('Card not found');
+    }
     if (
       membership.role !== 'ADMIN' &&
       toDelete.some((c) => c.createdById !== userId)
@@ -489,22 +576,6 @@ export class CardsService {
       throw new ForbiddenException(
         'Only the person who created a card, or a project admin, can delete it',
       );
-    }
-  }
-
-  // Refuses to delete cards with logged time, and says how much there is, so
-  // the screen can explain why. An admin can delete the entries first.
-  private async checkNoLoggedTime(cardIds: string[]): Promise<void> {
-    const logged = await this.prisma.timeEntry.aggregate({
-      where: { cardId: { in: cardIds } },
-      _sum: { minutes: true },
-    });
-    const loggedMinutes = logged._sum.minutes ?? 0;
-    if (loggedMinutes > 0) {
-      throw new ConflictException({
-        message: 'Cards with logged time cannot be deleted',
-        loggedMinutes,
-      });
     }
   }
 
@@ -556,6 +627,21 @@ function requireTitle(title: string): string {
   return trimmed;
 }
 
+// The same direct subtasks, each with or without subtasks of its own, as the
+// ones the choices were made for.
+function sameSubtasks(
+  asked: SubtaskWithCount[],
+  now: SubtaskWithCount[],
+): boolean {
+  const hasChildren = new Map(
+    asked.map((s) => [s.id, s._count.subtasks > 0] as const),
+  );
+  return (
+    now.length === asked.length &&
+    now.every((s) => hasChildren.get(s.id) === s._count.subtasks > 0)
+  );
+}
+
 function checkChoicesCoverSubtasks(
   subtasks: Card[],
   choices: Record<string, SubtaskChoice>,
@@ -570,6 +656,102 @@ function checkChoicesCoverSubtasks(
       unknownSubtaskIds: unknown,
     });
   }
+}
+
+// Refuses to delete cards with logged time, and says how much there is, so
+// the screen can explain why. An admin can delete the entries first. Run with
+// the cards locked, so a time entry saved meanwhile is either counted here or
+// finds the card gone.
+async function checkNoLoggedTime(
+  tx: Prisma.TransactionClient,
+  cardIds: string[],
+): Promise<void> {
+  const logged = await tx.timeEntry.aggregate({
+    where: { cardId: { in: cardIds } },
+    _sum: { minutes: true },
+  });
+  const loggedMinutes = logged._sum.minutes ?? 0;
+  if (loggedMinutes > 0) {
+    throw new ConflictException({
+      message: 'Cards with logged time cannot be deleted',
+      loggedMinutes,
+    });
+  }
+}
+
+// The delete dialog says how many files it showed on the cards that will be
+// deleted. If there are others now, nothing is changed. Skipped when the
+// files are not being deleted or moved, or no number was sent.
+async function checkFilesSeen(
+  tx: Prisma.TransactionClient,
+  cardIds: string[],
+  filesSeen: number | undefined,
+  takingFiles: boolean,
+): Promise<void> {
+  if (filesSeen === undefined || !takingFiles) {
+    return;
+  }
+  const now = await tx.file.count({ where: { cardId: { in: cardIds } } });
+  if (now !== filesSeen) {
+    throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
+  }
+}
+
+// Takes the files of the cards about to be deleted. Run with those cards
+// locked, so an upload to one of them either lands before (and is taken here)
+// or finds the card gone. With `moveFilesTo`, the files go to that card, which
+// gets a history line for each; else their storage keys are answered, for
+// the caller to delete the stored objects.
+async function takeFiles(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  cardIds: string[],
+  projectId: string,
+  moveFilesTo: string | undefined,
+  deleteFiles: boolean,
+): Promise<string[]> {
+  await checkNoLoggedTime(tx, cardIds);
+  if (moveFilesTo === undefined) {
+    const files = await tx.file.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { storageKey: true },
+    });
+    if (files.length > 0 && !deleteFiles) {
+      throw new BadRequestException(CHOOSE_WHAT_HAPPENS_TO_FILES);
+    }
+    return files.map((file) => file.storageKey);
+  }
+  if (cardIds.includes(moveFilesTo)) {
+    throw new BadRequestException(PICK_A_CARD_NOT_BEING_DELETED);
+  }
+  const target = await tx.card.findFirst({
+    where: { id: moveFilesTo, projectId },
+    select: { id: true, projectId: true },
+  });
+  if (!target) {
+    throw new NotFoundException('Card not found');
+  }
+  const files = await tx.file.findMany({
+    where: { cardId: { in: cardIds } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    include: { card: { select: { numberPath: true, title: true } } },
+  });
+  await tx.file.updateMany({
+    where: { cardId: { in: cardIds } },
+    data: { cardId: target.id },
+  });
+  for (const file of files) {
+    await recordActivity(tx, target, userId, 'FILE_MOVED', {
+      fileId: file.id,
+      name: file.name,
+      size: Number(file.size),
+      from: {
+        numberPath: file.card!.numberPath,
+        title: file.card!.title,
+      },
+    });
+  }
+  return [];
 }
 
 // The card's chat is kept, unlinked, so its history is not lost.

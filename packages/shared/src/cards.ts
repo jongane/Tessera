@@ -71,8 +71,31 @@ const subtaskChoiceSchema = z.discriminatedUnion('action', [
 export const deleteCardSchema = z
   .strictObject({
     subtasks: z.record(z.uuid(), subtaskChoiceSchema).optional(),
+    // How many files the person saw on the cards about to be deleted. Only
+    // checked when the files are deleted or moved.
+    filesSeen: z.number().int().min(0).optional(),
   })
   .optional();
+
+// The refusal when a card with files is deleted without saying what to do
+// with them. The API sends it and the delete dialog recognises it.
+export const CHOOSE_WHAT_HAPPENS_TO_FILES =
+  'Choose what happens to this card’s files';
+
+// DELETE /api/cards/:cardId?files=delete or ?moveFilesTo=<cardId>: what
+// happens to the files of the cards deleted. Needed when there are any; one
+// of the two, never both.
+export const deleteCardQuerySchema = z
+  .strictObject({
+    files: z.literal('delete').optional(),
+    moveFilesTo: z.uuid().optional(),
+  })
+  .refine(
+    (query) => query.files === undefined || query.moveFilesTo === undefined,
+    { message: 'Choose either to delete the files or to move them, not both' },
+  );
+
+export type DeleteCardQuery = z.infer<typeof deleteCardQuerySchema>;
 
 // Makes an assignee the card's owner.
 export const ownerChangeSchema = z.strictObject({ userId: z.uuid() });
@@ -96,3 +119,8 @@ export const cardSearchQuerySchema = z.strictObject({
 });
 
 export type CardSearchQuery = z.infer<typeof cardSearchQuerySchema>;
+
+// The 409 message when two changes to one card collide (docs/api.md, "Two
+// people at once"). The web app tells it apart from other 409s by this text.
+export const CHANGED_AT_THE_SAME_TIME_MESSAGE =
+  'Someone changed this card at the same time. Try again.';

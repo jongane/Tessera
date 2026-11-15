@@ -11,12 +11,14 @@ import type {
 import type { Card, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { boardsVisibleTo } from '../boards/board-access.js';
+import { lockCard } from './card-access.js';
 import type { NewCard } from './cards.service.js';
 import { nextPosition, takeNextSubtaskNumber } from './card-numbering.js';
 import {
   loadAncestorIds,
   loadSubtree,
   MAX_DEPTH,
+  LARGE_CHANGE_TIMEOUT_MS,
   moveSubtree,
 } from './card-tree.js';
 import { isDueAfter } from './card-fields.js';
@@ -27,6 +29,7 @@ import {
   subtaskProgressOf,
 } from './subtask-progress.js';
 import { cardRef, recordActivity } from '../activity/activity.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 
 export interface DueDateWarnings {
   // The card is due after its parent.
@@ -66,8 +69,10 @@ export class SubtasksService {
     card: NewCard,
   ): Promise<Card> {
     const parent = await this.findVisibleCard(userId, parentId);
-    return this.prisma.$transaction((tx) =>
-      insertSubtask(tx, userId, parent, columnId, card),
+    return retryOnCollision(() =>
+      this.prisma.$transaction((tx) =>
+        insertSubtask(tx, userId, parent.id, columnId, card),
+      ),
     );
   }
 
@@ -83,12 +88,12 @@ export class SubtasksService {
     const newParent = newParentId
       ? await this.findVisibleCard(userId, newParentId, card.projectId)
       : null;
-    if (card.parentId === (newParent?.id ?? null)) {
-      return card;
-    }
 
-    return this.prisma.$transaction((tx) =>
-      moveSubtree(tx, userId, card, newParent),
+    return retryOnCollision(() =>
+      this.prisma.$transaction(
+        (tx) => moveSubtree(tx, userId, card.id, newParent?.id ?? null),
+        { timeout: LARGE_CHANGE_TIMEOUT_MS },
+      ),
     );
   }
 
@@ -241,17 +246,19 @@ export class SubtasksService {
 }
 
 // Saves a new subtask of `parent` in a column on any board of the parent's
-// project, inside the caller's transaction. Refuses a subtask deeper than
-// 5 levels. `fromChecklist` is the checklist an item came from, when the
+// project, inside the caller's transaction. Locks the parent and reads it
+// again, so the depth and number come from the parent as it is now. Refuses
+// a subtask deeper than 5 levels. `fromChecklist` is the checklist an item came from, when the
 // subtask replaces that item; the parent's history then says so.
 export async function insertSubtask(
   tx: Prisma.TransactionClient,
   userId: string,
-  parent: Card,
+  parentId: string,
   columnId: string,
   card: NewCard,
   fromChecklist?: { id: string; name: string },
 ): Promise<Card> {
+  const parent = await lockCard(tx, parentId);
   if (parent.depth >= MAX_DEPTH) {
     throw new ConflictException(
       `Subtasks can only go ${MAX_DEPTH + 1} levels deep`,

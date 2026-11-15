@@ -13,3 +13,19 @@ export function testDatabaseUrl(): string {
   }
   return url;
 }
+
+// The storage settings the end-to-end tests pass to the API: the S3_*
+// settings from the environment or .env, but with the bucket of the tests
+// (TEST_S3_BUCKET), never the development one. Without TEST_S3_BUCKET the
+// bucket is left as it is, so tests that do not touch files still start;
+// the file tests check TEST_S3_BUCKET themselves (see support/storage.ts).
+export function testStorageEnv(): Record<string, string> {
+  config({ quiet: true });
+  const env: Record<string, string> = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (name.startsWith('S3_') && value !== undefined) env[name] = value;
+  }
+  const bucket = process.env['TEST_S3_BUCKET'];
+  if (bucket) env['S3_BUCKET'] = bucket;
+  return env;
+}

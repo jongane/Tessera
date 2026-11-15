@@ -27,7 +27,7 @@ TypeScript throughout:
 | API | [NestJS](https://nestjs.com/) |
 | Web app | [React](https://react.dev/) with [Vite](https://vite.dev/) |
 | Database | PostgreSQL with Prisma |
-| File storage (planned) | MinIO |
+| File storage | [SeaweedFS](https://github.com/seaweedfs/seaweedfs), through the S3 API (any S3-compatible store works) |
 | Packaging (planned) | Docker Compose, so you can host it yourself |
 | Tests | [Vitest](https://vitest.dev/) and Testing Library |
 | Linting and formatting | oxlint and Prettier |
@@ -49,7 +49,7 @@ CLAUDE.md   Rules for AI coding assistants
 
 You need [Node.js](https://nodejs.org/) version 24 or newer (the exact version is in [.nvmrc](.nvmrc)) and Git.
 
-You also need [Docker Desktop](https://www.docker.com/products/docker-desktop/), which runs the PostgreSQL database.
+You also need [Docker Desktop](https://www.docker.com/products/docker-desktop/), which runs the PostgreSQL database and SeaweedFS, the file storage.
 
 ```powershell
 git clone https://github.com/jongane/Tessera.git
@@ -60,7 +60,7 @@ docker compose up -d
 npm run db:migrate -w apps/api
 ```
 
-`docker compose up -d` starts PostgreSQL in the background. `docker compose down` stops it and keeps your data.
+`docker compose up -d` starts PostgreSQL and SeaweedFS in the background. `docker compose down` stops them and keeps your data (`docker compose down -v` deletes it, files included). The API needs the storage settings in `apps/api/.env` (the copied `.env.example` already has the local ones) and refuses to start without them. The largest file is 100 MB unless you set `FILE_SIZE_LIMIT_MB` in that file.
 
 Then start each app in its own terminal:
 

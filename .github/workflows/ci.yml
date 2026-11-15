@@ -55,10 +55,22 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://tessera:tessera@localhost:5432/tessera_test
+      # Same local-only values as apps/api/.env.example and docker-compose.yml.
+      S3_ENDPOINT: http://localhost:8333
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY_ID: tessera
+      S3_SECRET_ACCESS_KEY: tessera-local-secret
+      S3_FORCE_PATH_STYLE: 'true'
+      S3_BUCKET: tessera-files
+      TEST_S3_BUCKET: tessera-files-test
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+      # SeaweedFS (file storage) from the same docker-compose.yml as local
+      # development. A step, not a service container: service containers
+      # cannot be given a start command.
+      - run: docker compose up -d --wait seaweedfs
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
@@ -110,10 +122,22 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://tessera:tessera@localhost:5432/tessera_test
+      # Same local-only values as apps/api/.env.example and docker-compose.yml.
+      S3_ENDPOINT: http://localhost:8333
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY_ID: tessera
+      S3_SECRET_ACCESS_KEY: tessera-local-secret
+      S3_FORCE_PATH_STYLE: 'true'
+      S3_BUCKET: tessera-files
+      TEST_S3_BUCKET: tessera-files-test
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+      # SeaweedFS (file storage) from the same docker-compose.yml as local
+      # development. A step, not a service container: service containers
+      # cannot be given a start command.
+      - run: docker compose up -d --wait seaweedfs
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc

@@ -74,6 +74,7 @@ export class LiveInterceptor implements NestInterceptor {
         userId: request.user?.id,
         params: request.params as Record<string, string>,
         body: request.body as Record<string, unknown> | undefined,
+        query: request.query as Record<string, unknown>,
         cookies,
         statusCode: () => response.statusCode,
       });

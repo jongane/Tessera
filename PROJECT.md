@@ -83,7 +83,7 @@ The main areas are below. [docs/roadmap.md](docs/roadmap.md) holds the full list
 
 ## Proposed technology (to be confirmed as we build)
 
-TypeScript end to end: NestJS backend, React frontend, PostgreSQL database, MinIO file storage, WebSockets for real-time chat, Docker Compose for packaging.
+TypeScript end to end: NestJS backend, React frontend, PostgreSQL database, SeaweedFS file storage (reached through the S3 API, so any S3-compatible store works), WebSockets for real-time chat, Docker Compose for packaging.
 
 ## Open questions
 

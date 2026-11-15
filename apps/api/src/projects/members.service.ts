@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma, ProjectRole, User } from '../generated/prisma/client.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { saveTimer } from '../time/timer.service.js';
 import type { MemberChanges, NewMember } from '@tessera/shared';
@@ -73,18 +74,20 @@ export class MembersService {
     changes: MemberChanges,
   ): Promise<MemberView> {
     await requireAdmin(this.prisma, userId, projectId, 'change roles');
-    return this.prisma.$transaction(async (tx) => {
-      const member = await lockAndFindMember(tx, projectId, memberId);
-      if (member.role === 'ADMIN' && changes.role !== 'ADMIN') {
-        await checkAnotherAdmin(tx, projectId, memberId);
-      }
-      const changed = await tx.projectMember.update({
-        where: { projectId_userId: { projectId, userId: memberId } },
-        data: { role: changes.role },
-        include: { user: true },
-      });
-      return toView(changed);
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const member = await lockAndFindMember(tx, projectId, memberId);
+        if (member.role === 'ADMIN' && changes.role !== 'ADMIN') {
+          await checkAnotherAdmin(tx, projectId, memberId);
+        }
+        const changed = await tx.projectMember.update({
+          where: { projectId_userId: { projectId, userId: memberId } },
+          data: { role: changes.role },
+          include: { user: true },
+        });
+        return toView(changed);
+      }),
+    );
   }
 
   // Removing someone also removes their card assignments. A timer they
@@ -98,21 +101,23 @@ export class MembersService {
     if (memberId !== userId && membership.role !== 'ADMIN') {
       throw new ForbiddenException('Only a project admin can remove people');
     }
-    await this.prisma.$transaction(async (tx) => {
-      const member = await lockAndFindMember(tx, projectId, memberId);
-      if (member.role === 'ADMIN') {
-        await checkAnotherAdmin(tx, projectId, memberId);
-      }
-      const timer = await tx.runningTimer.findFirst({
-        where: { userId: memberId, projectId },
-      });
-      if (timer) {
-        await saveTimer(tx, timer);
-      }
-      await tx.projectMember.delete({
-        where: { projectId_userId: { projectId, userId: memberId } },
-      });
-    });
+    await retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const member = await lockAndFindMember(tx, projectId, memberId);
+        if (member.role === 'ADMIN') {
+          await checkAnotherAdmin(tx, projectId, memberId);
+        }
+        const timer = await tx.runningTimer.findFirst({
+          where: { userId: memberId, projectId },
+        });
+        if (timer) {
+          await saveTimer(tx, timer);
+        }
+        await tx.projectMember.delete({
+          where: { projectId_userId: { projectId, userId: memberId } },
+        });
+      }),
+    );
   }
 }
 

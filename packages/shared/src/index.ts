@@ -8,6 +8,7 @@ export * from './card-values.js';
 export * from './cards.js';
 export * from './chats.js';
 export * from './checklists.js';
+export * from './files.js';
 export * from './labels.js';
 export * from './members.js';
 export * from './messages.js';

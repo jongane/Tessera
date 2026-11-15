@@ -19,6 +19,15 @@ export const server = setupServer(
   http.get('/api/chats/:chatId/messages', () =>
     HttpResponse.json({ messages: [], hasOlder: false }),
   ),
+  // No card has any files, and files may be 100 MB, unless a test says so
+  // (every open card's Files section asks).
+  http.get('/api/cards/:cardId/files', () => HttpResponse.json({ files: [] })),
+  http.get('/api/server/settings', () =>
+    HttpResponse.json({
+      signUpOpen: true,
+      fileSizeLimitBytes: 100 * 1024 * 1024,
+    }),
+  ),
   // A card with subtasks asks for its rolled-up totals.
   http.get('/api/cards/:cardId/time-totals', () =>
     HttpResponse.json({

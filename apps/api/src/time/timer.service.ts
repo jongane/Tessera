@@ -9,10 +9,11 @@ import {
   type TimeEntry,
 } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { findVisibleCard } from '../cards/card-access.js';
+import { findVisibleCard, lockCard } from '../cards/card-access.js';
 import { projectTimeZone } from '../projects/project-access.js';
 import { localDate, timerMinutes } from './time-input.js';
 import { recordTimeLogged } from './time-entries.service.js';
+import { retryOnCollision } from '../common/retry-on-collision.js';
 
 export interface StartTimerOptions {
   // Go ahead even though a timer is running on another card: that timer
@@ -48,27 +49,30 @@ export class TimerService {
     );
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const running = await tx.runningTimer.findUnique({
-          where: { userId },
-        });
-        if (running?.cardId === card.id) {
-          return { timer: running, savedEntry: null };
-        }
-        if (running && !options.stopRunning) {
-          throw runningElsewhere(running.cardId);
-        }
-        const savedEntry = running ? await saveTimer(tx, running) : null;
-        const timer = await tx.runningTimer.create({
-          data: {
-            userId,
-            projectId: card.projectId,
-            cardId: card.id,
-            workDate,
-          },
-        });
-        return { timer, savedEntry };
-      });
+      return await retryOnCollision(() =>
+        this.prisma.$transaction(async (tx) => {
+          await lockCard(tx, card.id);
+          const running = await tx.runningTimer.findUnique({
+            where: { userId },
+          });
+          if (running?.cardId === card.id) {
+            return { timer: running, savedEntry: null };
+          }
+          if (running && !options.stopRunning) {
+            throw runningElsewhere(running.cardId);
+          }
+          const savedEntry = running ? await saveTimer(tx, running) : null;
+          const timer = await tx.runningTimer.create({
+            data: {
+              userId,
+              projectId: card.projectId,
+              cardId: card.id,
+              workDate,
+            },
+          });
+          return { timer, savedEntry };
+        }),
+      );
     } catch (error) {
       // Two starts at the same moment: the database keeps only one.
       if (
@@ -84,13 +88,15 @@ export class TimerService {
   // Stops the person's timer and saves its time. Returns null when it ran
   // for under half a minute, as there is nothing to save.
   async stopTimer(userId: string): Promise<TimeEntry | null> {
-    return this.prisma.$transaction(async (tx) => {
-      const running = await tx.runningTimer.findUnique({ where: { userId } });
-      if (!running) {
-        throw new NotFoundException('No timer is running');
-      }
-      return saveTimer(tx, running);
-    });
+    return retryOnCollision(() =>
+      this.prisma.$transaction(async (tx) => {
+        const running = await tx.runningTimer.findUnique({ where: { userId } });
+        if (!running) {
+          throw new NotFoundException('No timer is running');
+        }
+        return saveTimer(tx, running);
+      }),
+    );
   }
 
   runningTimer(userId: string): Promise<RunningTimer | null> {
