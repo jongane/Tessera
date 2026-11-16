@@ -1,4 +1,4 @@
-import type { Me, Message } from '@tessera/shared'
+import type { FileInfo, Me, Message } from '@tessera/shared'
 import { http, HttpResponse } from 'msw'
 import { ana, apiError } from './server'
 
@@ -37,6 +37,7 @@ export function message(
     createdAt: '2026-11-09T22:00:00.000Z',
     editedAt: null,
     deletedAt: null,
+    files: [],
     ...rest,
     author: author === undefined ? who(ana) : author && who(author),
     deletedBy: deletedBy ? who(deletedBy) : null,
@@ -64,6 +65,13 @@ export function fakeMessages(
   // The id of every message asked for on its own (GET /api/messages/:id).
   const fetched: string[] = []
   const changes: { request: string; body: unknown }[] = []
+  // Pending files the server holds (uploaded from the message box, not sent
+  // yet), by id. A test adds one when it answers a fake upload with 201.
+  const pending = new Map<string, FileInfo>()
+  // What removing a message's file answers instead of 204.
+  const fileRemoval: { fails: { status: number; message: string } | null } = {
+    fails: null,
+  }
 
   function find(messageId: string) {
     return Object.values(chats)
@@ -89,10 +97,16 @@ export function fakeMessages(
     http.get('/api/messages/:messageId', ({ params }) => {
       fetched.push(String(params.messageId))
       const found = find(String(params.messageId))
-      return found ? HttpResponse.json(found) : apiError(404, 'Message not found')
+      return found
+        ? HttpResponse.json(found)
+        : apiError(404, 'Message not found')
     }),
     http.post('/api/chats/:chatId/messages', async ({ request, params }) => {
-      const body = (await request.json()) as { body: string; id?: string }
+      const body = (await request.json()) as {
+        body: string
+        id?: string
+        fileIds?: string[]
+      }
       changes.push({
         request: `POST /api/chats/${String(params.chatId)}/messages`,
         body,
@@ -107,6 +121,13 @@ export function fakeMessages(
       })
       if (body.id) created.id = body.id
       created.chatId = String(params.chatId)
+      created.files = (body.fileIds ?? []).map((fileId) => ({
+        ...pending.get(fileId)!,
+        messageId: created.id,
+        chatId: created.chatId,
+        pending: false,
+      }))
+      for (const fileId of body.fileIds ?? []) pending.delete(fileId)
       ;(chats[created.chatId] ??= []).push(created)
       return HttpResponse.json(created, { status: 201 })
     }),
@@ -131,7 +152,24 @@ export function fakeMessages(
       if (!found) return apiError(404, 'Message not found')
       found.deletedAt = new Date().toISOString()
       found.deletedBy = who(me)
+      found.files = []
       return HttpResponse.json(found)
+    }),
+    // Removing one file of a message, or a pending file. Any other file is
+    // left to the next handler (a card's file).
+    http.delete('/api/files/:fileId', ({ params }) => {
+      const fileId = String(params.fileId)
+      const holder = Object.values(chats)
+        .flat()
+        .find((m) => m.files.some((f) => f.id === fileId))
+      if (!holder && !pending.has(fileId)) return undefined
+      changes.push({ request: `DELETE /api/files/${fileId}`, body: undefined })
+      if (fileRemoval.fails) {
+        return apiError(fileRemoval.fails.status, fileRemoval.fails.message)
+      }
+      if (holder) holder.files = holder.files.filter((f) => f.id !== fileId)
+      pending.delete(fileId)
+      return new HttpResponse(null, { status: 204 })
     }),
   ]
 
@@ -145,6 +183,13 @@ export function fakeMessages(
       let release!: () => void
       gate = new Promise<void>((resolve) => (release = resolve))
       return release
+    },
+    // The server now holds this pending file (its upload was answered).
+    hasPending: (file: FileInfo) => void pending.set(file.id, file),
+    pending,
+    // Removing a file of a message fails with this answer, until null.
+    failFileRemoval: (answer: { status: number; message: string } | null) => {
+      fileRemoval.fails = answer
     },
     // What the server holds for a chat, oldest first.
     messagesOf: (chatId: string) => chats[chatId] ?? [],

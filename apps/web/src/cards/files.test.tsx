@@ -1,13 +1,14 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CardFile, Me } from "@tessera/shared";
+import type { Chat, FileInfo, Me } from "@tessera/shared";
 import { expectNoAccessibilityProblems } from "../test/a11y";
 import { cardPanel, login, openCard } from "../test/card-panel";
 import { activityLine, fakeActivity } from "../test/fake-activity";
 import { backlogCard, ben } from "../test/fake-board";
 import {
   cardFile,
+  messageFile,
   fakeFiles,
   type FakeFilesOptions,
   installFakeUploads,
@@ -16,6 +17,7 @@ import {
   uploads,
 } from "../test/fake-files";
 import { live } from "../test/fake-live";
+import { fakeMessages, message } from "../test/fake-messages";
 import { recordRequests } from "../test/requests";
 import { apiError, server } from "../test/server";
 
@@ -51,7 +53,7 @@ function ago(ms: number) {
 
 // Opens the card with these files (newest first, as the API lists them).
 function openFiles(
-  files: CardFile[],
+  files: FileInfo[],
   options: FakeFilesOptions & {
     me?: Me;
     elsewhere?: ReturnType<typeof backlogCard>[];
@@ -327,15 +329,6 @@ describe("What each file shows (criteria 35 to 37)", () => {
       within(row).getByRole("link", { name: /^Download/ }),
     ).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "logo.svg" })).toBe(null);
-  });
-
-  // 42
-  it('lists only the card’s own files, with no "from chat" label in this release', async () => {
-    openFiles([cardFile("plan.pdf")]);
-    const section = await filesSection();
-    await within(section).findByText("plan.pdf");
-
-    expect(section).not.toHaveTextContent(/from chat/i);
   });
 });
 
@@ -1009,7 +1002,7 @@ describe("Deleting a card that has files (criterion 31)", () => {
   ];
   const iconSet = backlogCard("14", "Icon set");
 
-  async function openDeleteDialog(files: CardFile[] = threeFiles()) {
+  async function openDeleteDialog(files: FileInfo[] = threeFiles()) {
     const app = openFiles(files, { elsewhere: [iconSet] });
     const urls: string[] = [];
     server.use(
@@ -1361,5 +1354,300 @@ describe("Deleting a card that has files (criterion 31)", () => {
     await screen.findByLabelText("Find a card");
 
     await expectNoAccessibilityProblems(container);
+  });
+});
+
+// Files on messages, PR B (plan "files on messages, and screenshots in the
+// message box", criteria 22 to 25 and 36): the card's own chat's files are
+// listed in the Files section, marked "from chat".
+describe("Files from the card’s chat (criteria 22 to 25)", () => {
+  const CHAT_ID = login.chatId!;
+  const NEEDS_TEXT_OR_FILE =
+    "A message needs text or at least one file. Delete the message instead.";
+  const sam = { id: ben.id, displayName: "Sam" };
+
+  function chatFile(name: string, messageId = "msg-1", fields = {}) {
+    return messageFile(name, CHAT_ID, messageId, {
+      uploader: sam,
+      createdAt: ago(1 * HOUR),
+      ...fields,
+    });
+  }
+
+  // 22
+  it('marks a chat file "from chat", as a link, next to "Added by Sam", and not the card’s own files', async () => {
+    openFiles([
+      chatFile("chat.pdf"),
+      cardFile("own.pdf", { createdAt: ago(5 * HOUR) }),
+    ]);
+    const section = await filesSection();
+    await within(section).findByText("chat.pdf");
+
+    const row = rowOf(section, "chat.pdf");
+    expect(row).toHaveTextContent("Added by Sam");
+    expect(within(row).getByRole("link", { name: /from chat/i })).toBeVisible();
+    expect(rowOf(section, "own.pdf")).not.toHaveTextContent(/from chat/i);
+  });
+
+  // 22
+  it("shows a chat file’s name, size and Download like any other file", async () => {
+    const file = chatFile("chat.pdf", "msg-1", { size: 340 * 1024 });
+    openFiles([file]);
+    const section = await filesSection();
+    await within(section).findByText("chat.pdf");
+
+    const row = rowOf(section, "chat.pdf");
+    expect(row).toHaveTextContent("340 KB");
+    expect(
+      within(row)
+        .getByRole("link", { name: /^Download/ })
+        .getAttribute("href"),
+    ).toBe(`/api/files/${file.id}/download`);
+  });
+
+  // 23
+  it("counts only the card’s own files in the Delete card dialog, and sends that as filesSeen", async () => {
+    const own = [cardFile("a.pdf"), cardFile("b.pdf")];
+    const chat = [chatFile("x.pdf"), chatFile("y.pdf"), chatFile("z.pdf")];
+    const app = openFiles([...chat, ...own]);
+    const bodies: string[] = [];
+    server.use(
+      http.delete(`/api/cards/${login.id}`, async ({ request }) => {
+        bodies.push(await request.text());
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const panel = await cardPanel();
+    await within(await filesSection()).findByText("a.pdf");
+    await app.user.click(
+      within(panel).getByRole("button", { name: "Delete card" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Delete WEB-12?" });
+
+    expect(await within(dialog).findByText(/2 files/)).toBeInTheDocument();
+    await app.user.click(
+      within(dialog).getByRole("radio", { name: "Delete the files too" }),
+    );
+    await app.user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(JSON.parse(bodies[0] || "null")).toMatchObject({ filesSeen: 2 });
+  });
+
+  // 23
+  it("offers no choice about files for a card whose only files are in its chat, so there is no 409 loop", async () => {
+    const app = openFiles([chatFile("x.pdf"), chatFile("y.pdf")]);
+    const urls: string[] = [];
+    server.use(
+      http.delete(`/api/cards/${login.id}`, ({ request }) => {
+        urls.push(request.url);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const panel = await cardPanel();
+    await within(await filesSection()).findByText("x.pdf");
+    await app.user.click(
+      within(panel).getByRole("button", { name: "Delete card" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Delete WEB-12?" });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(dialog).not.toHaveTextContent(/files/i);
+    expect(
+      within(dialog).queryByRole("radio", { name: "Delete the files too" }),
+    ).toBe(null);
+    await app.user.click(
+      within(dialog).getByRole("button", { name: "Delete card" }),
+    );
+    await waitFor(() => expect(urls).toHaveLength(1));
+    const params = new URL(urls[0]!).searchParams;
+    expect(params.has("files")).toBe(false);
+    expect(params.has("moveFilesTo")).toBe(false);
+  });
+
+  // 25
+  it("removes a chat file with PR A’s dialog, as the uploader or a project admin", async () => {
+    const file = chatFile("chat.pdf");
+    const { user, files } = openFiles([file, chatFile("other.pdf", "msg-2")]);
+    const section = await filesSection();
+    const row = await waitFor(() => rowOf(section, "chat.pdf"));
+
+    await user.click(
+      await within(row).findByRole("button", { name: /^Remove/ }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Remove ‘chat.pdf’?",
+    });
+    expect(dialog).toHaveTextContent(
+      "This deletes the file for everyone. It can’t be undone.",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    await waitFor(() =>
+      expect(within(section).queryByText("chat.pdf")).toBe(null),
+    );
+    expect(files.requests).toContain(`DELETE /api/files/${file.id}`);
+    expect(within(section).getByText("other.pdf")).toBeInTheDocument();
+  });
+
+  // 25
+  it("shows the server’s refusal on that file, and keeps it, when it is the last file of a message with no text", async () => {
+    const { user } = openFiles([chatFile("chat.pdf"), cardFile("own.pdf")], {
+      removeFails: { status: 400, message: NEEDS_TEXT_OR_FILE },
+    });
+    const section = await filesSection();
+    const row = await waitFor(() => rowOf(section, "chat.pdf"));
+    await user.click(
+      await within(row).findByRole("button", { name: /^Remove/ }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Remove ‘chat.pdf’?",
+    });
+
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    await waitFor(() =>
+      expect(rowOf(section, "chat.pdf")).toHaveTextContent(NEEDS_TEXT_OR_FILE),
+    );
+    expect(rowOf(section, "own.pdf")).not.toHaveTextContent(NEEDS_TEXT_OR_FILE);
+  });
+
+  // 36
+  it("shows a chat file that someone else sent, and drops one they removed, after a card signal", async () => {
+    const first = chatFile("first.pdf", "msg-1");
+    const { files } = openFiles([first]);
+    const section = await filesSection();
+    await within(section).findByText("first.pdf");
+
+    const second = chatFile("second.pdf", "msg-2");
+    files.serverNowHas([second, first]);
+    await live.cardChanged(login.id);
+    expect(await within(section).findByText("second.pdf")).toBeInTheDocument();
+
+    files.serverNowHas([second]);
+    await live.cardChanged(login.id);
+    await waitFor(() =>
+      expect(within(section).queryByText("first.pdf")).toBe(null),
+    );
+  });
+
+  describe("the jump to the message (criterion 24)", () => {
+    const cardChat: Chat = {
+      id: CHAT_ID,
+      boardId: login.boardId,
+      cardId: login.id,
+      kind: "TOPIC",
+      title: "Login page",
+      createdAt: "2026-10-30T09:00:00.000Z",
+    };
+
+    // The card's chat holds the target message first (oldest) and 119 newer
+    // ones, so the newest page of 50 does not reach it.
+    function openWithOldMessage() {
+      const target = message("The message with the plan");
+      const later = Array.from({ length: 119 }, (_, i) =>
+        message(`Later ${String(i).padStart(3, "0")}`),
+      );
+      const messages = fakeMessages({ [CHAT_ID]: [target, ...later] });
+      server.use(...messages.handlers);
+      const file = messageFile("plan.pdf", CHAT_ID, target.id, {
+        uploader: sam,
+      });
+      target.files = [file];
+      const api = fakeFiles(login.id, [file]);
+      const app = openCard(login, { chats: [cardChat] });
+      return { ...app, messages, target, file, files: api };
+    }
+
+    // 24
+    it('opens the card’s chat from "from chat" and loads older pages until the message is there', async () => {
+      const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+      const { user, messages } = openWithOldMessage();
+      const section = await filesSection();
+      const link = await within(section).findByRole("link", {
+        name: /from chat/i,
+      });
+
+      await user.click(link);
+
+      const chat = await screen.findByRole("complementary", {
+        name: "Chat: Login page",
+      });
+      const text = await within(chat).findByText(
+        "The message with the plan",
+        {},
+        { timeout: 5000 },
+      );
+      // The newest 50, then two older pages.
+      expect(messages.gets.length).toBeGreaterThanOrEqual(3);
+      expect(messages.gets.some((u) => u.searchParams.has("before"))).toBe(
+        true,
+      );
+      const item = text.closest("li, article") as HTMLElement;
+      await waitFor(() =>
+        expect(
+          scrolled.mock.instances.some(
+            (el) => item.contains(el as Node) || (el as Node).contains(item),
+          ),
+        ).toBe(true),
+      );
+      await waitFor(() =>
+        expect(item.contains(document.activeElement)).toBe(true),
+      );
+    });
+
+    // 24
+    it('says "Loading…" while older messages are loaded for the jump', async () => {
+      let open!: () => void;
+      const gate = new Promise<void>((resolve) => (open = resolve));
+      const { user } = openWithOldMessage();
+      // Older pages wait; the newest page and everything else go on to the
+      // fake chat API.
+      server.use(
+        http.get("/api/chats/:chatId/messages", async ({ request }) => {
+          if (new URL(request.url).searchParams.has("before")) await gate;
+          return undefined;
+        }),
+      );
+      const section = await filesSection();
+
+      await user.click(
+        await within(section).findByRole("link", { name: /from chat/i }),
+      );
+
+      const chat = await screen.findByRole("complementary", {
+        name: "Chat: Login page",
+      });
+      expect(await within(chat).findByText("Loading…")).toBeInTheDocument();
+      open();
+      expect(
+        await within(chat).findByText(
+          "The message with the plan",
+          {},
+          { timeout: 5000 },
+        ),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(within(chat).queryByText("Loading…")).toBe(null),
+      );
+    });
+
+    // 24
+    it("opens the chat at ?chat=<id>&message=<id>", async () => {
+      const { user, router, target } = openWithOldMessage();
+      const section = await filesSection();
+
+      await user.click(
+        await within(section).findByRole("link", { name: /from chat/i }),
+      );
+
+      await waitFor(() => {
+        const params = new URLSearchParams(router.state.location.search);
+        expect(params.get("chat")).toBe(CHAT_ID);
+        expect(params.get("message")).toBe(target.id);
+      });
+    });
   });
 });

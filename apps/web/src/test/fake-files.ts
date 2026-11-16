@@ -1,4 +1,4 @@
-import type { CardFile } from '@tessera/shared'
+import type { FileInfo } from '@tessera/shared'
 import { http, HttpResponse } from 'msw'
 import { vi } from 'vitest'
 import { ana, apiError, server } from './server'
@@ -16,8 +16,8 @@ let nextFile = 1
 // tests' fixed clock, unless the fields say otherwise.
 export function cardFile(
   name: string,
-  fields: Partial<CardFile> = {},
-): CardFile {
+  fields: Partial<FileInfo> = {},
+): FileInfo {
   return {
     id: `ffffffff-ffff-4fff-8fff-${String(nextFile++).padStart(12, '0')}`,
     name,
@@ -27,8 +27,29 @@ export function cardFile(
     createdAt: '2026-11-07T07:00:00.000Z',
     messageId: null,
     chatId: null,
+    pending: false,
     ...fields,
   }
+}
+
+// A file of a message (files on messages, PR B): `messageId` and `chatId`
+// are set, and it is not pending.
+export function messageFile(
+  name: string,
+  chatId: string,
+  messageId: string,
+  fields: Partial<FileInfo> = {},
+): FileInfo {
+  return cardFile(name, { chatId, messageId, ...fields })
+}
+
+// A file just uploaded from the message box: pending in `chatId`.
+export function pendingFile(
+  name: string,
+  chatId: string,
+  fields: Partial<FileInfo> = {},
+): FileInfo {
+  return cardFile(name, { chatId, pending: true, ...fields })
 }
 
 // What a person's computer hands the app: a File with the size a test wants,
@@ -182,7 +203,7 @@ export interface FakeFilesOptions {
 // `requests` lists every request to the file endpoints as "METHOD /path".
 export function fakeFiles(
   cardId: string,
-  start: CardFile[],
+  start: FileInfo[],
   options: FakeFilesOptions = {},
 ) {
   const state = { files: [...start], failList: options.listFails ?? false }
@@ -212,11 +233,11 @@ export function fakeFiles(
     state,
     requests,
     // Someone else attached or removed files on the server.
-    serverNowHas(files: CardFile[]) {
+    serverNowHas(files: FileInfo[]) {
       state.files = [...files]
     },
     // The upload `xhr` finished with the stored file: the list has it too.
-    stored(file: CardFile, xhr: FakeXhr) {
+    stored(file: FileInfo, xhr: FakeXhr) {
       state.files = [file, ...state.files]
       xhr.respond(201, file)
     },
