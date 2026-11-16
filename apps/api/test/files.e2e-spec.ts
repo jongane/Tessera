@@ -138,6 +138,7 @@ describe('Files on cards (e2e)', () => {
         createdAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT.*Z$/),
         messageId: null,
         chatId: null,
+        pending: false,
       });
       const keys = await listKeys();
       expect(keys).toHaveLength(1);

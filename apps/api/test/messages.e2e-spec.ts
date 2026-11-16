@@ -103,6 +103,7 @@ describe('Chat messages (e2e)', () => {
         deletedAt: null,
         author: { id: cara.user.id, displayName: 'cara' },
         deletedBy: null,
+        files: [],
       });
       const listed = await page(cara, messagesUrl);
       expect(bodies(listed)).toEqual(['Hello **team**']);
