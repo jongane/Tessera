@@ -655,7 +655,9 @@ describe('Files on messages (e2e)', () => {
         ),
       );
 
-      expect([one.status, two.status].sort()).toEqual([201, 400]);
+      expect([one.status, two.status].sort((a, b) => a - b)).toEqual([
+        201, 400,
+      ]);
       const refused = one.status === 400 ? one : two;
       expect(String(refused.body.message)).toContain(A_FILE_IS_GONE);
       const messages = await messageList(cara, general.id);
@@ -945,7 +947,9 @@ describe('Files on messages (e2e)', () => {
           cara.agent.delete(`/api/files/${b.id}`),
         ]);
 
-        expect([one.status, two.status].sort()).toEqual([204, 400]);
+        expect([one.status, two.status].sort((a, b) => a - b)).toEqual([
+          204, 400,
+        ]);
         const refused = one.status === 400 ? one : two;
         expect(String(refused.body.message)).toContain(NEEDS_TEXT_OR_FILE);
         const left = await cara.agent
