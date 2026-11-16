@@ -136,3 +136,48 @@ describe('retryOnCollision', () => {
     expect(change).toHaveBeenCalledTimes(1);
   });
 });
+
+// Files on messages, PR B (criterion 20): a message change answers with the
+// message's own wording. Contract assumed (the plan says "takes the 409
+// message as an option, defaulting to the card wording"):
+//   retryOnCollision(change, options?: { message?: string })
+describe('retryOnCollision with the message wording', () => {
+  const MESSAGE_WORDING =
+    'Someone changed this message at the same time. Try again.';
+
+  // 20
+  it('answers 409 with the given message after 3 retries', async () => {
+    const change = vi.fn().mockRejectedValue(deadlock());
+
+    const failure = await retryOnCollision(change, {
+      message: MESSAGE_WORDING,
+    }).catch((e: unknown) => e);
+
+    expect(change).toHaveBeenCalledTimes(4);
+    expect(failure).toBeInstanceOf(ConflictException);
+    expect((failure as ConflictException).getStatus()).toBe(409);
+    expect((failure as ConflictException).message).toBe(MESSAGE_WORDING);
+  });
+
+  // 20
+  it('still retries and returns the result when a retry works', async () => {
+    const change = vi
+      .fn()
+      .mockRejectedValueOnce(writeConflict())
+      .mockResolvedValue('done');
+
+    await expect(
+      retryOnCollision(change, { message: MESSAGE_WORDING }),
+    ).resolves.toBe('done');
+    expect(change).toHaveBeenCalledTimes(2);
+  });
+
+  // 20
+  it('keeps the card wording when no message is given', async () => {
+    const change = vi.fn().mockRejectedValue(deadlock());
+
+    const failure = await retryOnCollision(change).catch((e: unknown) => e);
+
+    expect((failure as ConflictException).message).toBe(MESSAGE);
+  });
+});
