@@ -88,6 +88,8 @@ export class MessageOutbox {
   private noteLists = new Map<string, string[]>()
   private waits = new Map<string, WaitingSend>()
   private leftoversAsked = new Set<string>()
+  // Files this box has sent (or is sending): a late list must not show them.
+  private sentFileIds = new Set<string>()
   private restores = new Map<string, string>()
   private nextAttachment = 0
   private listeners = new Set<() => void>()
@@ -108,6 +110,7 @@ export class MessageOutbox {
   }
 
   add(chatId: string, body: string, files?: FileInfo[]): OutgoingMessage {
+    files?.forEach((file) => this.sentFileIds.add(file.id))
     const entry: OutgoingMessage = {
       id: newId(),
       chatId,
@@ -328,7 +331,12 @@ export class MessageOutbox {
       rows.flatMap((row) => (row.stored ? [row.stored.id] : [])),
     )
     const fresh = found
-      .filter((file) => !known.has(file.id) && (!only || only.has(file.id)))
+      .filter(
+        (file) =>
+          !known.has(file.id) &&
+          !this.sentFileIds.has(file.id) &&
+          (!only || only.has(file.id)),
+      )
       .map((stored): Attachment => ({
         id: this.nextAttachment++,
         chatId,
@@ -348,6 +356,8 @@ export class MessageOutbox {
   // in the editor (by the box, which sees `restoreText`) and its files, if
   // they still exist, come back as chips.
   putBack(chatId: string, body: string, fileIds: string[]) {
+    // The copy taken away did not send its files.
+    fileIds.forEach((id) => this.sentFileIds.delete(id))
     this.restores.set(chatId, body)
     this.notify()
     void this.loadLeftovers(chatId, true, new Set(fileIds))
