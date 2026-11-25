@@ -54,8 +54,12 @@ An amount of time a person logged on a card for one day, typed in or saved from 
 _Avoid_: Timesheet line, log
 
 **File**:
-A file attached to a card or to a message (only to a card so far). Screens say "file": "Files", "Attach file", "Remove". The word covers any type; only PNG, JPEG, GIF and WebP images show as a preview. (Agreed 2026-11-14.)
+A file attached to a card or to a message. Screens say "file": "Files", "Attach file", "Remove". The word covers any type; only PNG, JPEG, GIF and WebP images show as a preview. (Agreed 2026-11-14.)
 _Avoid_: Attachment, document, upload
+
+**Pending file**:
+A file uploaded into the message box but not sent yet. Only the person who uploaded it can see it, and it is deleted after 24 hours if it is never sent.
+_Avoid_: draft file, staged file
 
 ## Conversation
 

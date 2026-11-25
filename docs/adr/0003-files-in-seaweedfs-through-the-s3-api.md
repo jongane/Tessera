@@ -1,6 +1,6 @@
 # Files are stored through the S3 API, in SeaweedFS, and always pass through the API
 
-Files attached to cards (and, in the next pull request, to messages) are kept in SeaweedFS, a file store that Docker Compose runs next to PostgreSQL. The API talks to it only through the S3 API, behind a small `FileStore` interface, and the browser never talks to it at all. We decided this on 2026-11-14, in the plan for roadmap step 3 (approved by the repository owner, decisions 1, 3 and 14). The details are in [api.md](../api.md) ("Files") and [data-model.md](../data-model.md) (the File table).
+Files attached to cards and to messages are kept in SeaweedFS, a file store that Docker Compose runs next to PostgreSQL. The API talks to it only through the S3 API, behind a small `FileStore` interface, and the browser never talks to it at all. We decided this on 2026-11-14, in the plan for roadmap step 3 (approved by the repository owner, decisions 1, 3 and 14). The details are in [api.md](../api.md) ("Files") and [data-model.md](../data-model.md) (the File table).
 
 ## Decision
 
@@ -24,4 +24,5 @@ Files attached to cards (and, in the next pull request, to messages) are kept in
 - `docker compose up -d` now starts SeaweedFS as well as PostgreSQL, and the API refuses to start if a storage setting is missing. Database, end-to-end and browser tests need both running, and CI starts SeaweedFS from the same compose file.
 - A 100 MB upload is streamed, never held whole in the API's memory: each upload holds about 10 MB (5 MB parts, 2 sent at a time), so memory use grows with the number of uploads at once, not with file size. It still has to finish inside Node's request time limit (5 minutes by default), so a very slow connection can fail.
 - Deleting a board or a project (not built yet) must also delete the stored objects of its files. The database removes the rows, but only the API can remove objects.
-- There is no clean-up job for orphaned objects yet.
+- A file uploaded into a message box is stored at once, before its message exists, as a **pending file** (seen only by its uploader). Sending the message turns it into the message's file. A pending file that is never sent is removed by a sweep after 24 hours (row first, then object), run when the API starts and then every hour. This is the only clean-up job; a general one for orphaned objects (a crash between the row and the object) does not exist yet.
+- Deleting a message removes its files: rows in the same transaction, objects after it commits.

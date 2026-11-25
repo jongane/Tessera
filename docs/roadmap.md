@@ -6,7 +6,7 @@ This page shows what is built, what is left for the first version (the MVP), and
 
 ## Where we are
 
-The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version, chats with messages (sending, editing, deleting; #44), and live updates (#45). Boards, cards, the open card, chats and messages now update without a reload. Step 3, files, is in progress: files on cards are built in the pull request on branch `feat/card-files` (PR A, not merged yet), and files on messages come next (PR B). AI is not started.
+The API and the web app cover accounts, projects, boards, cards with every card feature planned for the first version, chats with messages (sending, editing, deleting; #44), and live updates (#45). Boards, cards, the open card, chats and messages now update without a reload. Step 3, files, is in progress: files on cards are merged (PR A, #47), and files on messages and screenshots in the message box are being built on branch `feat/message-files` (PR B, in progress). AI is not started.
 
 ## The flowchart
 
@@ -27,7 +27,7 @@ flowchart TD
     subgraph MVP["To finish the MVP"]
         N1[Step 1: Refuse hidden NUL characters in text fields]
         N2[Step 2: Chat messages and live updates]
-        N3[Step 3: Files on cards (PR A, in progress) and on messages (PR B)]
+        N3[Step 3: Files on cards (PR A, #47, merged) and on messages (PR B, in progress)]
         N4[Step 4: AI: provider layer, chat summaries, project questions]
         R([MVP complete])
     end
@@ -65,7 +65,7 @@ Green is done, amber is in progress or next, blue is the rest of the MVP, grey i
 | 1. Users and sign-in; a project with members | Done |
 | 2. Boards with kanban cards, a general chat, and multiple chats | Done: boards, cards, chats, chat messages (#44) and live updates (#45) |
 | 3. Card and chat linking, the "Create a card?" prompt and retroactive creation | Done |
-| 4. File upload attached to a card or message | In progress: files on cards are built in PR A (this pull request, not merged yet; storage is SeaweedFS). Files on messages and screenshots in the message box are PR B |
+| 4. File upload attached to a card or message | In progress: files on cards are done in PR A (#47; storage is SeaweedFS). Files on messages and screenshots in the message box are PR B, in progress on branch `feat/message-files` |
 | 5. AI provider layer with chat summaries and project questions, off by default | Not started |
 
 ## Suggested order to finish the MVP
@@ -77,8 +77,8 @@ Each step gets its own plan, approved before building, as usual.
    - **Chat messages:** built in #44. Sending, editing, deleting, Markdown, card-number and website links.
    - **Live updates (WebSockets):** built in #45. They cover messages, board cards, the open card panel and the sidebar's chat list, and the 30-second reload is gone ([web-app.md](web-app.md) section 6, [api.md](api.md) "Live updates", [ADR 0002](adr/0002-live-updates-signals-then-reload.md)). Older messages kept on screen now show other people's edits and deletes.
 3. **Files** (in progress) on a card or on a message, kept in SeaweedFS through the S3 API, 100 MB per file by default ([card-features.md](card-features.md) section 8, [ADR 0003](adr/0003-files-in-seaweedfs-through-the-s3-api.md)). Two pull requests, one after the other (agreed 2026-11-14):
-   - **PR A, files on cards** (this pull request, not merged yet): file storage, and attaching, listing, downloading, previewing and removing files on a card, with the Files section in the card panel and the choice of what to do with the files when a card is deleted.
-   - **PR B, files on messages** (next): attaching files to messages (up to 10), pasting and dropping screenshots into the message box, the "from chat" files in a card's Files section, and removing a message's files when the message is deleted (decided 2026-11-14).
+   - **PR A, files on cards** (merged as #47): file storage, and attaching, listing, downloading, previewing and removing files on a card, with the Files section in the card panel and the choice of what to do with the files when a card is deleted.
+   - **PR B, files on messages** (in progress, branch `feat/message-files`): attaching files to messages (up to 10), pasting and dropping screenshots into the message box, the "from chat" files in a card's Files section, and removing a message's files when the message is deleted (decided 2026-11-14).
 4. **AI**: the provider layer (Claude first), turning AI on per project by a project admin, summarising a chat and answering questions about a project.
 
 ## Done so far
@@ -95,6 +95,7 @@ Each step gets its own plan, approved before building, as usual.
 | Input safety | Hidden NUL characters refused in every text field and anywhere in a request ([api.md](api.md) "Text with a hidden character") | #43 |
 | Chat messages | Messages table, API to send, list, edit and delete messages, and the chat panel's message list and message box | #44 |
 | Live updates | Socket.IO live connection with "something changed" signals, boards, the open card, the chat list and messages updating without a reload, the "Reconnecting…" bar, a panel for when someone changes the field you are editing, and `GET /api/messages/:id` | #45 |
+| Files on cards | File storage in SeaweedFS through the S3 API, and attaching, listing, downloading, previewing and removing files on a card, with the Files section in the card panel and the choice of what to do with the files when a card is deleted | #47 |
 
 ## After the MVP
 
