@@ -431,7 +431,10 @@ model CardLabel {
 // Rules checked in the migrations: exactly one of card_id, message_id and
 // pending_chat_id (files_one_owner); a name of 1 to 255 characters; a size of 0
 // or more; and the files_in_chat_project trigger keeps a message or pending
-// file in the project of its chat's board (messages have no project_id).
+// file in the project of its chat's board (messages have no project_id). The
+// triggers message_files_stay_in_project, chat_files_stay_in_project and
+// board_files_stay_in_project keep it there when its message, chat or board
+// moves instead.
 model File {
   id            String   @id @default(uuid()) @db.Uuid
   projectId     String   @map("project_id") @db.Uuid
