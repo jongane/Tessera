@@ -27,6 +27,8 @@ export interface Outgoing {
   status: 'sending' | 'failed' | 'saved'
   error?: string
   onRetry: () => void
+  // Takes the message back into the message box (a refused file is gone).
+  onPutBack?: () => void
 }
 
 export function MessageItem({
@@ -166,6 +168,15 @@ export function MessageItem({
           <Button variant="link" className="min-h-8" onClick={outgoing.onRetry}>
             Try again
           </Button>
+          {outgoing.onPutBack && (
+            <Button
+              variant="link"
+              className="min-h-8"
+              onClick={outgoing.onPutBack}
+            >
+              Put back in the box
+            </Button>
+          )}
         </p>
       )}
       {menu.length > 0 && !deleted && !editing && (

@@ -1,10 +1,12 @@
 import {
+  type CardFileList,
   type FileInfo,
   MESSAGE_FILES_MAX,
   MESSAGE_TOO_MANY_FILES_MESSAGE,
   screenshotName,
 } from '@tessera/shared'
 import { useSyncExternalStore } from 'react'
+import { api } from '../api/client'
 import { removePendingFile, uploadFile } from '../api/files'
 import { tooBigMessage } from '../cards/use-uploads'
 
@@ -32,7 +34,8 @@ export interface OutgoingMessage {
 export interface Attachment {
   id: number
   chatId: string
-  file: File
+  // The file picked; null for one found on the server (left from earlier).
+  file: File | null
   // The name it is stored under (a pasted screenshot gets its own).
   name: string
   // 0 to 100.
@@ -84,6 +87,8 @@ export class MessageOutbox {
   private files = new Map<string, Attachment[]>()
   private noteLists = new Map<string, string[]>()
   private waits = new Map<string, WaitingSend>()
+  private leftoversAsked = new Set<string>()
+  private restores = new Map<string, string>()
   private nextAttachment = 0
   private listeners = new Set<() => void>()
 
@@ -244,6 +249,7 @@ export class MessageOutbox {
   }
 
   retry(row: Attachment) {
+    if (!row.file) return
     this.start(row.chatId, row.file, row.name, row.id)
   }
 
@@ -270,6 +276,58 @@ export class MessageOutbox {
     this.files.delete(chatId)
     this.noteLists.delete(chatId)
     this.notify()
+  }
+
+  // Shows the person's own pending files of the chat that the box does not
+  // show yet (left after a reload or a refused send). Asked once per chat,
+  // unless `again`.
+  async loadLeftovers(chatId: string, again = false) {
+    if (this.leftoversAsked.has(chatId) && !again) return
+    this.leftoversAsked.add(chatId)
+    let found: FileInfo[]
+    try {
+      found = (await api<CardFileList>(`/chats/${chatId}/files`)).files
+    } catch {
+      this.leftoversAsked.delete(chatId)
+      return
+    }
+    const rows = this.attachments(chatId)
+    const known = new Set(
+      rows.flatMap((row) => (row.stored ? [row.stored.id] : [])),
+    )
+    const fresh = found
+      .filter((file) => !known.has(file.id))
+      .map((stored): Attachment => ({
+        id: this.nextAttachment++,
+        chatId,
+        file: null,
+        name: stored.name,
+        percent: 100,
+        error: null,
+        stored,
+        cancel: () => {},
+      }))
+    if (fresh.length === 0) return
+    this.files.set(chatId, [...fresh, ...rows])
+    this.notify()
+  }
+
+  // A message that could not be sent goes back into the box: its text is put
+  // in the editor (by the box, which sees `restoreText`) and its files, if
+  // they still exist, come back as chips.
+  putBack(chatId: string, body: string) {
+    this.restores.set(chatId, body)
+    this.notify()
+    void this.loadLeftovers(chatId, true)
+  }
+
+  // The text to put back in the editor, until it has been taken.
+  restoreText(chatId: string): string | null {
+    return this.restores.get(chatId) ?? null
+  }
+
+  takeRestore(chatId: string) {
+    this.restores.delete(chatId)
   }
 
   startWaiting(chatId: string, wait: WaitingSend) {
@@ -311,5 +369,14 @@ export function useWaitingSend(
 ): WaitingSend | null {
   return useSyncExternalStore(outbox.subscribe, () =>
     outbox.waitingSend(chatId),
+  )
+}
+
+export function useRestoreText(
+  outbox: MessageOutbox,
+  chatId: string,
+): string | null {
+  return useSyncExternalStore(outbox.subscribe, () =>
+    outbox.restoreText(chatId),
   )
 }

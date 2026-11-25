@@ -7,6 +7,9 @@ import { checkForm } from '../ui/form-errors'
 export const DELETED_AUTHOR_NAME = FORMER_MEMBER
 
 export const COULDNT_SEND = 'Couldn’t send'
+// What the API says when a file of a message was removed or swept meanwhile.
+export const FILE_GONE = 'A file is no longer there. Remove it and try again.'
+
 export const COULDNT_SAVE = 'Couldn’t save, try again'
 
 // A message sent by the same person within this long of the one before it

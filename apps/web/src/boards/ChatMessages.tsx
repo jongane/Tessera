@@ -20,7 +20,12 @@ import {
   type OutgoingMessage,
   useOutgoing,
 } from './message-outbox'
-import { COULDNT_SEND, followsOnFrom, refusalOr } from './message-text'
+import {
+  COULDNT_SEND,
+  FILE_GONE,
+  followsOnFrom,
+  refusalOr,
+} from './message-text'
 
 const LOAD_FAILED = 'Couldn’t load the messages'
 
@@ -120,6 +125,13 @@ export default function ChatMessages({
           status: entry.status,
           error: entry.error,
           onRetry: () => post(entry),
+          onPutBack:
+            entry.error === FILE_GONE
+              ? () => {
+                  outbox.remove(entry)
+                  outbox.putBack(chat.id, entry.body)
+                }
+              : undefined,
         },
       })),
   ]

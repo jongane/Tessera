@@ -10,6 +10,7 @@ import {
   type MessageOutbox,
   useAttachNotes,
   useAttachments,
+  useRestoreText,
   useWaitingSend,
 } from './message-outbox'
 import { useAttach } from './use-attach'
@@ -88,6 +89,20 @@ function Controls({
   const notes = useAttachNotes(outbox, chatId)
   const waiting = useWaitingSend(outbox, chatId)
   const chooser = useRef<HTMLInputElement>(null)
+  const restore = useRestoreText(outbox, chatId)
+
+  // The person's own leftover pending files of this chat show as chips.
+  useEffect(() => {
+    void outbox.loadLeftovers(chatId)
+  }, [outbox, chatId])
+
+  // A message put back in the box: its text goes into the editor.
+  useEffect(() => {
+    if (restore === null) return
+    outbox.takeRestore(chatId)
+    editor.commands.setContent(restore, { contentType: 'markdown' })
+    outbox.setDraft(chatId, restore)
+  }, [editor, outbox, chatId, restore])
 
   // What is typed is locked while the message waits to send itself.
   useEffect(() => {
@@ -236,7 +251,7 @@ function Chip({
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="break-all font-semibold">{row.name}</span>
           <span className="text-sm text-muted">
-            {formatFileSize(row.file.size)}
+            {formatFileSize(row.stored?.size ?? row.file?.size ?? 0)}
           </span>
           {running && (
             <span className="text-sm text-muted">{`Uploading… ${row.percent}%`}</span>
