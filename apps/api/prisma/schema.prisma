@@ -425,11 +425,13 @@ model CardLabel {
   @@map("card_labels")
 }
 
-// A file attached to a card or, from the next release, to a message
-// (docs/card-features.md, section 8). The bytes are in the file store under
-// storage_key; this row is the only way to reach them. Rules checked by
-// constraints in the migration: exactly one of card_id and message_id, a name
-// of 1 to 255 characters, and a size of 0 or more.
+// A file attached to a card or a message, or a pending file (uploaded into a
+// chat's message box, not sent yet; pending_chat_id is set). The bytes are in
+// the file store under storage_key; this row is the only way to reach them.
+// Rules checked in the migrations: exactly one of card_id, message_id and
+// pending_chat_id (files_one_owner); a name of 1 to 255 characters; a size of 0
+// or more; and the files_in_chat_project trigger keeps a message or pending
+// file in the project of its chat's board (messages have no project_id).
 model File {
   id            String   @id @default(uuid()) @db.Uuid
   projectId     String   @map("project_id") @db.Uuid
