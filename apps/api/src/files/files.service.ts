@@ -214,21 +214,26 @@ export class FilesService {
               uploader_id: string | null;
               message_id: string | null;
               pending_chat_id: string | null;
-              message_chat_id: string | null;
             }[]
-          >`SELECT f.storage_key, f.uploader_id, f.message_id, f.pending_chat_id,
-                   m.chat_id AS message_chat_id
-            FROM files f LEFT JOIN messages m ON m.id = f.message_id
-            WHERE f.id = ${fileId}::uuid FOR UPDATE OF f`;
+          >`SELECT storage_key, uploader_id, message_id, pending_chat_id
+            FROM files WHERE id = ${fileId}::uuid FOR UPDATE`;
           const row = rows[0];
-          const inThisChat =
-            row?.pending_chat_id === chat.id ||
-            row?.message_chat_id === chat.id;
-          if (!row || row.uploader_id !== user.id || !inThisChat) {
+          if (!row || row.uploader_id !== user.id) {
             throw new NotFoundException(FILE_NOT_FOUND);
           }
           if (row.message_id) {
+            // Read after the lock: a send may have just committed.
+            const message = await tx.message.findUnique({
+              where: { id: row.message_id },
+              select: { chatId: true },
+            });
+            if (message?.chatId !== chat.id) {
+              throw new NotFoundException(FILE_NOT_FOUND);
+            }
             throw new ConflictException('This file was already sent');
+          }
+          if (row.pending_chat_id !== chat.id) {
+            throw new NotFoundException(FILE_NOT_FOUND);
           }
           await tx.file.delete({ where: { id: fileId } });
           return row.storage_key;
