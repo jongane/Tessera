@@ -1,4 +1,4 @@
-import type { Chat } from '@tessera/shared'
+import type { Chat, FileInfo } from '@tessera/shared'
 import { screen, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { fakeBoard, type FakeBoardOptions } from './fake-board'
@@ -48,11 +48,14 @@ export function openChat({
   messages = [],
   other = [],
   chat = general,
+  pendingFiles = [],
   ...options
 }: FakeBoardOptions & {
   messages?: Message[]
   other?: Message[]
   chat?: Chat
+  // Pending files the person left in a chat before the page was opened.
+  pendingFiles?: FileInfo[]
 } = {}) {
   const me = options.me ?? ana
   const board = fakeBoard(boardView([boardColumn('To do', [login])]), {
@@ -61,7 +64,7 @@ export function openChat({
   })
   const api = fakeMessages(
     { [general.id]: messages, [releasePlan.id]: other },
-    { me },
+    { me, pendingFiles },
   )
   server.use(...api.handlers)
   // A card number is found by its number, as the real API does: WEB-12 and

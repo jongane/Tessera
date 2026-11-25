@@ -50,7 +50,10 @@ export function message(
 // list request; `changes` every change sent, as "METHOD /path" with its body.
 export function fakeMessages(
   start: Record<string, Message[]>,
-  { me = ana }: { me?: Person } = {},
+  {
+    me = ana,
+    pendingFiles = [],
+  }: { me?: Person; pendingFiles?: FileInfo[] } = {},
 ) {
   const chats: Record<string, Message[]> = Object.fromEntries(
     Object.entries(start).map(([chatId, list]) => [
@@ -62,12 +65,16 @@ export function fakeMessages(
   // message that is still being sent.
   let gate: Promise<void> = Promise.resolve()
   const gets: URL[] = []
+  // Every request for the person's pending files of a chat.
+  const fileGets: URL[] = []
   // The id of every message asked for on its own (GET /api/messages/:id).
   const fetched: string[] = []
   const changes: { request: string; body: unknown }[] = []
   // Pending files the server holds (uploaded from the message box, not sent
   // yet), by id. A test adds one when it answers a fake upload with 201.
-  const pending = new Map<string, FileInfo>()
+  const pending = new Map<string, FileInfo>(
+    pendingFiles.map((file) => [file.id, file]),
+  )
   // What removing a message's file answers instead of 204.
   const fileRemoval: { fails: { status: number; message: string } | null } = {
     fails: null,
@@ -80,6 +87,16 @@ export function fakeMessages(
   }
 
   const handlers = [
+    // The person's own pending files in a chat, oldest first (the order they
+    // were uploaded in, which is the order they were added here).
+    http.get('/api/chats/:chatId/files', ({ request, params }) => {
+      fileGets.push(new URL(request.url))
+      return HttpResponse.json({
+        files: [...pending.values()].filter(
+          (file) => file.chatId === String(params.chatId),
+        ),
+      })
+    }),
     http.get('/api/chats/:chatId/messages', ({ request, params }) => {
       const url = new URL(request.url)
       gets.push(url)
@@ -176,6 +193,7 @@ export function fakeMessages(
   return {
     handlers,
     gets,
+    fileGets,
     fetched,
     changes,
     // Makes sending wait until the returned function is called.
