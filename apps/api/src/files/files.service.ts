@@ -197,6 +197,47 @@ export class FilesService {
     return { files: rows.map((row) => toFileInfo(row, chat.id)) };
   }
 
+  // A chip's Remove: deletes the caller's own PENDING file of this chat, and
+  // never a file that was sent. The row is locked, so it cannot race a send.
+  async removePending(
+    user: SignedInUser,
+    chatId: string,
+    fileId: string,
+  ): Promise<void> {
+    const chat = await this.findVisibleChat(user.id, chatId);
+    const storageKey = await retryOnCollision(
+      () =>
+        this.prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<
+            {
+              storage_key: string;
+              uploader_id: string | null;
+              message_id: string | null;
+              pending_chat_id: string | null;
+              message_chat_id: string | null;
+            }[]
+          >`SELECT f.storage_key, f.uploader_id, f.message_id, f.pending_chat_id,
+                   m.chat_id AS message_chat_id
+            FROM files f LEFT JOIN messages m ON m.id = f.message_id
+            WHERE f.id = ${fileId}::uuid FOR UPDATE OF f`;
+          const row = rows[0];
+          const inThisChat =
+            row?.pending_chat_id === chat.id ||
+            row?.message_chat_id === chat.id;
+          if (!row || row.uploader_id !== user.id || !inThisChat) {
+            throw new NotFoundException(FILE_NOT_FOUND);
+          }
+          if (row.message_id) {
+            throw new ConflictException('This file was already sent');
+          }
+          await tx.file.delete({ where: { id: fileId } });
+          return row.storage_key;
+        }),
+      { message: MESSAGE_CHANGED_AT_THE_SAME_TIME_MESSAGE },
+    );
+    await this.deleteObject(storageKey);
+  }
+
   // The card's own files and the files of messages in the card's chat.
   async list(user: SignedInUser, cardId: string): Promise<CardFileList> {
     const card = await findVisibleCard(this.prisma, user.id, cardId);

@@ -46,6 +46,17 @@ export class FilesController {
     return this.files.attachPending(user, chatId, req);
   }
 
+  // A chip's Remove in the message box: only the caller's own pending file.
+  @Delete('chats/:chatId/files/:fileId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removePending(
+    @CurrentUser() user: SignedInUser,
+    @Param('chatId', IdParam) chatId: string,
+    @Param('fileId', IdParam) fileId: string,
+  ): Promise<void> {
+    return this.files.removePending(user, chatId, fileId);
+  }
+
   @Get('chats/:chatId/files')
   listPending(
     @CurrentUser() user: SignedInUser,
