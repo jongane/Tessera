@@ -49,6 +49,7 @@ export function openChat({
   other = [],
   chat = general,
   pendingFiles = [],
+  holdPendingList = false,
   ...options
 }: FakeBoardOptions & {
   messages?: Message[]
@@ -56,6 +57,8 @@ export function openChat({
   chat?: Chat
   // Pending files the person left in a chat before the page was opened.
   pendingFiles?: FileInfo[]
+  // The list of pending files waits until api.releasePendingList().
+  holdPendingList?: boolean
 } = {}) {
   const me = options.me ?? ana
   const board = fakeBoard(boardView([boardColumn('To do', [login])]), {
@@ -64,7 +67,7 @@ export function openChat({
   })
   const api = fakeMessages(
     { [general.id]: messages, [releasePlan.id]: other },
-    { me, pendingFiles },
+    { me, pendingFiles, holdPendingList },
   )
   server.use(...api.handlers)
   // A card number is found by its number, as the real API does: WEB-12 and

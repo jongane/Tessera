@@ -285,7 +285,7 @@ describe('Leftover pending files in the box (follow-up 3)', () => {
     await waitFor(() => noChip('a.pdf'))
     expect(chipOf('b.pdf')).toBeVisible()
     expect(api.changes.map((c) => c.request)).toContain(
-      `DELETE /api/files/${a.id}`,
+      `DELETE /api/chats/${general.id}/files/${a.id}`,
     )
   })
 

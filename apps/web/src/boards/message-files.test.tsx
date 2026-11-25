@@ -475,7 +475,9 @@ describe('The files in the message box (criterion 28)', () => {
       requests
         .saves()
         .some(
-          (r) => r.method === 'DELETE' && r.path === `/api/files/${file.id}`,
+          (r) =>
+            r.method === 'DELETE' &&
+            r.path === `/api/chats/${general.id}/files/${file.id}`,
         ),
     ).toBe(true)
   })

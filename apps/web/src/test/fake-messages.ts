@@ -53,7 +53,12 @@ export function fakeMessages(
   {
     me = ana,
     pendingFiles = [],
-  }: { me?: Person; pendingFiles?: FileInfo[] } = {},
+    holdPendingList = false,
+  }: {
+    me?: Person
+    pendingFiles?: FileInfo[]
+    holdPendingList?: boolean
+  } = {},
 ) {
   const chats: Record<string, Message[]> = Object.fromEntries(
     Object.entries(start).map(([chatId, list]) => [
@@ -64,6 +69,11 @@ export function fakeMessages(
   // Sending waits for this before the server answers, so a test can look at a
   // message that is still being sent.
   let gate: Promise<void> = Promise.resolve()
+  // While set, the list of the person's pending files is not answered yet.
+  let releaseList: () => void = () => {}
+  let listGate: Promise<void> | null = holdPendingList
+    ? new Promise<void>((resolve) => (releaseList = resolve))
+    : null
   const gets: URL[] = []
   // Every request for the person's pending files of a chat.
   const fileGets: URL[] = []
@@ -89,8 +99,9 @@ export function fakeMessages(
   const handlers = [
     // The person's own pending files in a chat, oldest first (the order they
     // were uploaded in, which is the order they were added here).
-    http.get('/api/chats/:chatId/files', ({ request, params }) => {
+    http.get('/api/chats/:chatId/files', async ({ request, params }) => {
       fileGets.push(new URL(request.url))
+      if (listGate) await listGate
       return HttpResponse.json({
         files: [...pending.values()].filter(
           (file) => file.chatId === String(params.chatId),
@@ -172,6 +183,23 @@ export function fakeMessages(
       found.files = []
       return HttpResponse.json(found)
     }),
+    // A chip's Remove: only the person's own pending file of that chat is
+    // deleted. A file already sent answers 409 and stays; anything else is
+    // "File not found".
+    http.delete('/api/chats/:chatId/files/:fileId', ({ params }) => {
+      const fileId = String(params.fileId)
+      changes.push({
+        request: `DELETE /api/chats/${String(params.chatId)}/files/${fileId}`,
+        body: undefined,
+      })
+      const sent = Object.values(chats)
+        .flat()
+        .some((m) => m.files.some((f) => f.id === fileId))
+      if (sent) return apiError(409, 'This file was already sent')
+      if (!pending.has(fileId)) return apiError(404, 'File not found')
+      pending.delete(fileId)
+      return new HttpResponse(null, { status: 204 })
+    }),
     // Removing one file of a message, or a pending file. Any other file is
     // left to the next handler (a card's file).
     http.delete('/api/files/:fileId', ({ params }) => {
@@ -194,6 +222,11 @@ export function fakeMessages(
     handlers,
     gets,
     fileGets,
+    // The list of pending files is answered from now on.
+    releasePendingList: () => {
+      releaseList()
+      listGate = null
+    },
     fetched,
     changes,
     // Makes sending wait until the returned function is called.
