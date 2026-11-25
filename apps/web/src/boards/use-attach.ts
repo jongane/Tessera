@@ -6,6 +6,13 @@ import type { MessageOutbox } from './message-outbox'
 // is refused before anything is sent.
 export function useAttach(outbox: MessageOutbox, chatId: string) {
   const limit = useServerSettings().data?.fileSizeLimitBytes
-  return (files: File[], options: { pasted?: boolean } = {}) =>
-    outbox.attach(chatId, files, { limit, pasted: options.pasted })
+  return (
+    files: File[],
+    options: { pasted?: boolean; picked?: boolean } = {},
+  ) =>
+    outbox.attach(chatId, files, {
+      limit,
+      pasted: options.pasted,
+      picked: options.picked,
+    })
 }

@@ -81,7 +81,7 @@ function Controls({
   problem: string | undefined
   onProblem: (problem: string | undefined) => void
   onSend: (body: string, files?: FileInfo[]) => void
-  onAttach: (files: File[]) => void
+  onAttach: (files: File[], options?: { picked?: boolean }) => void
   submitRef: React.RefObject<() => void>
 }) {
   const attachments = useAttachments(outbox, chatId)
@@ -118,15 +118,17 @@ function Controls({
       outbox.startWaiting(chatId, {
         body: checked.body,
         withFiles: true,
+        ids: rows.map((row) => row.id),
       })
       return
     }
     sendNow(checked.body, rows.length > 0)
   }
 
-  function sendNow(body: string, withFiles: boolean) {
+  function sendNow(body: string, withFiles: boolean, ids?: number[]) {
     const stored = outbox
       .attachments(chatId)
+      .filter((row) => ids === undefined || ids.includes(row.id))
       .flatMap((row) => (row.stored ? [row.stored] : []))
     emptyBox()
     onSend(body, withFiles ? stored : undefined)
@@ -142,7 +144,7 @@ function Controls({
       emptyBox()
       return
     }
-    sendNow(waiting.body, waiting.withFiles)
+    sendNow(waiting.body, waiting.withFiles, waiting.ids)
     // emptyBox and sendNow only use what is given and the outbox.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waiting, attachments])
@@ -156,7 +158,7 @@ function Controls({
         hidden
         aria-label="Choose files to attach"
         onChange={(event) => {
-          onAttach(Array.from(event.target.files ?? []))
+          onAttach(Array.from(event.target.files ?? []), { picked: true })
           // Back to the text, where the person was typing.
           editor.view.focus()
           // So the same file can be picked again.
@@ -169,7 +171,12 @@ function Controls({
       {attachments.length > 0 && (
         <ul aria-label="Files to send" className="flex flex-col gap-2">
           {attachments.map((row) => (
-            <Chip key={row.id} row={row} outbox={outbox} />
+            <Chip
+              key={row.id}
+              row={row}
+              outbox={outbox}
+              locked={waiting !== null}
+            />
           ))}
         </ul>
       )}
@@ -192,6 +199,7 @@ function Controls({
         <Button
           variant="secondary"
           className="min-h-8 text-sm"
+          disabled={waiting !== null}
           onClick={() => chooser.current?.click()}
         >
           Attach file
@@ -204,7 +212,16 @@ function Controls({
 
 // One file in the box: its name and size, how far it has got, a preview of an
 // image that is up, and what can be done with it.
-function Chip({ row, outbox }: { row: Attachment; outbox: MessageOutbox }) {
+function Chip({
+  row,
+  outbox,
+  locked,
+}: {
+  row: Attachment
+  outbox: MessageOutbox
+  // The message waits to send: the files in it cannot be taken out.
+  locked: boolean
+}) {
   const running = row.stored === null && row.error === null
   return (
     <li className="flex flex-col gap-1 rounded-lg border border-line p-2">
@@ -225,7 +242,7 @@ function Chip({ row, outbox }: { row: Attachment; outbox: MessageOutbox }) {
             <span className="text-sm text-muted">{`Uploading… ${row.percent}%`}</span>
           )}
         </div>
-        {row.error === null && (
+        {row.error === null && !locked && (
           <Button
             variant="link"
             className="min-h-8 text-danger"

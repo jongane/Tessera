@@ -51,6 +51,8 @@ export interface WaitingSend {
   body: string
   // Whether the box had files then (even if all are dismissed since).
   withFiles: boolean
+  // The files that were in the box then; only these are sent.
+  ids: number[]
 }
 
 const NO_ATTACHMENTS: Attachment[] = []
@@ -163,8 +165,12 @@ export class MessageOutbox {
   attach(
     chatId: string,
     files: File[],
-    options: { limit?: number; pasted?: boolean } = {},
+    options: { limit?: number; pasted?: boolean; picked?: boolean } = {},
   ) {
+    // A waiting message is locked: pasting and dropping add nothing to it.
+    // (The chooser's own button is off, so `picked` files only come from
+    // a chooser opened before; what is sent is fixed by WaitingSend.ids.)
+    if (this.waits.has(chatId) && !options.picked) return
     const notes: string[] = []
     for (const file of files) {
       if (options.limit !== undefined && file.size > options.limit) {
