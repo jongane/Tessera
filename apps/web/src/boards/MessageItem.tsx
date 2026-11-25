@@ -29,6 +29,8 @@ export interface Outgoing {
   onRetry: () => void
   // Takes the message back into the message box (a refused file is gone).
   onPutBack?: () => void
+  // The box already has something in it, so nothing can be put back now.
+  putBackDisabled?: boolean
 }
 
 export function MessageItem({
@@ -172,10 +174,16 @@ export function MessageItem({
             <Button
               variant="link"
               className="min-h-8"
+              disabled={outgoing.putBackDisabled}
               onClick={outgoing.onPutBack}
             >
               Put back in the box
             </Button>
+          )}
+          {outgoing.onPutBack && outgoing.putBackDisabled && (
+            <span className="text-muted">
+              Send or clear the message box first
+            </span>
           )}
         </p>
       )}

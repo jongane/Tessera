@@ -144,11 +144,23 @@ export class MessageOutbox {
   }
 
   setDraft(chatId: string, markdown: string) {
+    const wasEmpty = this.draft(chatId) === ''
     if (markdown === '') {
       this.drafts.delete(chatId)
     } else {
       this.drafts.set(chatId, markdown)
     }
+    // Who shows whether the box is in use hears of it when that changes.
+    if (wasEmpty !== (markdown === '')) this.notify()
+  }
+
+  // Whether the box has text, files, or a message waiting to send.
+  inUse(chatId: string): boolean {
+    return (
+      this.draft(chatId) !== '' ||
+      this.attachments(chatId).length > 0 ||
+      this.waits.has(chatId)
+    )
   }
   // The files in a chat's message box, in the order they were added.
   attachments(chatId: string): Attachment[] {
@@ -233,9 +245,17 @@ export class MessageOutbox {
   private change(chatId: string, id: number, fields: Partial<Attachment>) {
     this.files.set(
       chatId,
-      this.attachments(chatId).map((r) =>
-        r.id === id ? { ...r, ...fields } : r,
-      ),
+      this.attachments(chatId)
+        .map((r) => (r.id === id ? { ...r, ...fields } : r))
+        // A leftover shown for the file this upload just stored is the same
+        // file: one chip, one id.
+        .filter(
+          (r) =>
+            !fields.stored ||
+            r.id === id ||
+            r.file !== null ||
+            r.stored?.id !== fields.stored.id,
+        ),
     )
     this.notify()
   }
@@ -264,7 +284,7 @@ export class MessageOutbox {
     if (row.stored) {
       this.drop(row.chatId, row.id)
       // Nobody else sees it, and a file left behind is swept after a day.
-      removePendingFile(row.stored.id).catch(() => {})
+      removePendingFile(row.chatId, row.stored.id).catch(() => {})
     } else {
       row.cancel()
     }
@@ -272,8 +292,16 @@ export class MessageOutbox {
 
   // The files went into a message: the box is empty again, and nothing is
   // deleted.
-  clearAttachments(chatId: string) {
-    this.files.delete(chatId)
+  // Only the given rows when `ids` is given (a waiting send clears what it sent).
+  clearAttachments(chatId: string, ids?: number[]) {
+    if (ids === undefined) {
+      this.files.delete(chatId)
+    } else {
+      this.files.set(
+        chatId,
+        this.attachments(chatId).filter((row) => !ids.includes(row.id)),
+      )
+    }
     this.noteLists.delete(chatId)
     this.notify()
   }
@@ -281,7 +309,11 @@ export class MessageOutbox {
   // Shows the person's own pending files of the chat that the box does not
   // show yet (left after a reload or a refused send). Asked once per chat,
   // unless `again`.
-  async loadLeftovers(chatId: string, again = false) {
+  async loadLeftovers(
+    chatId: string,
+    again = false,
+    only?: ReadonlySet<string>,
+  ) {
     if (this.leftoversAsked.has(chatId) && !again) return
     this.leftoversAsked.add(chatId)
     let found: FileInfo[]
@@ -296,7 +328,7 @@ export class MessageOutbox {
       rows.flatMap((row) => (row.stored ? [row.stored.id] : [])),
     )
     const fresh = found
-      .filter((file) => !known.has(file.id))
+      .filter((file) => !known.has(file.id) && (!only || only.has(file.id)))
       .map((stored): Attachment => ({
         id: this.nextAttachment++,
         chatId,
@@ -315,10 +347,10 @@ export class MessageOutbox {
   // A message that could not be sent goes back into the box: its text is put
   // in the editor (by the box, which sees `restoreText`) and its files, if
   // they still exist, come back as chips.
-  putBack(chatId: string, body: string) {
+  putBack(chatId: string, body: string, fileIds: string[]) {
     this.restores.set(chatId, body)
     this.notify()
-    void this.loadLeftovers(chatId, true)
+    void this.loadLeftovers(chatId, true, new Set(fileIds))
   }
 
   // The text to put back in the editor, until it has been taken.
@@ -379,4 +411,8 @@ export function useRestoreText(
   return useSyncExternalStore(outbox.subscribe, () =>
     outbox.restoreText(chatId),
   )
+}
+
+export function useBoxInUse(outbox: MessageOutbox, chatId: string): boolean {
+  return useSyncExternalStore(outbox.subscribe, () => outbox.inUse(chatId))
 }

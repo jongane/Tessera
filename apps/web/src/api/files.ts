@@ -52,8 +52,13 @@ export function useRemoveFile(cardId: string) {
 
 // Deletes a pending file (one uploaded into a message box and then taken out
 // again). Nobody else sees it, so nothing else needs to change.
-export function removePendingFile(fileId: string): Promise<void> {
-  return api<void>(`/files/${fileId}`, { method: 'DELETE' })
+// Only a pending file of that chat is deleted: a file that was sent meanwhile
+// answers 409 and stays.
+export function removePendingFile(
+  chatId: string,
+  fileId: string,
+): Promise<void> {
+  return api<void>(`/chats/${chatId}/files/${fileId}`, { method: 'DELETE' })
 }
 
 const UPLOAD_FAILED = 'Couldn’t upload, try again'

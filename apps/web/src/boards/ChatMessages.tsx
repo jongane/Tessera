@@ -18,6 +18,7 @@ import { MessageItem, type Outgoing } from './MessageItem'
 import {
   type MessageOutbox,
   type OutgoingMessage,
+  useBoxInUse,
   useOutgoing,
 } from './message-outbox'
 import {
@@ -62,6 +63,7 @@ export default function ChatMessages({
   const members = useMembers(projectId)
   const messages = useMessages(chat.id)
   const outgoing = useOutgoing(outbox, chat.id)
+  const boxInUse = useBoxInUse(outbox, chat.id)
   const saveNew = useSendMessage(chat.id, chat.cardId)
   const now = useEveryMinute()
   const scroller = useRef<HTMLDivElement>(null)
@@ -129,9 +131,14 @@ export default function ChatMessages({
             entry.error === FILE_GONE
               ? () => {
                   outbox.remove(entry)
-                  outbox.putBack(chat.id, entry.body)
+                  outbox.putBack(
+                    chat.id,
+                    entry.body,
+                    (entry.files ?? []).map((file) => file.id),
+                  )
                 }
               : undefined,
+          putBackDisabled: boxInUse,
         },
       })),
   ]

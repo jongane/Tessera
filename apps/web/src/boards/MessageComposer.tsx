@@ -113,10 +113,10 @@ function Controls({
     submitRef.current = submit
   })
 
-  function emptyBox() {
+  function emptyBox(ids?: number[]) {
     editor.commands.clearContent(true)
     outbox.setDraft(chatId, '')
-    outbox.clearAttachments(chatId)
+    outbox.clearAttachments(chatId, ids)
     editor.commands.focus()
   }
 
@@ -145,18 +145,20 @@ function Controls({
       .attachments(chatId)
       .filter((row) => ids === undefined || ids.includes(row.id))
       .flatMap((row) => (row.stored ? [row.stored] : []))
-    emptyBox()
+    emptyBox(ids)
     onSend(body, withFiles ? stored : undefined)
   }
 
   // A waiting message sends itself once every file has finished (uploaded, or
   // dismissed after failing), exactly once.
   useEffect(() => {
-    if (!waiting || attachments.some((row) => row.stored === null)) return
+    // Only the files that were on screen at Send count.
+    const own = attachments.filter((row) => waiting?.ids.includes(row.id))
+    if (!waiting || own.some((row) => row.stored === null)) return
     outbox.stopWaiting(chatId)
-    if (waiting.body === '' && attachments.length === 0) {
+    if (waiting.body === '' && own.length === 0) {
       // Everything was dismissed and there is no text: nothing to send.
-      emptyBox()
+      emptyBox(waiting.ids)
       return
     }
     sendNow(waiting.body, waiting.withFiles, waiting.ids)
