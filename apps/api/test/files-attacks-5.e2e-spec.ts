@@ -6,6 +6,12 @@ import { fileScenario } from './support/files-scenario.js';
 import { closeAllSockets, startLiveApp } from './support/live.js';
 import { emptyBucket } from './support/storage.js';
 
+// Prisma's limit for a change that is not a large one, and how much longer than
+// that the held lock keeps the edit waiting.
+const LIMIT_MS = 5000;
+const MARGIN_MS = 500;
+const HELD_FOR_MS = 6000;
+
 // Same-moment changes: what the round-4 fixes left open (kept from the
 // antagonist's round 5).
 describe('Card changes at the same moment, attacks round 5 (e2e)', () => {
@@ -70,46 +76,78 @@ describe('Card changes at the same moment, attacks round 5 (e2e)', () => {
   // fails with Prisma's "transaction expired" error, which nothing turns into
   // a 4xx: the person gets 500.
   it('answers an edit of a subtask that waited behind a long delete of its parent without 500', async () => {
-    const { ana, card, toDo } = await fileScenario(app);
-    const ids = await manySubtasks(card.id, toDo.id, 1500);
-    const subtasks = ids.map((id) => ({ id }));
-    const parent = { id: card.id };
+    const { ana, newCard, toDo } = await fileScenario(app);
+    const parent = await newCard('Parent');
+    const ids = await manySubtasks(parent.id, toDo.id, 1500);
     const choices = Object.fromEntries(
-      subtasks.map(({ id }) => [id, { action: 'standalone' }]),
+      ids.map((id) => [id, { action: 'standalone' }]),
     );
+    // The delete locks the cards in id order (lockUntilCovered, card-access.ts).
+    // The test holds the row of the LAST one in a transaction of its own, so
+    // the delete sits holding every earlier row, the FIRST one included, for
+    // as long as the test wants, on any machine. The edit of the first subtask
+    // then waits behind the delete for longer than Prisma's 5 s limit.
+    const sorted = [...ids].sort();
+    const first = sorted[0]!;
+    const last = sorted[sorted.length - 1]!;
+    let releaseHeld!: () => void;
+    const held = new Promise<void>((resolve) => (releaseHeld = resolve));
+    let holding!: () => void;
+    const isHolding = new Promise<void>((resolve) => (holding = resolve));
+    const holder = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM cards WHERE id = ${last}::uuid FOR UPDATE`;
+        holding();
+        await held;
+      },
+      { timeout: 60_000 },
+    );
+    await isHolding;
+    try {
+      const deletion = ana.agent
+        .delete(`/api/cards/${parent.id}`)
+        .send({ subtasks: choices })
+        .then((r) => r);
+      // The delete now holds the earlier rows and waits for the held one.
+      await waitersOnLocks(1);
+      const sent = Date.now();
+      const edit = ana.agent
+        .patch(`/api/cards/${first}`)
+        .send({ title: 'Renamed' })
+        .then((r) => ({ response: r, waited: Date.now() - sent }));
+      // Long enough for the edit to pass Prisma's 5 s limit while it waits.
+      await new Promise((resolve) => setTimeout(resolve, HELD_FOR_MS));
+      releaseHeld();
 
-    const started = Date.now();
-    const deletion = ana.agent
-      .delete(`/api/cards/${parent.id}`)
-      .send({ subtasks: choices })
-      .then((r) => r);
-    // Once the delete holds the subtasks, someone edits the last one.
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    const last = subtasks[subtasks.length - 1]!.id;
-    const edit = ana.agent
-      .patch(`/api/cards/${last}`)
-      .send({ title: 'Renamed' })
-      .then((r) => r);
+      const [deleted, edited] = await Promise.all([deletion, edit]);
+      expect(deleted.status, JSON.stringify(deleted.body)).toBe(204);
+      expect(
+        edited.waited,
+        `the edit waited only ${edited.waited} ms behind the delete`,
+      ).toBeGreaterThan(LIMIT_MS + MARGIN_MS);
+      expectNever500(edited.response);
+    } finally {
+      // Whatever happens, the row lock is let go and the holder is done.
+      releaseHeld();
+      await holder.catch(() => {});
+    }
+  }, 60_000);
 
-    const [deleted, edited] = await Promise.all([deletion, edit]);
-    const took = Date.now() - started;
-    expect(deleted.status, JSON.stringify(deleted.body)).toBe(204);
-    expect(took).toBeGreaterThan(6500);
-    // Never 500: after the delete the edit works (200), or collides (409), or
-    // its card went with the delete (404).
+  // Never 500: after the delete the edit works (200), or collides (409), or
+  // its card went with the delete (404).
+  function expectNever500(edited: { status: number; body: unknown }) {
     expect(edited.status, JSON.stringify(edited.body)).not.toBe(500);
     expect([200, 404, 409]).toContain(edited.status);
+    const message = (edited.body as { message: string }).message;
     if (edited.status === 409) {
-      expect((edited.body as { message: string }).message).toBe(
+      expect(message).toBe(
         'Someone changed this card at the same time. Try again.',
       );
     }
     if (edited.status === 404) {
-      expect((edited.body as { message: string }).message).toBe(
-        'Card not found',
-      );
+      expect(message).toBe('Card not found');
     }
-  }, 180_000);
+  }
 
   async function waitersOnLocks(n: number): Promise<void> {
     const end = Date.now() + 5000;
