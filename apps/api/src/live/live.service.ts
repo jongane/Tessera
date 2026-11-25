@@ -33,6 +33,15 @@ export interface PlanOptions {
   below?: boolean;
 }
 
+// What a removed file belonged to: a card, or a message (with its chat).
+export type FileOwner =
+  | { kind: 'card'; cardId: string }
+  | {
+      kind: 'message';
+      messageId: string;
+      info: { chatId: string; boardId: string; cardId: string | null };
+    };
+
 export const emptyPlan = (): SignalPlan => ({
   cards: [],
   boards: [],
@@ -265,12 +274,20 @@ export class LiveService implements OnModuleDestroy {
     return row?.cardId ?? null;
   }
 
-  async cardOfFile(fileId: string): Promise<string | null> {
+  // What a file belongs to, read before a delete removes it.
+  async ownerOfFile(fileId: string): Promise<FileOwner | null> {
     const row = await this.prisma.file.findUnique({
       where: { id: fileId },
-      select: { cardId: true },
+      select: { cardId: true, messageId: true },
     });
-    return row?.cardId ?? null;
+    if (row?.cardId) {
+      return { kind: 'card', cardId: row.cardId };
+    }
+    if (row?.messageId) {
+      const info = await this.messageInfo(row.messageId);
+      return info && { kind: 'message', messageId: row.messageId, info };
+    }
+    return null;
   }
 
   async cardOfRunningTimer(userId: string): Promise<string | null> {
@@ -291,9 +308,18 @@ export class LiveService implements OnModuleDestroy {
   async messageInfo(messageId: string) {
     const row = await this.prisma.message.findUnique({
       where: { id: messageId },
-      select: { chatId: true, chat: { select: { boardId: true } } },
+      select: {
+        chatId: true,
+        chat: { select: { boardId: true, cardId: true } },
+      },
     });
-    return row && { chatId: row.chatId, boardId: row.chat.boardId };
+    return (
+      row && {
+        chatId: row.chatId,
+        boardId: row.chat.boardId,
+        cardId: row.chat.cardId,
+      }
+    );
   }
 
   private cardsByIds(ids: string[]): Promise<CardTarget[]> {

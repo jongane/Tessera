@@ -62,6 +62,7 @@ export class MessagesController {
       chatId,
       body.body,
       body.id,
+      body.fileIds,
     );
     // Sending the same message again answers with the one already saved.
     response.status(created ? 201 : 200);

@@ -50,9 +50,19 @@ const createsCard =
     c.live.send(c.by, await c.live.plan([idOf(result), ...also(c)], options));
   };
 
+// The card a chat is the chat of lists its files, so it changes too.
+const signalsCardOfChat = async (
+  c: RuleContext,
+  cardId: string | null | undefined,
+) => {
+  if (cardId) {
+    c.live.send(c.by, await c.live.plan([cardId]));
+  }
+};
+
 const sendsMessage: Rule = async (c) => {
   const info = await c.live.chatInfo(c.params['chatId']!);
-  return (result) => {
+  return async (result) => {
     // Sending the same message again saves nothing new.
     if (info && c.statusCode() === 201) {
       c.live.sendMessage(
@@ -60,6 +70,7 @@ const sendsMessage: Rule = async (c) => {
         { boardId: info.boardId, chatId: c.params['chatId']! },
         idOf(result),
       );
+      await signalsCardOfChat(c, info.cardId);
     }
   };
 };
@@ -69,6 +80,31 @@ const changesMessage: Rule = async (c) => {
   return () => {
     if (info) {
       c.live.sendMessage(c.by, info, c.params['messageId']!);
+    }
+  };
+};
+
+// Deleting a message also removes its files, which the card of its chat lists.
+const deletesMessage: Rule = async (c) => {
+  const info = await c.live.messageInfo(c.params['messageId']!);
+  return async () => {
+    if (info) {
+      c.live.sendMessage(c.by, info, c.params['messageId']!);
+      await signalsCardOfChat(c, info.cardId);
+    }
+  };
+};
+
+// Removing a file: a card's own file changes the card, a message file changes
+// the message and the card of its chat, a pending file nobody else sees.
+const removesFile: Rule = async (c) => {
+  const owner = await c.live.ownerOfFile(c.params['fileId']!);
+  return async () => {
+    if (owner?.kind === 'card') {
+      c.live.send(c.by, await c.live.plan([owner.cardId]));
+    } else if (owner?.kind === 'message') {
+      c.live.sendMessage(c.by, owner.info, owner.messageId);
+      await signalsCardOfChat(c, owner.info.cardId);
     }
   };
 };
@@ -178,9 +214,7 @@ export const liveRules: Record<string, Rule> = {
   },
 
   'POST cards/:cardId/files': card(cardParam),
-  'DELETE files/:fileId': cardThrough((c) =>
-    c.live.cardOfFile(c.params['fileId']!),
-  ),
+  'DELETE files/:fileId': removesFile,
 
   'POST cards/:cardId/time-entries': card(cardParam),
   'PATCH time-entries/:entryId': cardThrough((c) =>
@@ -199,7 +233,7 @@ export const liveRules: Record<string, Rule> = {
 
   'POST chats/:chatId/messages': sendsMessage,
   'PATCH messages/:messageId': changesMessage,
-  'DELETE messages/:messageId': changesMessage,
+  'DELETE messages/:messageId': deletesMessage,
 
   'DELETE projects/:projectId/members/:userId': (c) => async () => {
     await c.live.leaveProject(c.params['projectId']!, c.params['userId']!);

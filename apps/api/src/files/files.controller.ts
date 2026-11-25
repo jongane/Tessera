@@ -11,7 +11,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import type { CardFile, CardFileList } from '@tessera/shared';
+import type { CardFileList, FileInfo } from '@tessera/shared';
 import { CurrentUser, type SignedInUser } from '../auth/signed-in-user.js';
 import { IdParam } from '../common/id-param.js';
 import { contentDisposition } from './content-disposition.js';
@@ -19,7 +19,7 @@ import { FilesService } from './files.service.js';
 
 const SAFE_HEADERS = { 'X-Content-Type-Options': 'nosniff' };
 
-// Files on cards (docs/api.md, "Files"). Every byte goes through here: the
+// Files on cards and in chats (docs/api.md, "Files"). Every byte goes through here: the
 // storage is never reachable from the browser.
 @Controller()
 export class FilesController {
@@ -31,8 +31,19 @@ export class FilesController {
     @CurrentUser() user: SignedInUser,
     @Param('cardId', IdParam) cardId: string,
     @Req() req: Request,
-  ): Promise<CardFile> {
+  ): Promise<FileInfo> {
     return this.files.attach(user, cardId, req);
+  }
+
+  // One file for the message box of a chat. It stays pending, seen by its
+  // uploader only, until a message is sent with it.
+  @Post('chats/:chatId/files')
+  attachPending(
+    @CurrentUser() user: SignedInUser,
+    @Param('chatId', IdParam) chatId: string,
+    @Req() req: Request,
+  ): Promise<FileInfo> {
+    return this.files.attachPending(user, chatId, req);
   }
 
   @Get('cards/:cardId/files')

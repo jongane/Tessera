@@ -26,11 +26,13 @@ function isCollision(error: unknown): boolean {
   return typeof code === 'string' && COLLISION_CODES.includes(code);
 }
 
-// Runs a whole card change again when the database says two changes collided.
-// `change` must read everything it needs inside itself, so a retry never uses
-// values left over from a failed attempt.
+// Runs a whole change again when the database says two changes collided. After
+// 3 retries it answers 409 with `message` (the card wording, unless a message
+// change says otherwise). `change` must read everything it needs inside
+// itself, so a retry never uses values left over from a failed attempt.
 export async function retryOnCollision<T>(
   change: () => Promise<T>,
+  options: { message?: string } = {},
 ): Promise<T> {
   for (let retry = 0; ; retry++) {
     try {
@@ -38,7 +40,9 @@ export async function retryOnCollision<T>(
     } catch (error) {
       if (!isCollision(error)) throw error;
       if (retry >= RETRIES)
-        throw new ConflictException(CHANGED_AT_THE_SAME_TIME_MESSAGE);
+        throw new ConflictException(
+          options.message ?? CHANGED_AT_THE_SAME_TIME_MESSAGE,
+        );
     }
   }
 }
