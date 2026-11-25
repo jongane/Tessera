@@ -96,6 +96,21 @@ describe('newMessageSchema with files', () => {
     );
   });
 
+  // 13 (Jon, 2026-11-25): the words of the refusal
+  it('refuses blank text with no file saying "Write a message or attach a file"', () => {
+    for (const input of [
+      { body: '  ' },
+      { body: '', fileIds: [] },
+      { body: '\n' },
+    ]) {
+      const result = newMessageSchema.safeParse(input);
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map((i) => i.message)).toContain(
+        'Write a message or attach a file',
+      );
+    }
+  });
+
   // 13
   it('trims the text of a message with files, and keeps the other text rules', () => {
     expect(

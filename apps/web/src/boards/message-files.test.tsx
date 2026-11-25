@@ -70,9 +70,8 @@ async function openBox(options: Parameters<typeof openChat>[0] = {}) {
 }
 
 function chooser() {
-  const input = chatPanel().querySelector<HTMLInputElement>(
-    'input[type="file"]',
-  )
+  const input =
+    chatPanel().querySelector<HTMLInputElement>('input[type="file"]')
   if (!input) throw new Error('The message box has no file chooser yet')
   return input
 }
@@ -262,9 +261,7 @@ describe('Attaching files to the message box (criterion 26)', () => {
     const { router } = await openBox()
     fakeFiles(login.id, [])
     await act(async () => {
-      await router.navigate(
-        `${boardPath}?card=${login.id}&chat=${general.id}`,
-      )
+      await router.navigate(`${boardPath}?card=${login.id}&chat=${general.id}`)
     })
     const card = await screen.findByRole('complementary', {
       name: 'Card WEB-12',
@@ -361,6 +358,32 @@ describe('Pasting into the message box (criterion 27)', () => {
     ])
   })
 
+  // 27 (Jon, 2026-11-25): only "image.<ext>" counts as no real name
+  it.each(['image.png', 'image.jpg', 'image.jpeg', 'image.gif', 'image.webp'])(
+    'gives a pasted %s the screenshot name',
+    async (name) => {
+      atFixedTime()
+      const { box } = await openBox()
+
+      pasteInto(box, [pickedFile(name, 12, 'image/png')])
+
+      await waitFor(() => expect(uploads()).toHaveLength(1))
+      expect(uploads()[0]!.fileName).toMatch(
+        /^Screenshot 2026-11-16 14\.05\.(png|jpg|jpeg|gif|webp)$/,
+      )
+    },
+  )
+
+  // 27 (Jon, 2026-11-25)
+  it('keeps the own name of a pasted image called photo.png', async () => {
+    const { box } = await openBox()
+
+    pasteInto(box, [pickedFile('photo.png', 12, 'image/png')])
+
+    await waitFor(() => expect(uploads()).toHaveLength(1))
+    expect(uploads()[0]!.fileName).toBe('photo.png')
+  })
+
   // 27
   it('pastes the text and attaches nothing when the clipboard holds text and a picture of it (Word)', async () => {
     const { box } = await openBox()
@@ -370,6 +393,21 @@ describe('Pasting into the message box (criterion 27)', () => {
 
     expect(uploads()).toHaveLength(0)
     expect(box).toHaveTextContent('Some words')
+  })
+})
+
+describe('Blank text with no file (criterion 13, Jon 2026-11-25)', () => {
+  // 13
+  it('says "Write a message or attach a file" and sends nothing', async () => {
+    const { user, box, api } = await openBox()
+
+    box.focus()
+    await user.keyboard('{Enter}')
+
+    expect(
+      await within(chatPanel()).findByText('Write a message or attach a file'),
+    ).toBeInTheDocument()
+    expect(api.changes).toEqual([])
   })
 })
 

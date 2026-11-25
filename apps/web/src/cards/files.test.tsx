@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Chat, FileInfo, Me } from "@tessera/shared";
@@ -1596,6 +1602,38 @@ describe("Files from the card’s chat (criteria 22 to 25)", () => {
       await waitFor(() =>
         expect(item.contains(document.activeElement)).toBe(true),
       );
+    });
+
+    // 24 (Jon, 2026-11-25). Contract for the builder: the target message's own
+    // <li> or <article> gets the attribute data-highlighted="true" (pale
+    // yellow background) when the jump arrives, and loses it (or it becomes
+    // anything but "true") after about 2 seconds.
+    it("highlights the message with data-highlighted for about 2 seconds", async () => {
+      const { user } = openWithOldMessage();
+      const section = await filesSection();
+      await user.click(
+        await within(section).findByRole("link", { name: /from chat/i }),
+      );
+      const chat = await screen.findByRole("complementary", {
+        name: "Chat: Login page",
+      });
+      const text = await within(chat).findByText(
+        "The message with the plan",
+        {},
+        { timeout: 5000 },
+      );
+      const item = text.closest("li, article") as HTMLElement;
+      const highlighted = () =>
+        item.matches('[data-highlighted="true"]') ||
+        item.closest('[data-highlighted="true"]') !== null ||
+        item.querySelector('[data-highlighted="true"]') !== null;
+
+      await waitFor(() => expect(highlighted()).toBe(true));
+      act(() => {
+        vi.advanceTimersByTime(2500);
+      });
+
+      await waitFor(() => expect(highlighted()).toBe(false));
     });
 
     // 24

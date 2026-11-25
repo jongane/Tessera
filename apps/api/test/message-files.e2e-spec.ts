@@ -625,14 +625,16 @@ describe('Files on messages (e2e)', () => {
     it('still refuses blank text with no file', async () => {
       const { cara, general } = await setUp();
 
-      await cara.agent
-        .post(`/api/chats/${general.id}/messages`)
-        .send({ body: '   ' })
-        .expect(400);
-      await cara.agent
-        .post(`/api/chats/${general.id}/messages`)
-        .send({ body: '', fileIds: [] })
-        .expect(400);
+      for (const send of [{ body: '   ' }, { body: '', fileIds: [] }]) {
+        const response = await cara.agent
+          .post(`/api/chats/${general.id}/messages`)
+          .send(send)
+          .expect(400);
+        // Jon, 2026-11-25: the shared rule's words.
+        expect(JSON.stringify(response.body.message)).toContain(
+          'Write a message or attach a file',
+        );
+      }
       expect(await messageList(cara, general.id)).toEqual([]);
     });
 

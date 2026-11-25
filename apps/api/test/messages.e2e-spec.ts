@@ -125,7 +125,11 @@ describe('Chat messages (e2e)', () => {
       expect(nul.status).toBe(400);
       expect(String(nul.body.message)).toContain(NUL_MESSAGE);
 
-      await ana.agent.post(messagesUrl).send({ body: '   ' }).expect(400);
+      const blank = await ana.agent.post(messagesUrl).send({ body: '   ' });
+      expect(blank.status).toBe(400);
+      expect(JSON.stringify(blank.body.message)).toContain(
+        'Write a message or attach a file',
+      );
       await ana.agent.post(messagesUrl).send({}).expect(400);
       await send(ana, messagesUrl, 'x'.repeat(10_000));
       expect(await page(ana, messagesUrl)).toMatchObject({
