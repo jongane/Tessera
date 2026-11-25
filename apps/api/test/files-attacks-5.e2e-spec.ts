@@ -70,46 +70,70 @@ describe('Card changes at the same moment, attacks round 5 (e2e)', () => {
   // fails with Prisma's "transaction expired" error, which nothing turns into
   // a 4xx: the person gets 500.
   it('answers an edit of a subtask that waited behind a long delete of its parent without 500', async () => {
-    const { ana, card, toDo } = await fileScenario(app);
-    const ids = await manySubtasks(card.id, toDo.id, 1500);
-    const subtasks = ids.map((id) => ({ id }));
-    const parent = { id: card.id };
-    const choices = Object.fromEntries(
-      subtasks.map(({ id }) => [id, { action: 'standalone' }]),
+    const { ana, newCard, toDo } = await fileScenario(app);
+
+    // One try: a parent with `n` subtasks is deleted, and a moment later the
+    // last subtask is edited. Answers what the two got and how long the edit
+    // itself waited.
+    async function tryWith(n: number) {
+      const parent = await newCard(`Parent of ${n}`);
+      const ids = await manySubtasks(parent.id, toDo.id, n);
+      const choices = Object.fromEntries(
+        ids.map((id) => [id, { action: 'standalone' }]),
+      );
+      const deletion = ana.agent
+        .delete(`/api/cards/${parent.id}`)
+        .send({ subtasks: choices })
+        .then((r) => r);
+      // Once the delete holds the subtasks, someone edits the last one.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const sent = Date.now();
+      const edit = ana.agent
+        .patch(`/api/cards/${ids[ids.length - 1]!}`)
+        .send({ title: 'Renamed' })
+        .then((r) => ({ response: r, waited: Date.now() - sent }));
+      const [deleted, edited] = await Promise.all([deletion, edit]);
+      return { deleted, edited: edited.response, waited: edited.waited, n };
+    }
+
+    // The scenario needs the edit to wait longer than Prisma's 5 s limit. How
+    // big a tree that takes depends on the machine, so the tree grows until
+    // the edit has been measured to wait that long (never 500 is checked on
+    // every try, too).
+    const LIMIT_MS = 5000;
+    const MARGIN_MS = 500;
+    let result = await tryWith(1500);
+    for (const n of [3000, 6000, 12000]) {
+      expectNever500(result.edited);
+      if (result.waited > LIMIT_MS + MARGIN_MS) break;
+      result = await tryWith(n);
+    }
+
+    expect(result.deleted.status, JSON.stringify(result.deleted.body)).toBe(
+      204,
     );
+    expect(
+      result.waited,
+      `the edit waited only ${result.waited} ms behind a delete of ${result.n} subtasks`,
+    ).toBeGreaterThan(LIMIT_MS);
+    expectNever500(result.edited);
+  }, 280_000);
 
-    const started = Date.now();
-    const deletion = ana.agent
-      .delete(`/api/cards/${parent.id}`)
-      .send({ subtasks: choices })
-      .then((r) => r);
-    // Once the delete holds the subtasks, someone edits the last one.
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    const last = subtasks[subtasks.length - 1]!.id;
-    const edit = ana.agent
-      .patch(`/api/cards/${last}`)
-      .send({ title: 'Renamed' })
-      .then((r) => r);
-
-    const [deleted, edited] = await Promise.all([deletion, edit]);
-    const took = Date.now() - started;
-    expect(deleted.status, JSON.stringify(deleted.body)).toBe(204);
-    expect(took).toBeGreaterThan(6500);
-    // Never 500: after the delete the edit works (200), or collides (409), or
-    // its card went with the delete (404).
+  // Never 500: after the delete the edit works (200), or collides (409), or
+  // its card went with the delete (404).
+  function expectNever500(edited: { status: number; body: unknown }) {
     expect(edited.status, JSON.stringify(edited.body)).not.toBe(500);
     expect([200, 404, 409]).toContain(edited.status);
+    const message = (edited.body as { message: string }).message;
     if (edited.status === 409) {
-      expect((edited.body as { message: string }).message).toBe(
+      expect(message).toBe(
         'Someone changed this card at the same time. Try again.',
       );
     }
     if (edited.status === 404) {
-      expect((edited.body as { message: string }).message).toBe(
-        'Card not found',
-      );
+      expect(message).toBe('Card not found');
     }
-  }, 180_000);
+  }
 
   async function waitersOnLocks(n: number): Promise<void> {
     const end = Date.now() + 5000;
