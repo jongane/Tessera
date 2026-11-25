@@ -699,7 +699,8 @@ describe('Files on messages (e2e)', () => {
         chatId: cardChat.id,
         boardId: board.id,
       });
-      expect(caraLive.signals).toEqual([]);
+      // The sender's own screen ignores signals marked with its connection id.
+      expect(caraLive.signals.every((s) => s.by === caraLive.id)).toBe(true);
 
       anaLive.signals.length = 0;
       await cara.agent

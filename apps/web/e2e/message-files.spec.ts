@@ -22,6 +22,8 @@ const PNG = Buffer.from(
   'hex',
 )
 const PDF = Buffer.from('%PDF-1.4\n% a tiny pretend plan, 67890\n')
+// The same name, found inside a longer text (a list item also holds "from chat").
+const SCREENSHOT_IN_TEXT = /Screenshot \d{4}-\d\d-\d\d \d\d\.\d\d\.png/
 const SCREENSHOT = /^Screenshot \d{4}-\d\d-\d\d \d\d\.\d\d\.png$/
 
 interface Person {
@@ -209,7 +211,7 @@ test('Ana sends a PDF and a pasted PNG in a card’s chat, Ben sees them live, t
     await expect(pdfRow).toContainText('from chat')
     await expect(pdfRow).toContainText('Added by Ana')
     await expect(
-      files.getByRole('listitem').filter({ hasText: SCREENSHOT }),
+      files.getByRole('listitem').filter({ hasText: SCREENSHOT_IN_TEXT }),
     ).toContainText('from chat')
   }
   await expectNoAccessibilityProblems(ben.page)
