@@ -27,7 +27,7 @@ flowchart TD
     subgraph MVP["To finish the MVP"]
         N1[Step 1: Refuse hidden NUL characters in text fields]
         N2[Step 2: Chat messages and live updates]
-        N3[Step 3: Files on cards and messages (#47, #48)]
+        N3["Step 3: Files on cards and messages (#47, #48)"]
         N4[Step 4: AI: provider layer, chat summaries, project questions]
         R([MVP complete])
     end
