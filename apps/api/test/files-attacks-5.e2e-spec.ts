@@ -8,6 +8,12 @@ import { emptyBucket } from './support/storage.js';
 
 // Same-moment changes: what the round-4 fixes left open (kept from the
 // antagonist's round 5).
+// Prisma's limit for a change that is not a large one, and how much longer than
+// that the held lock keeps the edit waiting.
+const LIMIT_MS = 5000;
+const MARGIN_MS = 500;
+const HELD_FOR_MS = 6000;
+
 describe('Card changes at the same moment, attacks round 5 (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
@@ -71,53 +77,57 @@ describe('Card changes at the same moment, attacks round 5 (e2e)', () => {
   // a 4xx: the person gets 500.
   it('answers an edit of a subtask that waited behind a long delete of its parent without 500', async () => {
     const { ana, newCard, toDo } = await fileScenario(app);
-
-    // One try: a parent with `n` subtasks is deleted, and a moment later the
-    // last subtask is edited. Answers what the two got and how long the edit
-    // itself waited.
-    async function tryWith(n: number) {
-      const parent = await newCard(`Parent of ${n}`);
-      const ids = await manySubtasks(parent.id, toDo.id, n);
-      const choices = Object.fromEntries(
-        ids.map((id) => [id, { action: 'standalone' }]),
-      );
-      const deletion = ana.agent
-        .delete(`/api/cards/${parent.id}`)
-        .send({ subtasks: choices })
-        .then((r) => r);
-      // Once the delete holds the subtasks, someone edits the last one.
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const sent = Date.now();
-      const edit = ana.agent
-        .patch(`/api/cards/${ids[ids.length - 1]!}`)
-        .send({ title: 'Renamed' })
-        .then((r) => ({ response: r, waited: Date.now() - sent }));
-      const [deleted, edited] = await Promise.all([deletion, edit]);
-      return { deleted, edited: edited.response, waited: edited.waited, n };
-    }
-
-    // The scenario needs the edit to wait longer than Prisma's 5 s limit. How
-    // big a tree that takes depends on the machine, so the tree grows until
-    // the edit has been measured to wait that long (never 500 is checked on
-    // every try, too).
-    const LIMIT_MS = 5000;
-    const MARGIN_MS = 500;
-    let result = await tryWith(1500);
-    for (const n of [3000, 6000, 12000]) {
-      expectNever500(result.edited);
-      if (result.waited > LIMIT_MS + MARGIN_MS) break;
-      result = await tryWith(n);
-    }
-
-    expect(result.deleted.status, JSON.stringify(result.deleted.body)).toBe(
-      204,
+    const parent = await newCard('Parent');
+    const ids = await manySubtasks(parent.id, toDo.id, 1500);
+    const choices = Object.fromEntries(
+      ids.map((id) => [id, { action: 'standalone' }]),
     );
+    // The delete locks the cards in id order (lockUntilCovered, card-access.ts).
+    // The test holds the row of the LAST one in a transaction of its own, so
+    // the delete sits holding every earlier row, the FIRST one included, for
+    // as long as the test wants, on any machine. The edit of the first subtask
+    // then waits behind the delete for longer than Prisma's 5 s limit.
+    const sorted = [...ids].sort();
+    const first = sorted[0]!;
+    const last = sorted[sorted.length - 1]!;
+    let releaseHeld!: () => void;
+    const held = new Promise<void>((resolve) => (releaseHeld = resolve));
+    let holding!: () => void;
+    const isHolding = new Promise<void>((resolve) => (holding = resolve));
+    const holder = prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM cards WHERE id = ${last}::uuid FOR UPDATE`;
+        holding();
+        await held;
+      },
+      { timeout: 60_000 },
+    );
+    await isHolding;
+
+    const deletion = ana.agent
+      .delete(`/api/cards/${parent.id}`)
+      .send({ subtasks: choices })
+      .then((r) => r);
+    // The delete now holds the earlier rows and waits for the held one.
+    await waitersOnLocks(1);
+    const sent = Date.now();
+    const edit = ana.agent
+      .patch(`/api/cards/${first}`)
+      .send({ title: 'Renamed' })
+      .then((r) => ({ response: r, waited: Date.now() - sent }));
+    // Long enough for the edit to pass Prisma's 5 s limit while it waits.
+    await new Promise((resolve) => setTimeout(resolve, HELD_FOR_MS));
+    releaseHeld();
+    await holder;
+
+    const [deleted, edited] = await Promise.all([deletion, edit]);
+    expect(deleted.status, JSON.stringify(deleted.body)).toBe(204);
     expect(
-      result.waited,
-      `the edit waited only ${result.waited} ms behind a delete of ${result.n} subtasks`,
-    ).toBeGreaterThan(LIMIT_MS);
-    expectNever500(result.edited);
-  }, 280_000);
+      edited.waited,
+      `the edit waited only ${edited.waited} ms behind the delete`,
+    ).toBeGreaterThan(LIMIT_MS + MARGIN_MS);
+    expectNever500(edited.response);
+  }, 60_000);
 
   // Never 500: after the delete the edit works (200), or collides (409), or
   // its card went with the delete (404).
