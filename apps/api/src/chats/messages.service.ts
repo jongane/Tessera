@@ -134,6 +134,12 @@ export class MessagesService {
       );
       return { message: toView(row), created: true };
     } catch (error) {
+      if (id !== undefined && error instanceof BadRequestException) {
+        // The files are gone because this very message (sent twice at once)
+        // took them: answer with the saved message.
+        const saved = await this.findSentOrNothing(userId, chatId, id);
+        if (saved) return { message: saved, created: false };
+      }
       // The id is taken, maybe a moment ago by this very message.
       if (id === undefined || !isUniqueViolation(error)) {
         throw error;
