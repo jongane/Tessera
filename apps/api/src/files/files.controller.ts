@@ -46,6 +46,14 @@ export class FilesController {
     return this.files.attachPending(user, chatId, req);
   }
 
+  @Get('chats/:chatId/files')
+  listPending(
+    @CurrentUser() user: SignedInUser,
+    @Param('chatId', IdParam) chatId: string,
+  ): Promise<CardFileList> {
+    return this.files.listPending(user, chatId);
+  }
+
   @Get('cards/:cardId/files')
   list(
     @CurrentUser() user: SignedInUser,

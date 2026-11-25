@@ -186,6 +186,17 @@ export class FilesService {
     return row;
   }
 
+  // The caller's own pending files in a chat, oldest first.
+  async listPending(user: SignedInUser, chatId: string): Promise<CardFileList> {
+    const chat = await this.findVisibleChat(user.id, chatId);
+    const rows = await this.prisma.file.findMany({
+      where: { pendingChatId: chat.id, uploaderId: user.id },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      include: withPeople,
+    });
+    return { files: rows.map((row) => toFileInfo(row, chat.id)) };
+  }
+
   // The card's own files and the files of messages in the card's chat.
   async list(user: SignedInUser, cardId: string): Promise<CardFileList> {
     const card = await findVisibleCard(this.prisma, user.id, cardId);
