@@ -309,7 +309,11 @@ export class FilesService {
       where: { projectId_userId: { projectId: file.projectId, userId } },
     });
     // Removed from the project while this waited: like any outsider.
-    if (!membership) throw new NotFoundException(FILE_NOT_FOUND);
+    if (!membership) {
+      throw new NotFoundException(
+        file.cardId ? 'Card not found' : FILE_NOT_FOUND,
+      );
+    }
     if (file.uploaderId === userId) return;
     if (membership.role !== 'ADMIN') {
       throw new ForbiddenException(NOT_ALLOWED_TO_REMOVE);
