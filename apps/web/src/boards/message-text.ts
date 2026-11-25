@@ -57,12 +57,14 @@ export const CARD_NUMBER_IN_TEXT =
   /(?<![A-Za-z0-9-])[A-Z]{2,6}-[1-9][0-9]*(?:\.[1-9][0-9]*)*(?![A-Za-z0-9-])/g
 
 // The text to send, or why it cannot be sent. Blank text has no reason: there
-// is nothing to send.
+// is nothing to send. With `allowBlank` (the message has files) blank text is
+// fine, and is sent as "".
 export function checkMessage(
   markdown: string,
+  allowBlank = false,
 ): { ok: true; body: string } | { ok: false; reason?: string } {
-  if (markdown === '') {
-    return { ok: false }
+  if (markdown.trim() === '') {
+    return allowBlank ? { ok: true, body: '' } : { ok: false }
   }
   const checked = checkForm(messageBodyRequestSchema, { body: markdown })
   return checked.ok

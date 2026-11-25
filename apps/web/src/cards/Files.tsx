@@ -1,5 +1,6 @@
-import { type CardFile, formatFileSize } from '@tessera/shared'
+import { type FileInfo, formatFileSize } from '@tessera/shared'
 import { useId, useRef, useState } from 'react'
+import { Link } from 'react-router'
 import { useMe } from '../api/auth'
 import { useCardFiles, useRemoveFile } from '../api/files'
 import { useMembers } from '../api/members'
@@ -7,10 +8,10 @@ import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { FORMER_MEMBER } from '../ui/former-member'
+import { ImageDialog } from '../ui/ImageDialog'
 import { Loading } from '../ui/Loading'
 import { When } from '../ui/When'
 import { useEveryMinute } from './clock'
-import { ImageDialog } from './ImageDialog'
 import type { UploadRow, Uploads } from './use-uploads'
 
 const LOAD_FAILED = 'Couldn’t load the files'
@@ -38,7 +39,7 @@ export function Files({
   const list = useCardFiles(cardId)
   const now = useEveryMinute()
   const files = list.data?.files ?? []
-  const [previewing, setPreviewing] = useState<CardFile | null>(null)
+  const [previewing, setPreviewing] = useState<FileInfo | null>(null)
   const removal = useRemoval(cardId, heading)
 
   return (
@@ -96,6 +97,7 @@ export function Files({
             <FileItem
               key={file.id}
               file={file}
+              cardId={cardId}
               projectId={projectId}
               now={now}
               failure={removal.failures[file.id] ?? null}
@@ -195,7 +197,7 @@ function useRemoval(
 ) {
   const remove = useRemoveFile(cardId)
   const [asking, setAsking] = useState<{
-    file: CardFile
+    file: FileInfo
     button: HTMLElement
   } | null>(null)
   // Set once the file is gone: focus then goes to the "Files" heading,
@@ -210,7 +212,7 @@ function useRemoval(
     setFailures((all) =>
       Object.fromEntries(Object.entries(all).filter(([key]) => key !== id)),
     )
-    remove.mutateAsync(id).then(
+    remove.mutateAsync(asking.file).then(
       () => {
         removed.current = true
         setAsking(null)
@@ -229,7 +231,7 @@ function useRemoval(
     pending: remove.isPending,
     returnFocusTo: () =>
       removed.current ? heading.current : (asking?.button ?? null),
-    ask: (file: CardFile, button: HTMLElement) => {
+    ask: (file: FileInfo, button: HTMLElement) => {
       removed.current = false
       setAsking({ file, button })
     },
@@ -240,18 +242,20 @@ function useRemoval(
 
 function FileItem({
   file,
+  cardId,
   projectId,
   now,
   failure,
   onPreview,
   onRemove,
 }: {
-  file: CardFile
+  file: FileInfo
+  cardId: string
   projectId: string
   now: number
   failure: string | null
-  onPreview: (file: CardFile) => void
-  onRemove: (file: CardFile, button: HTMLElement) => void
+  onPreview: (file: FileInfo) => void
+  onRemove: (file: FileInfo, button: HTMLElement) => void
 }) {
   const me = useMe()
   const members = useMembers(projectId)
@@ -290,6 +294,23 @@ function FileItem({
           <span className="text-sm text-muted">
             {`Added by ${file.uploader?.displayName ?? FORMER_MEMBER} `}
             <When createdAt={file.createdAt} now={now} />
+            {file.chatId && file.messageId && (
+              <>
+                {' · '}
+                <Link
+                  to={{
+                    search: `?${new URLSearchParams({
+                      card: cardId,
+                      chat: file.chatId,
+                      message: file.messageId,
+                    })}`,
+                  }}
+                  className="font-semibold text-accent hover:underline"
+                >
+                  from chat
+                </Link>
+              </>
+            )}
           </span>
         </div>
       </div>

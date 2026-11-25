@@ -233,6 +233,12 @@ function BoardScreen({ project, view }: { project: Project; view: BoardView }) {
                     dock={dock}
                     onDock={onDock}
                     onClose={() => setSearchParams(withParams({ chat: null }))}
+                    jumpTo={searchParams.get('message')}
+                    onJumped={() =>
+                      setSearchParams(withParams({ message: null }), {
+                        replace: true,
+                      })
+                    }
                   />
                 )
               : null

@@ -1,9 +1,12 @@
 import type { Chat } from '@tessera/shared'
 import { lazy, type ReactNode, Suspense } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { DropOutline } from '../ui/DropOutline'
+import { useFileDrop } from '../ui/use-file-drop'
 import { Loading } from '../ui/Loading'
 import type { MessageOutbox } from './message-outbox'
 import type { Dock } from './panel-layout'
+import { useAttach } from './use-attach'
 
 // The message list and box bring the rich-text editor with them, so they load
 // only when a chat is opened.
@@ -26,6 +29,8 @@ export function ChatPanel({
   dock,
   onDock,
   onClose,
+  jumpTo,
+  onJumped,
 }: {
   chat: Chat
   projectId: string
@@ -35,12 +40,21 @@ export function ChatPanel({
   dock: Dock
   onDock: (dock: Dock) => void
   onClose: () => void
+  // A message to bring into view (from "from chat" in a card's files), and
+  // what to do once that is done.
+  jumpTo?: string | null
+  onJumped?: () => void
 }) {
+  // Files dropped anywhere on the panel go into the message box.
+  const attach = useAttach(outbox, chat.id)
+  const drop = useFileDrop((files) => attach(files))
   return (
     <aside
       aria-label={`Chat: ${chat.title}`}
-      className="flex h-full min-h-0 flex-col bg-surface"
+      {...drop.handlers}
+      className="relative flex h-full min-h-0 flex-col bg-surface"
     >
+      {drop.dragging && <DropOutline />}
       <div className="flex items-center gap-1 border-b border-line px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate font-semibold">{chat.title}</h2>
         <DockMenu dock={dock} onDock={onDock} />
@@ -57,7 +71,13 @@ export function ChatPanel({
         {cardPart}
       </div>
       <Suspense fallback={<Loading />}>
-        <ChatMessages chat={chat} projectId={projectId} outbox={outbox} />
+        <ChatMessages
+          chat={chat}
+          projectId={projectId}
+          outbox={outbox}
+          jumpTo={jumpTo ?? undefined}
+          onJumped={onJumped}
+        />
       </Suspense>
     </aside>
   )
