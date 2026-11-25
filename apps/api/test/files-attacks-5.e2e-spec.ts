@@ -6,14 +6,14 @@ import { fileScenario } from './support/files-scenario.js';
 import { closeAllSockets, startLiveApp } from './support/live.js';
 import { emptyBucket } from './support/storage.js';
 
-// Same-moment changes: what the round-4 fixes left open (kept from the
-// antagonist's round 5).
 // Prisma's limit for a change that is not a large one, and how much longer than
 // that the held lock keeps the edit waiting.
 const LIMIT_MS = 5000;
 const MARGIN_MS = 500;
 const HELD_FOR_MS = 6000;
 
+// Same-moment changes: what the round-4 fixes left open (kept from the
+// antagonist's round 5).
 describe('Card changes at the same moment, attacks round 5 (e2e)', () => {
   let app: INestApplication<App>;
   let prisma: PrismaService;
@@ -103,30 +103,34 @@ describe('Card changes at the same moment, attacks round 5 (e2e)', () => {
       { timeout: 60_000 },
     );
     await isHolding;
+    try {
+      const deletion = ana.agent
+        .delete(`/api/cards/${parent.id}`)
+        .send({ subtasks: choices })
+        .then((r) => r);
+      // The delete now holds the earlier rows and waits for the held one.
+      await waitersOnLocks(1);
+      const sent = Date.now();
+      const edit = ana.agent
+        .patch(`/api/cards/${first}`)
+        .send({ title: 'Renamed' })
+        .then((r) => ({ response: r, waited: Date.now() - sent }));
+      // Long enough for the edit to pass Prisma's 5 s limit while it waits.
+      await new Promise((resolve) => setTimeout(resolve, HELD_FOR_MS));
+      releaseHeld();
 
-    const deletion = ana.agent
-      .delete(`/api/cards/${parent.id}`)
-      .send({ subtasks: choices })
-      .then((r) => r);
-    // The delete now holds the earlier rows and waits for the held one.
-    await waitersOnLocks(1);
-    const sent = Date.now();
-    const edit = ana.agent
-      .patch(`/api/cards/${first}`)
-      .send({ title: 'Renamed' })
-      .then((r) => ({ response: r, waited: Date.now() - sent }));
-    // Long enough for the edit to pass Prisma's 5 s limit while it waits.
-    await new Promise((resolve) => setTimeout(resolve, HELD_FOR_MS));
-    releaseHeld();
-    await holder;
-
-    const [deleted, edited] = await Promise.all([deletion, edit]);
-    expect(deleted.status, JSON.stringify(deleted.body)).toBe(204);
-    expect(
-      edited.waited,
-      `the edit waited only ${edited.waited} ms behind the delete`,
-    ).toBeGreaterThan(LIMIT_MS + MARGIN_MS);
-    expectNever500(edited.response);
+      const [deleted, edited] = await Promise.all([deletion, edit]);
+      expect(deleted.status, JSON.stringify(deleted.body)).toBe(204);
+      expect(
+        edited.waited,
+        `the edit waited only ${edited.waited} ms behind the delete`,
+      ).toBeGreaterThan(LIMIT_MS + MARGIN_MS);
+      expectNever500(edited.response);
+    } finally {
+      // Whatever happens, the row lock is let go and the holder is done.
+      releaseHeld();
+      await holder.catch(() => {});
+    }
   }, 60_000);
 
   // Never 500: after the delete the edit works (200), or collides (409), or
