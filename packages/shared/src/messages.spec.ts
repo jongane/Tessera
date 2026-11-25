@@ -3,6 +3,7 @@ import {
   messageBodyRequestSchema,
   messageBodySchema,
   newMessageSchema,
+  type FileInfo,
   type Message,
 } from './index.js';
 
@@ -142,6 +143,20 @@ describe('Message', () => {
       deletedAt: null,
       author: { id: 'u1', displayName: 'Ana' },
       deletedBy: null,
+      // PR B: every message carries its files, in upload order.
+      files: [
+        {
+          id: 'f1',
+          name: 'plan.pdf',
+          size: 12,
+          isImage: false,
+          uploader: { id: 'u1', displayName: 'Ana' },
+          createdAt: '2026-11-09T22:00:00.000Z',
+          messageId: 'm1',
+          chatId: 'c1',
+          pending: false,
+        } satisfies FileInfo,
+      ],
     };
     const deletedOfAGoneAccount: Message = {
       ...sent,
@@ -149,7 +164,9 @@ describe('Message', () => {
       deletedAt: '2026-11-09T22:10:00.000Z',
       author: null,
       deletedBy: null,
+      files: [],
     };
+    expect(sent.files[0]?.pending).toBe(false);
     expect(sent.author?.displayName).toBe('Ana');
     expect(deletedOfAGoneAccount.author).toBeNull();
   });

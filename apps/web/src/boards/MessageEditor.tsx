@@ -1,5 +1,5 @@
 import { type Editor, EditorContent, Extension, useEditor } from '@tiptap/react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   EditorToolbar,
   NumberedListIcon,
@@ -83,6 +83,14 @@ function keyboard() {
   }
 }
 
+// The files on the clipboard, when it holds files and no text. Text on the
+// clipboard (Word adds a picture of it) is pasted as text and attaches nothing.
+function pastedFiles(event: ClipboardEvent): File[] {
+  const data = event.clipboardData
+  if (!data || data.getData('text/plain') !== '') return []
+  return Array.from(data.files ?? [])
+}
+
 export function MessageEditor({
   label,
   initial,
@@ -90,6 +98,7 @@ export function MessageEditor({
   onEnter,
   onEscape,
   onChange,
+  onPasteFiles,
   children,
 }: {
   // The box's accessible name.
@@ -100,6 +109,8 @@ export function MessageEditor({
   onEnter: (editor: Editor) => void
   onEscape?: () => void
   onChange?: (markdown: string) => void
+  // Called with the files pasted into the box; nothing is inserted.
+  onPasteFiles?: (files: File[]) => void
   // Under the box: the buttons and any problem.
   children?: (editor: Editor) => ReactNode
 }) {
@@ -108,12 +119,26 @@ export function MessageEditor({
   useEffect(() => {
     keys.setHandlers({ onEnter, onEscape })
   })
+  const paste = useRef(onPasteFiles)
+  useEffect(() => {
+    paste.current = onPasteFiles
+  })
   const editor = useEditor({
     extensions: [...messageExtensions(), keys.extension],
     content: initial,
     contentType: 'markdown',
     autofocus: autofocus ? 'end' : false,
     editorProps: {
+      // Before the editor's own paste handling, which would insert something.
+      handleDOMEvents: {
+        paste: (_view, event) => {
+          const files = paste.current ? pastedFiles(event) : []
+          if (files.length === 0) return false
+          event.preventDefault()
+          paste.current?.(files)
+          return true
+        },
+      },
       attributes: {
         class:
           'max-h-40 min-h-11 overflow-y-auto rounded-lg border border-line-strong bg-surface px-3 py-2 break-words [&_code]:rounded [&_code]:bg-subtle [&_code]:px-1 [&_li]:ml-5 [&_ol]:list-decimal [&_p]:min-h-6 [&_ul]:list-disc',

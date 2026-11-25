@@ -292,16 +292,36 @@ function isDivider(line: string, at: number): boolean {
   return count >= 3;
 }
 
-export const messageBodySchema = textWithoutNul()
+export const MESSAGE_FILES_MAX = 10;
+
+export const MESSAGE_NEEDS_TEXT_OR_FILE_MESSAGE =
+  'A message needs text or at least one file. Delete the message instead.';
+
+export const MESSAGE_BLANK_MESSAGE = 'Write a message or attach a file';
+
+export const MESSAGE_CHANGED_AT_THE_SAME_TIME_MESSAGE =
+  'Someone changed this message at the same time. Try again.';
+
+export const MESSAGE_TOO_MANY_FILES_MESSAGE = `A message can have at most ${MESSAGE_FILES_MAX} files`;
+
+// The text rules of a message body, blank allowed (the trimmed text is
+// "" then). Whether blank is fine depends on the message's files.
+const messageTextSchema = textWithoutNul()
   .trim()
-  .min(1)
   .max(MESSAGE_BODY_MAX, `Use at most ${MESSAGE_BODY_MAX} characters`)
   .refine((body) => nestingLevels(body) <= MESSAGE_MAX_LEVELS, {
     message: `Use at most ${MESSAGE_MAX_LEVELS} levels of lists and quotes`,
   });
 
+export const messageBodySchema = messageTextSchema.min(
+  1,
+  MESSAGE_BLANK_MESSAGE,
+);
+
+// The edit: blank text is allowed here, and the API refuses it unless the
+// message has files.
 export const messageBodyRequestSchema = z.strictObject({
-  body: messageBodySchema,
+  body: messageTextSchema,
 });
 
 export type MessageBodyRequest = z.infer<typeof messageBodyRequestSchema>;
@@ -314,10 +334,28 @@ export const messagePageQuerySchema = z.strictObject({
 export type MessagePageQuery = z.infer<typeof messagePageQuerySchema>;
 
 // POST /api/chats/:chatId/messages. The browser may give the message an id, so
-// that sending it again (Try again) never saves it twice.
-export const newMessageSchema = z.strictObject({
-  body: messageBodySchema,
-  id: z.uuid().optional(),
-});
+// that sending it again (Try again) never saves it twice. `fileIds` are the
+// sender's pending files in this chat.
+export const newMessageSchema = z
+  .strictObject({
+    body: messageTextSchema,
+    id: z.uuid().optional(),
+    fileIds: z
+      .array(z.uuid())
+      .max(MESSAGE_FILES_MAX, MESSAGE_TOO_MANY_FILES_MESSAGE)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: 'Each file can be attached only once',
+      })
+      .optional(),
+  })
+  .superRefine((message, context) => {
+    if (message.body === '' && !message.fileIds?.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['body'],
+        message: MESSAGE_BLANK_MESSAGE,
+      });
+    }
+  });
 
 export type NewMessageBody = z.infer<typeof newMessageSchema>;

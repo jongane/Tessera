@@ -32,3 +32,17 @@
     @apply outline-2 outline-offset-2 outline-accent;
   }
 }
+
+/* A message brought into view from a card's files: pale yellow, fading out. */
+@keyframes jump-highlight {
+  from {
+    background-color: #fef9c3;
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.jump-highlight {
+  animation: jump-highlight 2s ease-out forwards;
+}

@@ -1,4 +1,5 @@
 import type {
+  FileInfo,
   Message,
   MessageBodyRequest,
   MessagePage,
@@ -12,6 +13,7 @@ import {
   replaceEqualDeep,
   useQueryClient,
 } from '@tanstack/react-query'
+import { cardFilesKey } from './files'
 import { api } from './client'
 import { messagesKey } from './query-keys'
 
@@ -61,15 +63,33 @@ function reload(queryClient: QueryClient, chatId: string) {
   return queryClient.invalidateQueries({ queryKey: messagesKey(chatId) })
 }
 
-// Sends a message. `onSaved` runs together with the cache update, so a
-// message shown as "sending" can be swapped for the saved one in one step.
-export function useSendMessage(chatId: string) {
+// The files of the card whose chat this is change with its messages.
+function reloadCardFiles(queryClient: QueryClient, cardId: string | null) {
+  if (cardId) {
+    void queryClient.invalidateQueries({ queryKey: cardFilesKey(cardId) })
+  }
+}
+
+// Sends a message, with the pending files it names (none when `files` is
+// undefined). `onSaved` runs together with the cache update, so a message
+// shown as "sending" can be swapped for the saved one in one step.
+export function useSendMessage(chatId: string, cardId: string | null) {
   const queryClient = useQueryClient()
-  return (id: string, body: string, onSaved: (shown: boolean) => void) =>
+  return (
+    id: string,
+    body: string,
+    files: FileInfo[] | undefined,
+    onSaved: (shown: boolean) => void,
+  ) =>
     api<Message>(`/chats/${chatId}/messages`, {
       method: 'POST',
-      body: { id, body } satisfies NewMessageBody,
+      body: {
+        id,
+        body,
+        ...(files && { fileIds: files.map((file) => file.id) }),
+      } satisfies NewMessageBody,
     }).then((saved) => {
+      if (files?.length) reloadCardFiles(queryClient, cardId)
       const shown = updateShown(queryClient, chatId, (page, index) =>
         index === 0 && !page.messages.some((m) => m.id === saved.id)
           ? { ...page, messages: [...page.messages, saved] }
@@ -83,6 +103,7 @@ export function useSendMessage(chatId: string) {
 function useChangeMessage<V>(
   chatId: string,
   send: (variables: V) => Promise<Message>,
+  cardId: string | null = null,
 ) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -92,6 +113,7 @@ function useChangeMessage<V>(
         ...page,
         messages: page.messages.map((m) => (m.id === saved.id ? saved : m)),
       }))
+      if (saved.deletedAt) reloadCardFiles(queryClient, cardId)
       void reload(queryClient, chatId)
     },
   })
@@ -108,10 +130,34 @@ export function useEditMessage(chatId: string) {
   )
 }
 
-export function useDeleteMessage(chatId: string) {
-  return useChangeMessage(chatId, (id: string) =>
-    api<Message>(`/messages/${id}`, { method: 'DELETE' }),
+export function useDeleteMessage(chatId: string, cardId: string | null) {
+  return useChangeMessage(
+    chatId,
+    (id: string) => api<Message>(`/messages/${id}`, { method: 'DELETE' }),
+    cardId,
   )
+}
+
+// Removes one file of a message. The message's files change, and so do the
+// files the chat's card lists.
+export function useRemoveMessageFile(chatId: string, cardId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (file: FileInfo) =>
+      api<void>(`/files/${file.id}`, { method: 'DELETE' }),
+    onSuccess: (_, file) => {
+      updateShown(queryClient, chatId, (page) => ({
+        ...page,
+        messages: page.messages.map((m) =>
+          m.id === file.messageId
+            ? { ...m, files: m.files.filter((f) => f.id !== file.id) }
+            : m,
+        ),
+      }))
+      reloadCardFiles(queryClient, cardId)
+      void reload(queryClient, chatId)
+    },
+  })
 }
 
 // A reload loads the newest pages again, and the pages further back would start

@@ -1,9 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { useServerSettings } from '../api/auth'
-import { uploadFile } from '../api/files'
+import { showStoredOnCard, uploadFile } from '../api/files'
 
 const MB = 1024 * 1024
+
+// "plan.mov is bigger than 100 MB" for each file over the server's limit.
+export function tooBigMessage(file: File, limit: number): string {
+  return `${file.name} is bigger than ${Math.floor(limit / MB)} MB`
+}
 
 export interface UploadRow {
   id: number
@@ -38,9 +43,12 @@ export function useUploads(cardId: string) {
 
   // Starts (or restarts, for Try again) the upload of `file` in row `id`.
   function send(file: File, id: number) {
-    const running = uploadFile(queryClient, cardId, file, {
+    const running = uploadFile(`/cards/${cardId}/files`, file, file.name, {
       onProgress: (percent) => change(id, { percent }),
-      onDone: () => drop(id),
+      onDone: (stored) => {
+        showStoredOnCard(queryClient, cardId, stored)
+        drop(id)
+      },
       onFailed: (error) => change(id, { error }),
       onCancelled: () => drop(id),
     })
@@ -54,11 +62,7 @@ export function useUploads(cardId: string) {
 
   function attach(files: File[]) {
     const tooLarge = files.filter((f) => limit !== undefined && f.size > limit)
-    setTooBig(
-      tooLarge.map(
-        (f) => `${f.name} is bigger than ${Math.floor(limit! / MB)} MB`,
-      ),
-    )
+    setTooBig(tooLarge.map((f) => tooBigMessage(f, limit!)))
     for (const file of files) {
       if (!tooLarge.includes(file)) send(file, nextId.current++)
     }

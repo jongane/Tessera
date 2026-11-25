@@ -91,9 +91,11 @@ export function DeleteCardDialog({
     ({ subtask }) => choiceFor(subtask.id) === "delete",
   );
   const deletedIds = [card.id, ...deleted.map(({ subtask }) => subtask.id)];
+  // The card's own files only: the files of its chat stay with the chat.
+  const ownFileCount =
+    ownFiles.data?.files.filter((file) => file.messageId === null).length ?? 0;
   const fileCount =
-    (ownFiles.data?.files.length ?? 0) +
-    deleted.reduce((sum, { fileCount: n }) => sum + n, 0);
+    ownFileCount + deleted.reduce((sum, { fileCount: n }) => sum + n, 0);
   const target =
     fileTarget && !deletedIds.includes(fileTarget.id) ? fileTarget : null;
   // With files, a choice is needed: nothing is picked for the person.
@@ -224,7 +226,7 @@ export function DeleteCardDialog({
         {fileCount > 0 && (
           <FilesChoice
             count={fileCount}
-            withSubtasks={fileCount > (ownFiles.data?.files.length ?? 0)}
+            withSubtasks={fileCount > ownFileCount}
             projectId={card.projectId}
             choice={fileChoice}
             target={target}

@@ -143,3 +143,113 @@ export async function fileScenario(app: INestApplication<App>) {
   }
   return { ...scenario, board, card, newCard, newSubtask, cardInOtherProject };
 }
+
+// Files on messages, PR B: the same for a chat's pending upload
+// (POST /api/chats/:chatId/files).
+export function uploadToChat(
+  agent: Agent,
+  chatId: string,
+  what: {
+    filename: string;
+    data: Buffer | string;
+    contentType?: string;
+    extra?: Part[];
+  },
+) {
+  const { body, contentType } = multipart([
+    {
+      field: 'file',
+      filename: what.filename,
+      contentType: what.contentType,
+      data: what.data,
+    },
+    ...(what.extra ?? []),
+  ]);
+  return agent
+    .post(`/api/chats/${chatId}/files`)
+    .set('Content-Type', contentType)
+    .send(body);
+}
+
+export function uploadPartsToChat(agent: Agent, chatId: string, parts: Part[]) {
+  const { body, contentType } = multipart(parts);
+  return agent
+    .post(`/api/chats/${chatId}/files`)
+    .set('Content-Type', contentType)
+    .send(body);
+}
+
+// A file as the API gives it (docs/api.md, "Files").
+export interface FileJson {
+  id: string;
+  name: string;
+  size: number;
+  isImage: boolean;
+  uploader: { id: string; displayName: string } | null;
+  createdAt: string;
+  messageId: string | null;
+  chatId: string | null;
+  pending: boolean;
+}
+
+export interface MessageJson {
+  id: string;
+  chatId: string;
+  body: string;
+  files: FileJson[];
+  deletedAt: string | null;
+}
+
+// fileScenario plus the board's general chat, the card's own chat and
+// helpers to upload pending files and send messages. Ana is the project's
+// admin, Cara a plain member, Ben not a member.
+export async function messageFileScenario(app: INestApplication<App>) {
+  const scenario = await fileScenario(app);
+  const { ana, board, card } = scenario;
+  const chats = (await ana.agent.get(`/api/boards/${board.id}/chats`)).body as {
+    id: string;
+    kind: string;
+  }[];
+  const general = chats.find((c) => c.kind === 'GENERAL')!;
+  const cardChat = (await ana.agent.get(`/api/cards/${card.id}`)).body.chat as {
+    id: string;
+  };
+
+  type Who = { agent: Agent };
+
+  // `who` uploads `name` as a pending file in `chatId`.
+  async function pend(
+    who: Who,
+    chatId: string,
+    name: string,
+    data: Buffer | string = Buffer.from(`%PDF-1.7 ${name}`),
+  ): Promise<FileJson> {
+    const response = await uploadToChat(who.agent, chatId, {
+      filename: name,
+      data,
+    }).expect(201);
+    return response.body as FileJson;
+  }
+
+  // `who` sends a message with these pending files (ids), and it is saved.
+  async function sendWith(
+    who: Who,
+    chatId: string,
+    body: string,
+    fileIds: string[],
+  ): Promise<MessageJson> {
+    const response = await who.agent
+      .post(`/api/chats/${chatId}/messages`)
+      .send({ body, fileIds })
+      .expect(201);
+    return response.body as MessageJson;
+  }
+
+  return {
+    ...scenario,
+    general,
+    cardChat,
+    pend,
+    sendWith,
+  };
+}

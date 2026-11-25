@@ -1,5 +1,11 @@
-import type { Chat, Message } from '@tessera/shared'
-import { useLayoutEffect, useRef, useState, type UIEvent } from 'react'
+import type { Chat, FileInfo, Message } from '@tessera/shared'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type UIEvent,
+} from 'react'
 import { useMe } from '../api/auth'
 import { useMembers } from '../api/members'
 import { useMessages, useSendMessage } from '../api/messages'
@@ -12,11 +18,20 @@ import { MessageItem, type Outgoing } from './MessageItem'
 import {
   type MessageOutbox,
   type OutgoingMessage,
+  useBoxInUse,
   useOutgoing,
 } from './message-outbox'
-import { COULDNT_SEND, followsOnFrom, refusalOr } from './message-text'
+import {
+  COULDNT_SEND,
+  FILE_GONE,
+  followsOnFrom,
+  refusalOr,
+} from './message-text'
 
 const LOAD_FAILED = 'Couldn’t load the messages'
+
+// How long a message brought into view stays highlighted, in milliseconds.
+const HIGHLIGHT_MS = 2000
 
 // How close to the end counts as being at the bottom, in pixels.
 const NEAR_BOTTOM = 40
@@ -34,16 +49,22 @@ export default function ChatMessages({
   chat,
   projectId,
   outbox,
+  jumpTo,
+  onJumped,
 }: {
   chat: Chat
   projectId: string
   outbox: MessageOutbox
+  // A message to bring into view, and what to do once that is done.
+  jumpTo?: string
+  onJumped?: () => void
 }) {
   const me = useMe().data ?? null
   const members = useMembers(projectId)
   const messages = useMessages(chat.id)
   const outgoing = useOutgoing(outbox, chat.id)
-  const saveNew = useSendMessage(chat.id)
+  const boxInUse = useBoxInUse(outbox, chat.id)
+  const saveNew = useSendMessage(chat.id, chat.cardId)
   const now = useEveryMinute()
   const scroller = useRef<HTMLDivElement>(null)
   // Whether the person is reading the newest messages.
@@ -55,7 +76,7 @@ export default function ChatMessages({
 
   function post(entry: OutgoingMessage) {
     outbox.update(entry, { status: 'sending', error: undefined })
-    saveNew(entry.id, entry.body, (shown) =>
+    saveNew(entry.id, entry.body, entry.files, (shown) =>
       // Without a loaded list the saved message stays here until a reload.
       shown ? outbox.remove(entry) : outbox.update(entry, { status: 'saved' }),
     ).catch((error: unknown) =>
@@ -66,10 +87,14 @@ export default function ChatMessages({
     )
   }
 
-  function send(body: string) {
+  function send(body: string, files?: FileInfo[]) {
     atBottom.current = true
-    post(outbox.add(chat.id, body))
+    post(outbox.add(chat.id, body, files))
   }
+
+  // Leaving the chat drops a message that was waiting for its files: nothing
+  // is sent behind the person's back.
+  useEffect(() => () => outbox.stopWaiting(chat.id), [outbox, chat.id])
 
   const isAdmin =
     members.data?.find((member) => member.userId === me?.id)?.role === 'ADMIN'
@@ -96,16 +121,32 @@ export default function ChatMessages({
           deletedAt: null,
           author: me && { id: me.id, displayName: me.displayName },
           deletedBy: null,
+          files: entry.files ?? [],
         },
         outgoing: {
           status: entry.status,
           error: entry.error,
           onRetry: () => post(entry),
+          onPutBack:
+            entry.error === FILE_GONE
+              ? () => {
+                  outbox.remove(entry)
+                  outbox.putBack(
+                    chat.id,
+                    entry.body,
+                    (entry.files ?? []).map((file) => file.id),
+                  )
+                }
+              : undefined,
+          putBackDisabled: boxInUse,
         },
       })),
   ]
   // The list appears once the messages and the members are loaded.
   const listShown = messages.data !== undefined && !members.isPending
+  const jump = useJumpTo(messages, shownIds, listShown, jumpTo, onJumped)
+  const canRemoveFile = (file: FileInfo) =>
+    isAdmin || (file.uploader !== null && file.uploader.id === me?.id)
   const firstId = rows[0]?.message.id
   const lastRow = rows[rows.length - 1]?.message
 
@@ -190,6 +231,9 @@ export default function ChatMessages({
                 showHeader={!followsOnFrom(message, rows[index - 1]?.message)}
                 canEdit={mine && !row.outgoing}
                 canDelete={(mine || isAdmin) && !row.outgoing}
+                canRemoveFile={canRemoveFile}
+                cardId={chat.cardId}
+                highlighted={jump.highlighted === message.id}
                 outgoing={row.outgoing}
               />
             )
@@ -232,6 +276,7 @@ export default function ChatMessages({
               Show older messages
             </Button>
           )}
+          {jump.loading && <Loading />}
           {log}
         </div>
         {newBelow && (
@@ -254,4 +299,61 @@ export default function ChatMessages({
       </div>
     </div>
   )
+}
+
+// Brings the message `jumpTo` into view: loads older pages until it is
+// there, scrolls to it, gives it focus and highlights it for a moment (then
+// `onJumped`). `loading` is true while it is being looked for.
+function useJumpTo(
+  messages: ReturnType<typeof useMessages>,
+  shownIds: Set<string>,
+  listShown: boolean,
+  jumpTo: string | undefined,
+  onJumped: (() => void) | undefined,
+) {
+  const [highlighted, setHighlighted] = useState<string | null>(null)
+  // The message already brought into view (or given up on).
+  const done = useRef<string | null>(null)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+  const latest = useRef(onJumped)
+  useEffect(() => {
+    latest.current = onJumped
+  })
+  useEffect(() => {
+    const running = timers.current
+    return () => running.forEach(clearTimeout)
+  }, [])
+  const found = jumpTo !== undefined && shownIds.has(jumpTo)
+  const fetching = messages.isFetchingNextPage
+  const hasOlder = messages.hasNextPage
+  const fetchOlder = messages.fetchNextPage
+
+  useEffect(() => {
+    if (!jumpTo || !listShown || done.current === jumpTo) return
+    if (found) {
+      done.current = jumpTo
+      const item = document.querySelector<HTMLElement>(
+        `[data-message-id="${CSS.escape(jumpTo)}"]`,
+      )
+      item?.scrollIntoView?.({ block: 'center' })
+      item?.focus()
+      timers.current.push(
+        setTimeout(() => setHighlighted(jumpTo), 0),
+        setTimeout(() => {
+          setHighlighted(null)
+          latest.current?.()
+        }, HIGHLIGHT_MS),
+      )
+    } else if (hasOlder && !fetching) {
+      void fetchOlder()
+    } else if (!hasOlder && !fetching) {
+      // Not in this chat any more: nothing to bring into view.
+      done.current = jumpTo
+      latest.current?.()
+    }
+  }, [jumpTo, listShown, found, hasOlder, fetching, fetchOlder])
+
+  const loading =
+    jumpTo !== undefined && listShown && !found && (hasOlder || fetching)
+  return { highlighted, loading }
 }

@@ -73,3 +73,21 @@ export function formatFileSize(bytes: number): string {
   const rounded = Math.round(value * 10) / 10;
   return `${rounded} ${units[unit]}`;
 }
+
+const two = (value: number) => String(value).padStart(2, '0');
+
+// The name of a pasted screenshot: "Screenshot 2026-11-16 14.05.png", in the
+// person's own date and time. When that name is already `taken` (two pasted in
+// the same minute), the seconds are added. `extension` has no dot.
+export function screenshotName(
+  when: Date,
+  extension: string,
+  taken: readonly string[] = [],
+): string {
+  const day = `${when.getFullYear()}-${two(when.getMonth() + 1)}-${two(when.getDate())}`;
+  const minute = `${day} ${two(when.getHours())}.${two(when.getMinutes())}`;
+  const plain = `Screenshot ${minute}.${extension}`;
+  return taken.includes(plain)
+    ? `Screenshot ${minute}.${two(when.getSeconds())}.${extension}`
+    : plain;
+}

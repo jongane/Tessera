@@ -349,7 +349,10 @@ export function useSubtasksForDelete(cardId: string, enabled: boolean) {
     subtasks: subtasks.map((subtask, index) => ({
       subtask,
       hasSubtasks: (own[index]?.data?.progress.total ?? 0) > 0,
-      fileCount: files[index]?.data?.files.length ?? 0,
+      // Own files only: the files of a subtask's chat stay with the chat.
+      fileCount:
+        files[index]?.data?.files.filter((f) => f.messageId === null).length ??
+        0,
     })),
   }
 }

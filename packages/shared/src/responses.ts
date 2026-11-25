@@ -20,9 +20,10 @@ export interface ServerSettings {
   fileSizeLimitBytes: number;
 }
 
-// A file on a card (docs/api.md, "Files"). POST /api/cards/:cardId/files
-// answers with one; GET /api/cards/:cardId/files with a list.
-export interface CardFile {
+// A file on a card or a message, or a pending file in a chat (docs/api.md,
+// "Files"). POST /api/cards/:cardId/files and POST /api/chats/:chatId/files
+// answer with one; GET /api/cards/:cardId/files with a list.
+export interface FileInfo {
   id: string;
   name: string;
   size: number;
@@ -32,14 +33,17 @@ export interface CardFile {
   // Null once the uploader's account has been deleted.
   uploader: { id: string; displayName: string } | null;
   createdAt: string;
-  // Both null for a card's own file.
+  // Both null for a card's own file. A message file has both; a pending file
+  // has only chatId.
   messageId: string | null;
   chatId: string | null;
+  // True until the message the file was uploaded for is sent.
+  pending: boolean;
 }
 
 // GET /api/cards/:cardId/files, newest first.
 export interface CardFileList {
-  files: CardFile[];
+  files: FileInfo[];
 }
 
 export interface Project {
@@ -256,6 +260,8 @@ export interface Message {
   deletedAt: string | null;
   author: MessagePerson | null;
   deletedBy: MessagePerson | null;
+  // In upload order; empty once the message is deleted.
+  files: FileInfo[];
 }
 
 // GET /api/chats/:chatId/messages: the newest 50 (or the 50 before a given

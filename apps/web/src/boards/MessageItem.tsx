@@ -1,4 +1,4 @@
-import type { Message } from '@tessera/shared'
+import type { FileInfo, Message } from '@tessera/shared'
 import { Component, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useDeleteMessage, useEditMessage } from '../api/messages'
 import { ActionsMenu } from '../cards/ActionsMenu'
@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { exactTime } from '../ui/time-text'
 import { When } from '../ui/When'
 import { MessageEditor } from './MessageEditor'
+import { MessageFiles } from './MessageFiles'
 import { canHoldInMessageBox } from './message-extensions'
 import { MessageBoundary } from './MessageBoundary'
 import { MessageBody } from './message-markdown'
@@ -26,6 +27,10 @@ export interface Outgoing {
   status: 'sending' | 'failed' | 'saved'
   error?: string
   onRetry: () => void
+  // Takes the message back into the message box (a refused file is gone).
+  onPutBack?: () => void
+  // The box already has something in it, so nothing can be put back now.
+  putBackDisabled?: boolean
 }
 
 export function MessageItem({
@@ -35,6 +40,9 @@ export function MessageItem({
   showHeader,
   canEdit,
   canDelete,
+  canRemoveFile,
+  cardId,
+  highlighted = false,
   outgoing,
 }: {
   message: Message
@@ -45,6 +53,12 @@ export function MessageItem({
   showHeader: boolean
   canEdit: boolean
   canDelete: boolean
+  // Whether the person may remove this file (its uploader, or a project admin).
+  canRemoveFile: (file: FileInfo) => boolean
+  // The card whose chat this is, if any: it lists the files of the chat.
+  cardId: string | null
+  // Brought into view from a card's files: a pale background that fades.
+  highlighted?: boolean
   outgoing?: Outgoing
 }) {
   const [editStarted, setEditing] = useState(false)
@@ -85,7 +99,9 @@ export function MessageItem({
     <li
       ref={item}
       tabIndex={-1}
-      className={`relative flex flex-col gap-0.5 ${showHeader ? 'mt-3' : ''} ${outgoing?.status === 'sending' ? 'opacity-60' : ''}`}
+      data-message-id={message.id}
+      data-highlighted={highlighted ? 'true' : undefined}
+      className={`relative flex flex-col gap-0.5 ${showHeader ? 'mt-3' : ''} ${outgoing?.status === 'sending' ? 'opacity-60' : ''} ${highlighted ? 'jump-highlight' : ''}`}
     >
       {showHeader ? (
         <div className="flex items-baseline gap-2 pr-8">
@@ -131,6 +147,20 @@ export function MessageItem({
           )}
         </>
       )}
+      {!deleted && (
+        <MessageFiles
+          files={message.files}
+          chatId={message.chatId}
+          cardId={cardId}
+          canRemove={canRemoveFile}
+          readOnly={outgoing !== undefined}
+          afterRemoval={() =>
+            item.current?.querySelector<HTMLElement>(
+              'button[aria-label="Message options"]',
+            ) ?? item.current
+          }
+        />
+      )}
       {outgoing?.status === 'sending' && (
         <p className="text-sm text-muted">Sending…</p>
       )}
@@ -140,6 +170,21 @@ export function MessageItem({
           <Button variant="link" className="min-h-8" onClick={outgoing.onRetry}>
             Try again
           </Button>
+          {outgoing.onPutBack && (
+            <Button
+              variant="link"
+              className="min-h-8"
+              disabled={outgoing.putBackDisabled}
+              onClick={outgoing.onPutBack}
+            >
+              Put back in the box
+            </Button>
+          )}
+          {outgoing.onPutBack && outgoing.putBackDisabled && (
+            <span className="text-muted">
+              Send or clear the message box first
+            </span>
+          )}
         </p>
       )}
       {menu.length > 0 && !deleted && !editing && (
@@ -153,6 +198,7 @@ export function MessageItem({
       {deleting !== false && (
         <DeleteDialog
           message={message}
+          cardId={cardId}
           opener={deleting}
           onClose={() => setDeleting(false)}
           onFailed={(reason) => {
@@ -177,7 +223,7 @@ function useSaveEdit(message: Message, onDone: () => void) {
     if (edit.isPending) {
       return
     }
-    const checked = checkMessage(markdown)
+    const checked = checkMessage(markdown, message.files.length > 0)
     if (!checked.ok) {
       setProblem(checked.reason ?? 'This can’t be empty')
     } else if (checked.body === message.body) {
@@ -372,17 +418,19 @@ function RichEditForm({
 
 function DeleteDialog({
   message,
+  cardId,
   opener,
   onClose,
   onFailed,
 }: {
   message: Message
+  cardId: string | null
   opener: HTMLElement | null
   onClose: () => void
   // The window closes and the message shows why the delete failed.
   onFailed: (reason: string) => void
 }) {
-  const remove = useDeleteMessage(message.chatId)
+  const remove = useDeleteMessage(message.chatId, cardId)
   return (
     <ConfirmDialog
       title="Delete this message?"
@@ -399,6 +447,8 @@ function DeleteDialog({
       }
     >
       Everyone can still read it, crossed out. This can’t be undone.
+      {message.files.length > 0 &&
+        ` Its ${message.files.length === 1 ? 'file' : `${message.files.length} files`} will be deleted too.`}
     </ConfirmDialog>
   )
 }

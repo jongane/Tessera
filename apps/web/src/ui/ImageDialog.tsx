@@ -1,6 +1,6 @@
-import type { CardFile } from '@tessera/shared'
-import { Button } from '../ui/Button'
-import { Dialog, DialogClose } from '../ui/Dialog'
+import type { FileInfo } from '@tessera/shared'
+import { Button } from './Button'
+import { Dialog, DialogClose } from './Dialog'
 
 // An image file at full size, with a way to download it. Escape or Close
 // brings back the card, with focus on the preview that was opened.
@@ -8,7 +8,7 @@ export function ImageDialog({
   file,
   onClose,
 }: {
-  file: CardFile
+  file: FileInfo
   onClose: () => void
 }) {
   return (

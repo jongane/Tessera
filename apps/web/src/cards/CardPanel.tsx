@@ -5,14 +5,7 @@ import type {
   Project,
 } from '@tessera/shared'
 import * as Tabs from '@radix-ui/react-tabs'
-import {
-  type DragEvent,
-  type KeyboardEvent,
-  lazy,
-  Suspense,
-  useRef,
-  useState,
-} from 'react'
+import { type KeyboardEvent, lazy, Suspense, useState } from 'react'
 import { useBlocker } from 'react-router'
 import { useMe } from '../api/auth'
 import { ApiError } from '../api/client'
@@ -26,6 +19,8 @@ import { findCard } from '../boards/move-card'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { DropOutline } from '../ui/DropOutline'
+import { useFileDrop } from '../ui/use-file-drop'
 import { Loading } from '../ui/Loading'
 import {
   DueField,
@@ -102,13 +97,7 @@ function CardPanelFrame(props: CardPanelProps) {
       {...drop.handlers}
       className="relative flex h-full min-h-0 flex-col bg-surface"
     >
-      {drop.dragging && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-accent bg-surface/80">
-          <p className="rounded-lg bg-surface px-4 py-2 text-lg font-semibold text-ink">
-            Drop files to attach
-          </p>
-        </div>
-      )}
+      {drop.dragging && <DropOutline />}
       {found ? (
         <CardDetails
           {...props}
@@ -131,47 +120,6 @@ function CardPanelFrame(props: CardPanelProps) {
       )}
     </aside>
   )
-}
-
-// Files dropped anywhere on the panel are attached to the card. While files
-// are dragged over it, `dragging` is true, to show an outline. The counter
-// copes with the drag entering and leaving the panel's own parts.
-function useFileDrop(attach: (files: File[]) => void) {
-  const [dragging, setDragging] = useState(false)
-  const depth = useRef(0)
-
-  const hasFiles = (event: DragEvent) =>
-    Array.from(event.dataTransfer?.types ?? []).includes('Files')
-
-  return {
-    dragging,
-    handlers: {
-      onDragEnter(event: DragEvent) {
-        if (!hasFiles(event)) return
-        depth.current += 1
-        setDragging(true)
-      },
-      onDragOver(event: DragEvent) {
-        if (!hasFiles(event)) return
-        // Allows the drop.
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'copy'
-        setDragging(true)
-      },
-      onDragLeave(event: DragEvent) {
-        if (!hasFiles(event)) return
-        depth.current = Math.max(0, depth.current - 1)
-        if (depth.current === 0) setDragging(false)
-      },
-      onDrop(event: DragEvent) {
-        if (!hasFiles(event)) return
-        event.preventDefault()
-        depth.current = 0
-        setDragging(false)
-        attach(Array.from(event.dataTransfer.files))
-      },
-    },
-  }
 }
 
 // Escape closes the panel, unless it was pressed in a box being typed in,
